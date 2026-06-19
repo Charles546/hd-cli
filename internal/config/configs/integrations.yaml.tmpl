@@ -12,21 +12,21 @@ systems:
     # GitHub App authentication
     app_id: {{ .GithubAppID | quote }}
     installation_id: {{ .GithubInstallationID | quote }}
-    private_key: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/githubPrivateKey]
+    private_key: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/githubPrivateKey]
 {{- else }}
     # PAT authentication
-    token: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/githubToken]
+    token: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/githubToken]
 {{- end }}
-    webhook_secret: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/githubWebhookSecret]
+    webhook_secret: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/githubWebhookSecret]
 
   # Slack Integration
   slack:
     type: slack
-    bot_token: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/slackBotToken]
-    signing_secret: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/slackSigningSecret]
+    bot_token: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/slackBotToken]
+    signing_secret: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/slackSigningSecret]
 {{- if .SlackInteractionTokenPath }}
-    interaction_token: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/slackInteractionToken]
+    interaction_token: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/slackInteractionToken]
 {{- end }}
 {{- if .SlackSlashCommandTokenPath }}
-    slash_command_token: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/slackSlashCommandToken]
+    slash_command_token: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/slackSlashCommandToken]
 {{- end }}

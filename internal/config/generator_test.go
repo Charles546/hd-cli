@@ -207,6 +207,9 @@ func TestApplyDefaults(t *testing.T) {
 	if cfg.DockerAPIPort == 0 {
 		t.Error("DockerAPIPort should have default")
 	}
+	if cfg.BootstrapCloneCredentialType != "none" {
+		t.Errorf("BootstrapCloneCredentialType default should be 'none', got %q", cfg.BootstrapCloneCredentialType)
+	}
 }
 
 func TestGenerateNilConfig(t *testing.T) {
@@ -215,4 +218,278 @@ func TestGenerateNilConfig(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for nil config")
 	}
+}
+
+// TestInitYamlUsesPluralReposAndIncludes verifies Fix 1: init.yaml uses "repos" and "includes" (plural).
+func TestInitYamlUsesPluralReposAndIncludes(t *testing.T) {
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-plural"
+	cfg.EssentialsRepoURL = "https://github.com/example/essentials.git"
+	cfg.EssentialsBranch = "main"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	initPath := filepath.Join(tmpDir, "init.yaml")
+	content, err := os.ReadFile(initPath)
+	if err != nil {
+		t.Fatalf("failed to read init.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Must use "repos:" (plural), not "repo:" (singular)
+	if !strings.Contains(yamlStr, "repos:") {
+		t.Error("init.yaml should contain 'repos:' (plural)")
+	}
+	if strings.Contains(yamlStr, "\nrepo:") {
+		t.Error("init.yaml should not contain 'repo:' (singular)")
+	}
+
+	// Must use "includes:" (plural), not "include:" (singular)
+	if !strings.Contains(yamlStr, "includes:") {
+		t.Error("init.yaml should contain 'includes:' (plural)")
+	}
+	if strings.Contains(yamlStr, "\ninclude:") {
+		t.Error("init.yaml should not contain 'include:' (singular)")
+	}
+}
+
+// TestLookupStringsHaveNoSpaces verifies Fix 3: LOOKUP strings have no spaces after commas.
+func TestLookupStringsHaveNoSpaces(t *testing.T) {
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-lookup"
+	cfg.AIEnabled = true
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Check all generated YAML files for LOOKUP strings with spaces after commas
+	files := []string{
+		"init.yaml",
+		"integrations.yaml",
+		"drivers.yaml",
+		"daemon.yaml",
+		"workflows.yaml",
+		"ai/basic.yaml",
+		"ai/engines.yaml",
+	}
+	for _, f := range files {
+		path := filepath.Join(tmpDir, f)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue // file might not exist (e.g., ai files if AI disabled)
+		}
+		yamlStr := string(content)
+
+		// Check for LOOKUP[vault, pattern (space after comma) - this is wrong
+		if strings.Contains(yamlStr, "LOOKUP[vault, ") {
+			t.Errorf("%s contains LOOKUP with space after comma", f)
+		}
+		if strings.Contains(yamlStr, "LOOKUP[secure_exec, ") {
+			t.Errorf("%s contains LOOKUP with space after comma", f)
+		}
+
+		// Verify LOOKUP strings use no-space format: LOOKUP[driver,path]
+		// Find all LOOKUP[ occurrences and ensure no space after comma
+		lines := strings.Split(yamlStr, "\n")
+		for lineNum, line := range lines {
+			if strings.Contains(line, "LOOKUP[") {
+				// Extract the LOOKUP content
+				start := strings.Index(line, "LOOKUP[")
+				end := strings.Index(line[start:], "]")
+				if end > 0 {
+					lookupContent := line[start+7 : start+end]
+					if strings.Contains(lookupContent, ", ") {
+						t.Errorf("%s line %d: LOOKUP content %q has space after comma", f, lineNum+1, lookupContent)
+					}
+				}
+			}
+		}
+	}
+}
+
+// TestBootstrapCloneCredentialsInInitYaml verifies Fix 2: credentials in init.yaml.
+func TestBootstrapCloneCredentialsInInitYaml(t *testing.T) {
+	// Test with PAT credential type
+	t.Run("pat credentials", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-pat"
+		cfg.BootstrapCloneCredentialType = "pat"
+		cfg.BootstrapClonePassEnv = "DIPPER_GIT_PASS"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		initPath := filepath.Join(tmpDir, "init.yaml")
+		content, err := os.ReadFile(initPath)
+		if err != nil {
+			t.Fatalf("failed to read init.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "pass_env:") {
+			t.Error("init.yaml should contain 'pass_env:' for PAT credential type")
+		}
+		if !strings.Contains(yamlStr, "DIPPER_GIT_PASS") {
+			t.Error("init.yaml should reference DIPPER_GIT_PASS env var")
+		}
+	})
+
+	// Test with GitHub App credential type
+	t.Run("github_app credentials", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-ghapp"
+		cfg.BootstrapCloneCredentialType = "github_app"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		initPath := filepath.Join(tmpDir, "init.yaml")
+		content, err := os.ReadFile(initPath)
+		if err != nil {
+			t.Fatalf("failed to read init.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "token_source: github") {
+			t.Error("init.yaml should contain 'token_source: github' for github_app credential type")
+		}
+	})
+
+	// Test with no credentials (public repo)
+	t.Run("no credentials", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-none"
+		cfg.BootstrapCloneCredentialType = "none"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		initPath := filepath.Join(tmpDir, "init.yaml")
+		content, err := os.ReadFile(initPath)
+		if err != nil {
+			t.Fatalf("failed to read init.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if strings.Contains(yamlStr, "token_source:") {
+			t.Error("init.yaml should not contain 'token_source:' when credential type is 'none'")
+		}
+		if strings.Contains(yamlStr, "pass_env:") {
+			t.Error("init.yaml should not contain 'pass_env:' when credential type is 'none'")
+		}
+	})
+}
+
+// TestBootstrapCloneCredentialsInDockerCompose verifies Fix 2: credentials in docker-compose.yaml.
+func TestBootstrapCloneCredentialsInDockerCompose(t *testing.T) {
+	// Test with PAT credential type
+	t.Run("pat credentials in docker-compose", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-dc-pat"
+		cfg.DeploymentMode = "docker"
+		cfg.BootstrapCloneCredentialType = "pat"
+		cfg.BootstrapClonePassEnv = "DIPPER_GIT_PASS"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "DIPPER_GIT_PASS=${DIPPER_GIT_PASS}") {
+			t.Error("docker-compose.yaml should pass through DIPPER_GIT_PASS env var")
+		}
+	})
+
+	// Test with GitHub App credential type
+	t.Run("github_app credentials in docker-compose", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-dc-ghapp"
+		cfg.DeploymentMode = "docker"
+		cfg.BootstrapCloneCredentialType = "github_app"
+		cfg.GithubAppID = "12345"
+		cfg.GithubInstallationID = "67890"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "GH_APP_ID=${GH_APP_ID}") {
+			t.Error("docker-compose.yaml should pass through GH_APP_ID env var")
+		}
+		if !strings.Contains(yamlStr, "GH_APP_INSTALLATION_ID=${GH_APP_INSTALLATION_ID}") {
+			t.Error("docker-compose.yaml should pass through GH_APP_INSTALLATION_ID env var")
+		}
+		if !strings.Contains(yamlStr, "GH_APP_KEY=${GH_APP_KEY}") {
+			t.Error("docker-compose.yaml should pass through GH_APP_KEY env var")
+		}
+	})
+
+	// Test with no credentials
+	t.Run("no credentials in docker-compose", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-dc-none"
+		cfg.DeploymentMode = "docker"
+		cfg.BootstrapCloneCredentialType = "none"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if strings.Contains(yamlStr, "DIPPER_GIT_PASS") {
+			t.Error("docker-compose.yaml should not contain DIPPER_GIT_PASS when credential type is 'none'")
+		}
+		if strings.Contains(yamlStr, "GH_APP_") {
+			t.Error("docker-compose.yaml should not contain GH_APP_ vars when credential type is 'none'")
+		}
+	})
 }

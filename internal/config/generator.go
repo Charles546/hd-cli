@@ -219,6 +219,9 @@ func applyDefaults(cfg *WizardConfig) {
 	if cfg.AIBaseURL == "" {
 		cfg.AIBaseURL = def.AIBaseURL
 	}
+	if cfg.BootstrapCloneCredentialType == "" {
+		cfg.BootstrapCloneCredentialType = def.BootstrapCloneCredentialType
+	}
 	if cfg.AIEngineName == "" {
 		cfg.AIEngineName = def.AIEngineName
 	}

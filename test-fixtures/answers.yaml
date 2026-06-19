@@ -8,6 +8,10 @@ deployment_mode: docker
 essentials_repo_url: https://github.com/honeydipper/honeydipper-config-essentials.git
 essentials_branch: v4-rc
 
+bootstrap_clone_credential_type: pat
+bootstrap_clone_pass_env: DIPPER_GIT_PASS
+bootstrap_clone_username: ""
+
 github_integration_type: pat
 github_token_path: secrets/github-token
 github_webhook_secret_path: secrets/github-webhook-secret

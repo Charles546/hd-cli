@@ -31,17 +31,17 @@ github:
 {{- if eq .GithubIntegrationType "github_app" }}
   app_id: {{ .GithubAppID | quote }}
   installation_id: {{ .GithubInstallationID | quote }}
-  private_key: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/githubPrivateKey]
+  private_key: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/githubPrivateKey]
 {{- else }}
-  token: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/githubToken]
+  token: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/githubToken]
 {{- end }}
-  webhook_secret: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/githubWebhookSecret]
+  webhook_secret: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/githubWebhookSecret]
 
 {{- if .AIEnabled }}
 # OpenAI-compatible AI driver
 openai:
   type: openai
-  api_key: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/openaiApiKey]
+  api_key: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/openaiApiKey]
   base_url: {{ .AIBaseURL | quote }}
   model: {{ .AIModel | quote }}
 {{- end }}

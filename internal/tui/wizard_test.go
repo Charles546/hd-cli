@@ -277,8 +277,8 @@ func TestWizardModelInitStep(t *testing.T) {
 	if m.mode != modeTextInput {
 		t.Errorf("Step 5 mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
 	}
-	if len(m.textInputs) != 2 {
-		t.Errorf("Step 5 textInputs count = %d, want 2", len(m.textInputs))
+	if len(m.textInputs) != 5 {
+		t.Errorf("Step 5 textInputs count = %d, want 5", len(m.textInputs))
 	}
 
 	// Step 6 should be radio select (Secrets Backend)
@@ -718,12 +718,14 @@ func TestTextInputEmptyBackspaceGoesBack(t *testing.T) {
 func TestMultiFieldLastFieldEnterAdvances(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 5) // 2 fields
+	m = runInitStep(m, 5) // 5 fields (repo URL, branch, credential type, token env var, username)
 
-	// Move to last field
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	if m.currentField != 1 {
-		t.Fatalf("currentField = %d, want 1", m.currentField)
+	// Move to last field (index 4)
+	for i := 0; i < 4; i++ {
+		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	}
+	if m.currentField != 4 {
+		t.Fatalf("currentField = %d, want 4", m.currentField)
 	}
 
 	// Press Enter on last field - should advance to next step

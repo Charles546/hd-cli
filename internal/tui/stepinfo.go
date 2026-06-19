@@ -106,6 +106,27 @@ func getStepInfo(step int) *stepInfo {
 					getValue:    func(c *config.WizardConfig) string { return c.EssentialsBranch },
 					setValue:    func(c *config.WizardConfig, v string) { c.EssentialsBranch = v },
 				},
+				{
+					label:       "Clone credential type",
+					placeholder: "none, pat, or github_app",
+					help:        "Credential type for cloning private repos. Use 'none' for public repos.",
+					getValue:    func(c *config.WizardConfig) string { return c.BootstrapCloneCredentialType },
+					setValue:    func(c *config.WizardConfig, v string) { c.BootstrapCloneCredentialType = v },
+				},
+				{
+					label:       "Token env var name",
+					placeholder: "Environment variable containing the token/password",
+					help:        "Name of env var that holds the token (for pat type). Will be passed to Docker container.",
+					getValue:    func(c *config.WizardConfig) string { return c.BootstrapClonePassEnv },
+					setValue:    func(c *config.WizardConfig, v string) { c.BootstrapClonePassEnv = v },
+				},
+				{
+					label:       "Username",
+					placeholder: "Git username (optional, defaults to x-access-token)",
+					help:        "Username for git authentication (only used with pat type).",
+					getValue:    func(c *config.WizardConfig) string { return c.BootstrapCloneUsername },
+					setValue:    func(c *config.WizardConfig, v string) { c.BootstrapCloneUsername = v },
+				},
 			},
 		}
 	case 6:

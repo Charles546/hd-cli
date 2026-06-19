@@ -43,6 +43,16 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.EssentialsRepoURL = value
 		case "essentials_branch":
 			cfg.EssentialsBranch = value
+		case "bootstrap_clone_credential_type":
+			cfg.BootstrapCloneCredentialType = value
+		case "bootstrap_clone_token_source":
+			cfg.BootstrapCloneTokenSource = value
+		case "bootstrap_clone_pass_env":
+			cfg.BootstrapClonePassEnv = value
+		case "bootstrap_clone_username":
+			cfg.BootstrapCloneUsername = value
+		case "bootstrap_clone_password":
+			cfg.BootstrapClonePassword = value
 		}
 	case 6:
 		switch key {
@@ -284,6 +294,7 @@ func renderWelcome(m *WizardModel) string {
 			"  • Secrets backend and Redis\n" +
 			"  • GitHub and Slack integrations\n" +
 			"  • AI agent configuration\n" +
+			"  • Repo clone credentials\n" +
 			"  • Platform-specific options\n\n" +
 			"At the end, all configuration files will be generated.\n",
 	))

@@ -7,7 +7,7 @@ engines:
   - name: {{ .AIEngineName | default "default" | quote }}
     type: openai
     base_url: {{ .AIBaseURL | quote }}
-    api_key: LOOKUP[vault, /secrets/data/{{ .ProjectName }}/openaiApiKey]
+    api_key: LOOKUP[vault,/secrets/data/{{ .ProjectName }}/openaiApiKey]
     model: {{ .AIModel | quote }}
     max_tokens: 4096
     temperature: 0.3

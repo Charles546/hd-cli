@@ -18,6 +18,13 @@ type WizardConfig struct {
 	EssentialsRepoURL string `yaml:"essentials_repo_url"`
 	EssentialsBranch  string `yaml:"essentials_branch"`
 
+	// Bootstrap repo clone credentials
+	BootstrapCloneCredentialType string `yaml:"bootstrap_clone_credential_type"` // none, github_app, pat
+	BootstrapCloneTokenSource    string `yaml:"bootstrap_clone_token_source"`    // e.g. "github" for GitHub App
+	BootstrapClonePassEnv        string `yaml:"bootstrap_clone_pass_env"`        // env var name containing the password/token
+	BootstrapCloneUsername       string `yaml:"bootstrap_clone_username"`        // username for basic auth
+	BootstrapClonePassword       string `yaml:"bootstrap_clone_password"`        // password for basic auth (not stored in config, used for env var)
+
 	// GitHub integration
 	GithubIntegrationType string `yaml:"github_integration_type"` // github_app, pat
 	GithubAppID           string `yaml:"github_app_id"`
@@ -71,23 +78,24 @@ type WizardConfig struct {
 // NewDefaultWizardConfig returns a WizardConfig pre-filled with sensible defaults.
 func NewDefaultWizardConfig() *WizardConfig {
 	return &WizardConfig{
-		ProjectName:           "hd-config",
-		ConfigDir:             "./hd-config",
-		DeploymentMode:        "docker",
-		EssentialsRepoURL:     "https://github.com/honeydipper/honeydipper-config-essentials.git",
-		EssentialsBranch:      "v4-rc",
-		GithubIntegrationType: "pat",
-		SecretsBackend:        "vault",
-		RedisMode:             "local",
-		DockerImageTag:        "v4-latest",
-		DockerEnableUI:        false,
-		DockerAPIPort:         9000,
-		DockerWebhookPort:     8080,
-		K8sNamespace:          "honeydipper",
-		K8sRepoStrategy:       "clone",
-		SourceBranch:          "v4",
-		AIModel:               "gpt-4o",
-		AIBaseURL:             "https://api.openai.com/v1",
-		AIEngineName:          "default",
+		ProjectName:                  "hd-config",
+		ConfigDir:                    "./hd-config",
+		DeploymentMode:               "docker",
+		EssentialsRepoURL:            "https://github.com/honeydipper/honeydipper-config-essentials.git",
+		EssentialsBranch:             "v4-rc",
+		BootstrapCloneCredentialType: "none",
+		GithubIntegrationType:        "pat",
+		SecretsBackend:               "vault",
+		RedisMode:                    "local",
+		DockerImageTag:               "v4-latest",
+		DockerEnableUI:               false,
+		DockerAPIPort:                9000,
+		DockerWebhookPort:            8080,
+		K8sNamespace:                 "honeydipper",
+		K8sRepoStrategy:              "clone",
+		SourceBranch:                 "v4",
+		AIModel:                      "gpt-4o",
+		AIBaseURL:                    "https://api.openai.com/v1",
+		AIEngineName:                 "default",
 	}
 }

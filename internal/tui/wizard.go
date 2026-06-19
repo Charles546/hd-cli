@@ -495,6 +495,7 @@ func (m *WizardModel) renderSummary() string {
 	items = append(items, fmt.Sprintf("  Config dir: %s", cfg.ConfigDir))
 	items = append(items, fmt.Sprintf("  Deployment: %s", cfg.DeploymentMode))
 	items = append(items, fmt.Sprintf("  Essentials repo: %s (%s)", cfg.EssentialsRepoURL, cfg.EssentialsBranch))
+	items = append(items, fmt.Sprintf("  Clone credentials: %s", cfg.BootstrapCloneCredentialType))
 	items = append(items, fmt.Sprintf("  Secrets backend: %s", cfg.SecretsBackend))
 	items = append(items, fmt.Sprintf("  Redis: %s", cfg.RedisMode))
 
