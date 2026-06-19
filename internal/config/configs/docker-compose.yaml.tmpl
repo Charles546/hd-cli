@@ -6,7 +6,7 @@
 # NOTE: Before running `docker compose up`, ensure the required environment
 # variables are set in your shell or in a .env file.
 {{- if eq .BootstrapCloneCredentialType "pat" }}
-#   DIPPER_GIT_PASS=your_personal_access_token
+#   DIPPER_GIT_PAT=your_personal_access_token
 {{- else if eq .BootstrapCloneCredentialType "github_app" }}
 #   GH_APP_ID=your_app_id
 #   GH_APP_INSTALLATION_ID=your_installation_id
@@ -17,28 +17,28 @@ version: "3.8"
 
 services:
   honeydipper:
-    image: honeydipper/honeydipper:{{ .DockerImageTag | quote }}
+    image: honeydipper/honeydipper:{{ .DockerImageTag }}
     container_name: {{ .ProjectName }}-honeydipper
     restart: unless-stopped
     ports:
       - "{{ .DockerAPIPort }}:9000"
       - "{{ .DockerWebhookPort }}:8080"
-    volumes:
-      - ./configs:/etc/honeydipper/config
     environment:
-      - HONEYDIPPER_UI_ENABLED={{ .DockerEnableUI }}
 {{- if eq .BootstrapCloneCredentialType "pat" }}
-      - DIPPER_GIT_PASS=${DIPPER_GIT_PASS}
+      - DIPPER_GIT_PAT=${DIPPER_GIT_PAT}
 {{- else if eq .BootstrapCloneCredentialType "github_app" }}
       - GH_APP_ID=${GH_APP_ID}
       - GH_APP_INSTALLATION_ID=${GH_APP_INSTALLATION_ID}
       - GH_APP_KEY=${GH_APP_KEY}
 {{- end }}
+{{- if eq .RedisMode "local" }}
     depends_on:
       - redis
+{{- end }}
     networks:
       - honeydipper-net
 
+{{- if eq .RedisMode "local" }}
   redis:
     image: redis:7-alpine
     container_name: {{ .ProjectName }}-redis
@@ -48,17 +48,9 @@ services:
     networks:
       - honeydipper-net
 
-{{- if eq .DeploymentMode "docker" }}
-{{- if ne .RedisMode "local" }}
-  # External Redis - uncomment if using external Redis
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: {{ .ProjectName }}-redis
-{{- end }}
-{{- end }}
-
 volumes:
   redis-data:
+{{- end }}
 
 networks:
   honeydipper-net:
