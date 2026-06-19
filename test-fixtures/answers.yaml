@@ -1,0 +1,33 @@
+# Sample answers file for non-interactive mode
+# Usage: hd init --config test-fixtures/answers.yaml --dry-run
+
+project_name: my-honeydipper-config
+config_dir: ./my-honeydipper-config
+deployment_mode: docker
+
+essentials_repo_url: https://github.com/honeydipper/honeydipper-config-essentials.git
+essentials_branch: v4-rc
+
+github_integration_type: pat
+github_token_path: secrets/github-token
+github_webhook_secret_path: secrets/github-webhook-secret
+
+slack_bot_token_path: secrets/slack-bot-token
+slack_signing_secret_path: secrets/slack-signing-secret
+slack_interaction_token_path: ""
+slack_slash_command_token_path: ""
+
+ai_enabled: false
+
+secrets_backend: vault
+vault_address: https://vault.example.com:8200
+vault_auth_method: approle
+
+redis_mode: local
+
+docker_image_tag: v4-latest
+docker_enable_ui: false
+docker_api_port: 9000
+docker_webhook_port: 8080
+
+github_create_repo: false
