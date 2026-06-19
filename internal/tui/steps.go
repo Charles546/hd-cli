@@ -46,6 +46,22 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 		}
 	case 6:
 		switch key {
+		case "secrets_backend":
+			cfg.SecretsBackend = value
+		case "vault_address":
+			cfg.VaultAddress = value
+		case "vault_auth_method":
+			cfg.VaultAuthMethod = value
+		}
+	case 7:
+		switch key {
+		case "redis_mode":
+			cfg.RedisMode = value
+		case "redis_connection_string":
+			cfg.RedisConnString = value
+		}
+	case 8:
+		switch key {
 		case "github_integration_type":
 			cfg.GithubIntegrationType = value
 		case "github_app_id":
@@ -59,7 +75,7 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 		case "github_webhook_secret_path":
 			cfg.GithubWebhookSecret = value
 		}
-	case 7:
+	case 9:
 		switch key {
 		case "slack_bot_token_path":
 			cfg.SlackBotTokenPath = value
@@ -70,7 +86,7 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 		case "slack_slash_command_token_path":
 			cfg.SlackSlashCommandTokenPath = value
 		}
-	case 8:
+	case 10:
 		switch key {
 		case "ai_enabled":
 			cfg.AIEnabled = value == "true" || value == "yes"
@@ -82,22 +98,6 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.AIModel = value
 		case "ai_engine_name":
 			cfg.AIEngineName = value
-		}
-	case 9:
-		switch key {
-		case "secrets_backend":
-			cfg.SecretsBackend = value
-		case "vault_address":
-			cfg.VaultAddress = value
-		case "vault_auth_method":
-			cfg.VaultAuthMethod = value
-		}
-	case 10:
-		switch key {
-		case "redis_mode":
-			cfg.RedisMode = value
-		case "redis_connection_string":
-			cfg.RedisConnString = value
 		}
 	case 11:
 		switch key {
@@ -147,11 +147,11 @@ func StepLabels() []string {
 		"Config Directory",
 		"Deployment Mode",
 		"Config Repo",
+		"Secrets Backend",
+		"Redis",
 		"GitHub Integration",
 		"Slack Integration",
 		"AI Agent",
-		"Secrets Backend",
-		"Redis",
 		"Docker Config",
 		"Kubernetes Config",
 		"Source Config",
@@ -163,7 +163,7 @@ func StepLabels() []string {
 // IsStepRequired returns true if the step's fields must be filled for a valid config.
 func IsStepRequired(step int) bool {
 	switch step {
-	case 2, 3, 4, 5, 6, 9, 10:
+	case 2, 3, 4, 5, 6, 7, 10:
 		return true
 	case 11:
 		return true
@@ -182,11 +182,11 @@ func StepHelp(step int) string {
 		3:  "The path where config files will be written. Use absolute or relative path.",
 		4:  "Docker: easiest setup. Source: build from source. K8s: use Kubernetes.",
 		5:  "The essentials config repo provides baseline workflows and definitions.",
-		6:  "GitHub integration enables push event triggers and workflow dispatch.",
-		7:  "Slack integration enables bot notifications and slash commands.",
-		8:  "AI agent provides natural language workflow triggers and completions.",
-		9:  "Vault is recommended for production. Dev mode stores secrets in env vars.",
-		10: "Local Redis runs in the same container. External uses a separate Redis server.",
+		6:  "Vault is recommended for production. Dev mode stores secrets in env vars.",
+		7:  "Local Redis runs in the same container. External uses a separate Redis server.",
+		8:  "GitHub integration enables push event triggers and workflow dispatch.",
+		9:  "Slack integration enables bot notifications and slash commands.",
+		10: "AI agent provides natural language workflow triggers and completions.",
 		11: "Docker deployment settings. Only applies if Docker mode is selected.",
 		12: "Kubernetes deployment settings. Only applies if K8s mode is selected.",
 		13: "Source build settings. Only applies if source mode is selected.",
@@ -230,15 +230,20 @@ func ValidateStepComplete(m *WizardModel) error {
 			return fmt.Errorf("essentials repo URL is required")
 		}
 	case 6:
+		// Secrets backend selection is required
+		if cfg.SecretsBackend == "" {
+			return fmt.Errorf("secrets backend selection is required")
+		}
+	case 8:
 		switch cfg.GithubIntegrationType {
-	case "github_app":
-		if strings.TrimSpace(cfg.GithubAppID) == "" {
-			return fmt.Errorf("github App ID is required")
-		}
-		if strings.TrimSpace(cfg.GithubInstallationID) == "" {
-			return fmt.Errorf("github Installation ID is required")
-		}
-	case "pat":
+		case "github_app":
+			if strings.TrimSpace(cfg.GithubAppID) == "" {
+				return fmt.Errorf("github App ID is required")
+			}
+			if strings.TrimSpace(cfg.GithubInstallationID) == "" {
+				return fmt.Errorf("github Installation ID is required")
+			}
+		case "pat":
 			if strings.TrimSpace(cfg.GithubTokenPath) == "" {
 				return fmt.Errorf("token secret path is required")
 			}
@@ -276,9 +281,9 @@ func renderWelcome(m *WizardModel) string {
 			"Honeydipper configuration directory with sensible defaults.\n\n" +
 			"You will be asked about:\n" +
 			"  • Project settings and deployment mode\n" +
+			"  • Secrets backend and Redis\n" +
 			"  • GitHub and Slack integrations\n" +
 			"  • AI agent configuration\n" +
-			"  • Secrets backend and Redis\n" +
 			"  • Platform-specific options\n\n" +
 			"At the end, all configuration files will be generated.\n",
 	))

@@ -71,19 +71,19 @@ func TestUpdateStep(t *testing.T) {
 			},
 		},
 		{
-			step: 8, key: "ai_enabled", value: "true",
+			step: 6, key: "secrets_backend", value: "dev",
 			check: func(c *config.WizardConfig) error {
-				if !c.AIEnabled {
-					return fmt.Errorf("AIEnabled = false")
+				if c.SecretsBackend != "dev" {
+					return fmt.Errorf("SecretsBackend = %q", c.SecretsBackend)
 				}
 				return nil
 			},
 		},
 		{
-			step: 9, key: "secrets_backend", value: "dev",
+			step: 10, key: "ai_enabled", value: "true",
 			check: func(c *config.WizardConfig) error {
-				if c.SecretsBackend != "dev" {
-					return fmt.Errorf("SecretsBackend = %q", c.SecretsBackend)
+				if !c.AIEnabled {
+					return fmt.Errorf("AIEnabled = false")
 				}
 				return nil
 			},
@@ -115,16 +115,32 @@ func TestStepLabels(t *testing.T) {
 	if labels[1] != "Welcome" {
 		t.Errorf("labels[1] = %q, want Welcome", labels[1])
 	}
+	// Verify new order
+	if labels[6] != "Secrets Backend" {
+		t.Errorf("labels[6] = %q, want Secrets Backend", labels[6])
+	}
+	if labels[7] != "Redis" {
+		t.Errorf("labels[7] = %q, want Redis", labels[7])
+	}
+	if labels[8] != "GitHub Integration" {
+		t.Errorf("labels[8] = %q, want GitHub Integration", labels[8])
+	}
+	if labels[9] != "Slack Integration" {
+		t.Errorf("labels[9] = %q, want Slack Integration", labels[9])
+	}
+	if labels[10] != "AI Agent" {
+		t.Errorf("labels[10] = %q, want AI Agent", labels[10])
+	}
 }
 
 func TestIsStepRequired(t *testing.T) {
-	requiredSteps := []int{2, 3, 4, 5, 6, 9, 10, 11, 12, 13}
+	requiredSteps := []int{2, 3, 4, 5, 6, 7, 10, 11, 12, 13}
 	for _, step := range requiredSteps {
 		if !IsStepRequired(step) {
 			t.Errorf("step %d should be required", step)
 		}
 	}
-	optionalSteps := []int{1, 7, 8, 14, 15}
+	optionalSteps := []int{1, 8, 9, 14, 15}
 	for _, step := range optionalSteps {
 		if IsStepRequired(step) {
 			t.Errorf("step %d should not be required", step)
@@ -175,6 +191,18 @@ func TestValidateStepComplete(t *testing.T) {
 			name:    "step 4 with invalid mode",
 			step:    4,
 			setup:   func(c *config.WizardConfig) { c.DeploymentMode = "invalid" },
+			wantErr: true,
+		},
+		{
+			name:    "step 6 with secrets backend selected",
+			step:    6,
+			setup:   func(c *config.WizardConfig) { c.SecretsBackend = "vault" },
+			wantErr: false,
+		},
+		{
+			name:    "step 6 without secrets backend",
+			step:    6,
+			setup:   func(c *config.WizardConfig) { c.SecretsBackend = "" },
 			wantErr: true,
 		},
 	}
@@ -251,6 +279,27 @@ func TestWizardModelInitStep(t *testing.T) {
 	}
 	if len(m.textInputs) != 2 {
 		t.Errorf("Step 5 textInputs count = %d, want 2", len(m.textInputs))
+	}
+
+	// Step 6 should be radio select (Secrets Backend)
+	m = runInitStep(m, 6)
+	if m.mode != modeRadioSelect {
+		t.Errorf("Step 6 mode = %d, want modeRadioSelect(%d)", m.mode, modeRadioSelect)
+	}
+
+	// Step 8 should be radio select (GitHub Integration)
+	m = runInitStep(m, 8)
+	if m.mode != modeRadioSelect {
+		t.Errorf("Step 8 mode = %d, want modeRadioSelect(%d)", m.mode, modeRadioSelect)
+	}
+
+	// Step 9 should be multi-field text input (Slack Integration)
+	m = runInitStep(m, 9)
+	if m.mode != modeTextInput {
+		t.Errorf("Step 9 mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
+	}
+	if len(m.textInputs) != 4 {
+		t.Errorf("Step 9 textInputs count = %d, want 4", len(m.textInputs))
 	}
 }
 
@@ -614,6 +663,13 @@ func TestViewSummaryScreen(t *testing.T) {
 	if !strings.Contains(view, "Project:") {
 		t.Errorf("View() should contain 'Project:' in summary, got: %s", view)
 	}
+	// Verify new order in summary
+	if !strings.Contains(view, "Secrets backend:") {
+		t.Errorf("View() should contain 'Secrets backend:' in summary, got: %s", view)
+	}
+	if !strings.Contains(view, "Redis:") {
+		t.Errorf("View() should contain 'Redis:' in summary, got: %s", view)
+	}
 }
 
 func TestDoneScreenEnterConfirms(t *testing.T) {
@@ -739,6 +795,40 @@ func TestWizardModelInitMethod(t *testing.T) {
 	}
 }
 
+// TestStepOrder verifies the correct order of wizard steps
+func TestStepOrder(t *testing.T) {
+	expectedOrder := []struct {
+		step  int
+		title string
+	}{
+		{1, "Welcome"},
+		{2, "Project Name"},
+		{3, "Config Directory"},
+		{4, "Deployment Mode"},
+		{5, "Config Repo Setup"},
+		{6, "Secrets Backend"},  // Moved up
+		{7, "Redis"},             // Moved up
+		{8, "GitHub Integration"}, // Moved down
+		{9, "Slack Integration"},  // Moved down
+		{10, "AI Agent"},          // Moved down
+		{11, "Docker Configuration"},
+		{12, "Kubernetes Configuration"},
+		{13, "Source Configuration"},
+		{14, "GitHub Repo Creation"},
+		{15, "Summary & Confirm"},
+	}
+
+	for _, expected := range expectedOrder {
+		info := getStepInfo(expected.step)
+		if info == nil {
+			t.Fatalf("Step %d not found", expected.step)
+		}
+		if !strings.Contains(info.title, expected.title) {
+			t.Errorf("Step %d title = %q, want to contain %q", expected.step, info.title, expected.title)
+		}
+	}
+}
+
 // runInitStep is a helper that calls initStep and returns the updated model.
 // Since initStep uses value receiver internally but modifies the model,
 // we need to call it properly.
@@ -746,7 +836,6 @@ func runInitStep(m *WizardModel, step int) *WizardModel {
 	m.initStep(step)
 	return m
 }
-
 
 // updateWizard is a helper that calls Update and type-asserts the result.
 func updateWizard(m *WizardModel, msg tea.Msg) (*WizardModel, tea.Cmd) {

@@ -110,7 +110,50 @@ func getStepInfo(step int) *stepInfo {
 		}
 	case 6:
 		return &stepInfo{
-			title:    "Step 6: GitHub Integration",
+			title:    "Step 6: Secrets Backend",
+			stepType: stepTypeRadio,
+			radioLabel: "Secrets backend",
+			radioOptions: []string{"vault", "dev"},
+			radioGetter: func(c *config.WizardConfig) string { return c.SecretsBackend },
+			radioSetter: func(c *config.WizardConfig, v string) { c.SecretsBackend = v },
+			fields: []fieldDescriptor{
+				{
+					label:       "Vault address",
+					placeholder: "Vault server URL",
+					help:        "Vault server URL (only for vault backend)",
+					getValue:    func(c *config.WizardConfig) string { return c.VaultAddress },
+					setValue:    func(c *config.WizardConfig, v string) { c.VaultAddress = v },
+				},
+				{
+					label:       "Auth method",
+					placeholder: "Vault auth method (e.g., token, approle)",
+					help:        "Vault authentication method",
+					getValue:    func(c *config.WizardConfig) string { return c.VaultAuthMethod },
+					setValue:    func(c *config.WizardConfig, v string) { c.VaultAuthMethod = v },
+				},
+			},
+		}
+	case 7:
+		return &stepInfo{
+			title:    "Step 7: Redis",
+			stepType: stepTypeRadio,
+			radioLabel: "Redis mode",
+			radioOptions: []string{"local", "external"},
+			radioGetter: func(c *config.WizardConfig) string { return c.RedisMode },
+			radioSetter: func(c *config.WizardConfig, v string) { c.RedisMode = v },
+			fields: []fieldDescriptor{
+				{
+					label:       "Connection string",
+					placeholder: "Redis connection string",
+					help:        "Redis connection string (only for external mode)",
+					getValue:    func(c *config.WizardConfig) string { return c.RedisConnString },
+					setValue:    func(c *config.WizardConfig, v string) { c.RedisConnString = v },
+				},
+			},
+		}
+	case 8:
+		return &stepInfo{
+			title:    "Step 8: GitHub Integration",
 			stepType: stepTypeRadio,
 			radioLabel: "Integration type",
 			radioOptions: []string{"github_app", "pat"},
@@ -154,9 +197,9 @@ func getStepInfo(step int) *stepInfo {
 				},
 			},
 		}
-	case 7:
+	case 9:
 		return &stepInfo{
-			title:    "Step 7: Slack Integration",
+			title:    "Step 9: Slack Integration",
 			stepType: stepTypeMultiField,
 			fields: []fieldDescriptor{
 				{
@@ -189,9 +232,9 @@ func getStepInfo(step int) *stepInfo {
 				},
 			},
 		}
-	case 8:
+	case 10:
 		return &stepInfo{
-			title:    "Step 8: AI Agent",
+			title:    "Step 10: AI Agent",
 			stepType: stepTypeRadio,
 			radioLabel: "Enable AI agent",
 			radioOptions: []string{"yes", "no"},
@@ -225,49 +268,6 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Honeydipper engine name for the AI agent",
 					getValue:    func(c *config.WizardConfig) string { return c.AIEngineName },
 					setValue:    func(c *config.WizardConfig, v string) { c.AIEngineName = v },
-				},
-			},
-		}
-	case 9:
-		return &stepInfo{
-			title:    "Step 9: Secrets Backend",
-			stepType: stepTypeRadio,
-			radioLabel: "Secrets backend",
-			radioOptions: []string{"vault", "dev"},
-			radioGetter: func(c *config.WizardConfig) string { return c.SecretsBackend },
-			radioSetter: func(c *config.WizardConfig, v string) { c.SecretsBackend = v },
-			fields: []fieldDescriptor{
-				{
-					label:       "Vault address",
-					placeholder: "Vault server URL",
-					help:        "Vault server URL (only for vault backend)",
-					getValue:    func(c *config.WizardConfig) string { return c.VaultAddress },
-					setValue:    func(c *config.WizardConfig, v string) { c.VaultAddress = v },
-				},
-				{
-					label:       "Auth method",
-					placeholder: "Vault auth method (e.g., token, approle)",
-					help:        "Vault authentication method",
-					getValue:    func(c *config.WizardConfig) string { return c.VaultAuthMethod },
-					setValue:    func(c *config.WizardConfig, v string) { c.VaultAuthMethod = v },
-				},
-			},
-		}
-	case 10:
-		return &stepInfo{
-			title:    "Step 10: Redis",
-			stepType: stepTypeRadio,
-			radioLabel: "Redis mode",
-			radioOptions: []string{"local", "external"},
-			radioGetter: func(c *config.WizardConfig) string { return c.RedisMode },
-			radioSetter: func(c *config.WizardConfig, v string) { c.RedisMode = v },
-			fields: []fieldDescriptor{
-				{
-					label:       "Connection string",
-					placeholder: "Redis connection string",
-					help:        "Redis connection string (only for external mode)",
-					getValue:    func(c *config.WizardConfig) string { return c.RedisConnString },
-					setValue:    func(c *config.WizardConfig, v string) { c.RedisConnString = v },
 				},
 			},
 		}

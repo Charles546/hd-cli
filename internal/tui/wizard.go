@@ -495,6 +495,8 @@ func (m *WizardModel) renderSummary() string {
 	items = append(items, fmt.Sprintf("  Config dir: %s", cfg.ConfigDir))
 	items = append(items, fmt.Sprintf("  Deployment: %s", cfg.DeploymentMode))
 	items = append(items, fmt.Sprintf("  Essentials repo: %s (%s)", cfg.EssentialsRepoURL, cfg.EssentialsBranch))
+	items = append(items, fmt.Sprintf("  Secrets backend: %s", cfg.SecretsBackend))
+	items = append(items, fmt.Sprintf("  Redis: %s", cfg.RedisMode))
 
 	switch cfg.DeploymentMode {
 	case "docker":
@@ -517,8 +519,6 @@ func (m *WizardModel) renderSummary() string {
 	} else {
 		items = append(items, "  AI agent: disabled")
 	}
-	items = append(items, fmt.Sprintf("  Secrets backend: %s", cfg.SecretsBackend))
-	items = append(items, fmt.Sprintf("  Redis: %s", cfg.RedisMode))
 	items = append(items, fmt.Sprintf("  GitHub repo creation: %v", cfg.GithubCreateRepo))
 
 	return SummaryBoxStyle.Render(
@@ -544,6 +544,11 @@ func (m *WizardModel) validateCurrentStep() error {
 			return fmt.Errorf("config directory is required")
 		}
 	case 6:
+		// Validate secrets backend selection
+		if m.config.SecretsBackend == "" {
+			return fmt.Errorf("secrets backend selection is required")
+		}
+	case 8:
 		if m.config.GithubIntegrationType == "github_app" {
 			if strings.TrimSpace(m.config.GithubAppID) == "" {
 				return fmt.Errorf("github App ID is required")
@@ -592,7 +597,6 @@ func RunWizard() (*config.WizardConfig, error) {
 	}
 	return resultModel.config, nil
 }
-
 
 
 func boolToRadio(b bool) string {
