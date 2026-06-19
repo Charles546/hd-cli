@@ -8,6 +8,6 @@ drivers:
   openai:
     engines:
       {{ .AIEngineName | default "default" | quote }}:
-        api_key: {% with .env.OPENAI_API_KEY %}{% . %}{% else %}LOOKUP[vault,/secrets/data/{{ .ProjectName }}/openrouter#api_key]{% end %}
+        api_key: {{ with env "OPENAI_API_KEY" }}{{ . }}{{ else }}LOOKUP[vault,/secrets/data/{{ .ProjectName }}/openrouter#api_key]{{ end }}
         base_url: https://openrouter.ai/api/v1
         model: openrouter/owl-alpha

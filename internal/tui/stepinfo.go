@@ -108,24 +108,24 @@ func getStepInfo(step int) *stepInfo {
 				},
 				{
 					label:       "Clone credential type",
-					placeholder: "none, pat, or github_app",
+					placeholder: "none, pat, ssh, or github_app",
 					help:        "Credential type for cloning private repos. Use 'none' for public repos.",
-					getValue:    func(c *config.WizardConfig) string { return c.BootstrapCloneCredentialType },
-					setValue:    func(c *config.WizardConfig, v string) { c.BootstrapCloneCredentialType = v },
+					getValue:    func(c *config.WizardConfig) string { return c.EssentialsCloneType },
+					setValue:    func(c *config.WizardConfig, v string) { c.EssentialsCloneType = v },
 				},
 				{
 					label:       "Token env var name",
 					placeholder: "Environment variable containing the token/password",
 					help:        "Name of env var that holds the token (for pat type). Will be passed to Docker container.",
-					getValue:    func(c *config.WizardConfig) string { return c.BootstrapClonePassEnv },
-					setValue:    func(c *config.WizardConfig, v string) { c.BootstrapClonePassEnv = v },
+					getValue:    func(c *config.WizardConfig) string { return c.EssentialsClonePAT },
+					setValue:    func(c *config.WizardConfig, v string) { c.EssentialsClonePAT = v },
 				},
 				{
 					label:       "Username",
 					placeholder: "Git username (optional, defaults to x-access-token)",
 					help:        "Username for git authentication (only used with pat type).",
-					getValue:    func(c *config.WizardConfig) string { return c.BootstrapCloneUsername },
-					setValue:    func(c *config.WizardConfig, v string) { c.BootstrapCloneUsername = v },
+					getValue:    func(c *config.WizardConfig) string { return c.EssentialsCloneKey },
+					setValue:    func(c *config.WizardConfig, v string) { c.EssentialsCloneKey = v },
 				},
 			},
 		}
@@ -178,8 +178,16 @@ func getStepInfo(step int) *stepInfo {
 			stepType: stepTypeRadio,
 			radioLabel: "Integration type",
 			radioOptions: []string{"github_app", "pat"},
-			radioGetter: func(c *config.WizardConfig) string { return c.GithubIntegrationType },
-			radioSetter: func(c *config.WizardConfig, v string) { c.GithubIntegrationType = v },
+			radioGetter: func(c *config.WizardConfig) string {
+				if c.HasGitHubAppIntegration {
+					return "github_app"
+				}
+				return "pat"
+			},
+			radioSetter: func(c *config.WizardConfig, v string) {
+				c.HasGithubPATIntegration = v == "pat"
+				c.HasGitHubAppIntegration = v == "github_app"
+			},
 			fields: []fieldDescriptor{
 				{
 					label:       "App ID",
@@ -238,18 +246,18 @@ func getStepInfo(step int) *stepInfo {
 					setValue:    func(c *config.WizardConfig, v string) { c.SlackSigningSecretPath = v },
 				},
 				{
-					label:       "Interaction token path",
+					label:       "Interaction token",
 					placeholder: "Slack interaction token (optional)",
-					help:        "(Optional) Path to Slack interaction token",
-					getValue:    func(c *config.WizardConfig) string { return c.SlackInteractionTokenPath },
-					setValue:    func(c *config.WizardConfig, v string) { c.SlackInteractionTokenPath = v },
+					help:        "(Optional) Slack interaction token",
+					getValue:    func(c *config.WizardConfig) string { return c.SlackInteractionToken },
+					setValue:    func(c *config.WizardConfig, v string) { c.SlackInteractionToken = v },
 				},
 				{
-					label:       "Slash command token path",
+					label:       "Slash command token",
 					placeholder: "Slack slash command token (optional)",
-					help:        "(Optional) Path to Slack slash command token",
-					getValue:    func(c *config.WizardConfig) string { return c.SlackSlashCommandTokenPath },
-					setValue:    func(c *config.WizardConfig, v string) { c.SlackSlashCommandTokenPath = v },
+					help:        "(Optional) Slack slash command token",
+					getValue:    func(c *config.WizardConfig) string { return c.SlackSlashCommandToken },
+					setValue:    func(c *config.WizardConfig, v string) { c.SlackSlashCommandToken = v },
 				},
 			},
 		}

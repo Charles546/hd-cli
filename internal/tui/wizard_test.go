@@ -368,8 +368,11 @@ func TestMultiFieldTabNavigation(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.EssentialsRepoURL = "" // Clear defaults for clean test
 	cfg.EssentialsBranch = ""
+	cfg.EssentialsCloneType = ""
+	cfg.EssentialsClonePAT = ""
+	cfg.EssentialsCloneKey = ""
 	m := NewWizard(cfg)
-	m = runInitStep(m, 5) // Config Repo Setup - 2 fields
+	m = runInitStep(m, 5) // Config Repo Setup - 5 fields
 
 	// Type in first field
 	for _, ch := range "https://example.com" {
@@ -396,7 +399,7 @@ func TestMultiFieldTabNavigation(t *testing.T) {
 
 func TestMultiFieldEscBackNavigation(t *testing.T) {
 	m := NewWizard(nil)
-	m = runInitStep(m, 5) // 2 fields
+	m = runInitStep(m, 5) // 5 fields
 
 	// Move to second field
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})

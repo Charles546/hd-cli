@@ -16,7 +16,7 @@ repos:
 {{- with .EssentialsCloneKeyPassEnv }}
     key_pass_env: {{ . | quote }}
 {{- end }}
-{{- elif eq .EssentialsCloneType "github_app" }}
+{{- else if eq .EssentialsCloneType "github_app" }}
     token_source: github
 {{- else if eq .EssentialsCloneType "pat" }}
     pass_env: {{ .EssentialsClonePAT | default "DIPPER_GIT_PAT" | quote }}

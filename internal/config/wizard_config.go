@@ -17,27 +17,31 @@ type WizardConfig struct {
 	// Essentials repo
 	EssentialsRepoURL string `yaml:"essentials_repo_url"`
 	EssentialsBranch  string `yaml:"essentials_branch"`
+	EssentialsPath    string `yaml:"essentials_path,omitempty"`
 
-	// Bootstrap repo clone credentials
+	// Bootstrap repo clone credentials (used in init.yaml template)
+	EssentialsCloneType      string `yaml:"essentials_clone_type"`       // none, pat, ssh, github_app
+	EssentialsClonePAT       string `yaml:"essentials_clone_pat"`        // env var name containing the PAT
+	EssentialsCloneKey       string `yaml:"essentials_clone_key"`       // SSH key file path
+	EssentialsCloneKeyPassEnv string `yaml:"essentials_clone_key_pass_env"` // env var for SSH key passphrase
+
+	// Bootstrap clone credential type for docker-compose.yaml (kept for backward compat)
 	BootstrapCloneCredentialType string `yaml:"bootstrap_clone_credential_type"` // none, github_app, pat
-	BootstrapCloneTokenSource    string `yaml:"bootstrap_clone_token_source"`    // e.g. "github" for GitHub App
-	BootstrapClonePassEnv        string `yaml:"bootstrap_clone_pass_env"`        // env var name containing the password/token
-	BootstrapCloneUsername       string `yaml:"bootstrap_clone_username"`        // username for basic auth
-	BootstrapClonePassword       string `yaml:"bootstrap_clone_password"`        // password for basic auth (not stored in config, used for env var)
 
 	// GitHub integration
-	GithubIntegrationType string `yaml:"github_integration_type"` // github_app, pat
-	GithubAppID           string `yaml:"github_app_id"`
-	GithubInstallationID  string `yaml:"github_installation_id"`
-	GithubKeyPath         string `yaml:"github_key_path"`
-	GithubTokenPath       string `yaml:"github_token_path"`
-	GithubWebhookSecret   string `yaml:"github_webhook_secret_path"`
+	HasGithubPATIntegration   bool   `yaml:"has_github_pat_integration"`
+	HasGitHubAppIntegration   bool   `yaml:"has_github_app_integration"`
+	GithubAppID               string `yaml:"github_app_id"`
+	GithubInstallationID      string `yaml:"github_installation_id"`
+	GithubKeyPath             string `yaml:"github_key_path"`
+	GithubTokenPath           string `yaml:"github_token_path"`
+	GithubWebhookSecret       string `yaml:"github_webhook_secret_path"`
 
 	// Slack integration
-	SlackBotTokenPath          string `yaml:"slack_bot_token_path"`
-	SlackSigningSecretPath     string `yaml:"slack_signing_secret_path"`
-	SlackInteractionTokenPath  string `yaml:"slack_interaction_token_path"`  // optional
-	SlackSlashCommandTokenPath string `yaml:"slack_slash_command_token_path"` // optional
+	SlackBotTokenPath         string `yaml:"slack_bot_token_path"`
+	SlackSigningSecretPath    string `yaml:"slack_signing_secret_path"`
+	SlackInteractionToken     string `yaml:"slack_interaction_token"`  // renamed from SlackInteractionTokenPath
+	SlackSlashCommandToken    string `yaml:"slack_slash_command_token"` // renamed from SlackSlashCommandTokenPath
 
 	// AI agent
 	AIEnabled    bool   `yaml:"ai_enabled"`
@@ -83,8 +87,9 @@ func NewDefaultWizardConfig() *WizardConfig {
 		DeploymentMode:               "docker",
 		EssentialsRepoURL:            "https://github.com/honeydipper/honeydipper-config-essentials.git",
 		EssentialsBranch:             "v4-rc",
+		EssentialsCloneType:          "none",
 		BootstrapCloneCredentialType: "none",
-		GithubIntegrationType:        "pat",
+		HasGithubPATIntegration:      true,
 		SecretsBackend:               "vault",
 		RedisMode:                    "local",
 		DockerImageTag:               "v4-latest",
