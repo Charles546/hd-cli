@@ -10,7 +10,7 @@ systems:
 {{- if .HasGithubPATIntegration }}
   github:
     data:
-      pat: {{ if .GithubTokenPath }}{{ .GithubTokenPath | quote }}{{ else }}LOOKUP[vault,/secrets/data/{{ .ProjectName }}/github#pat]{{ end }}
+      pat: {{ if .GithubTokenPath }}LOOKUP[vault,{{ .GithubTokenPath }}]{{ else }}LOOKUP[vault,/secrets/data/{{ .ProjectName }}/github#pat]{{ end }}
       token: $?nil # extra token for webhook validation, recommend using signature instead
 {{- end }}
 {{- if .HasGitHubAppIntegration }}
@@ -21,14 +21,14 @@ systems:
     data:
       pat: $?nil
       tokenSource: hd_github_app # use jwt defined in web driver
-      signatureSecret: {{ if .GithubWebhookSecret }}{{ .GithubWebhookSecret | quote }}{{ else }}LOOKUP[vault,/secrets/data/{{ .ProjectName }}/github#webhookSecret]{{ end }}
+      signatureSecret: {{ if .GithubWebhookSecret }}LOOKUP[vault,{{ .GithubWebhookSecret }}]{{ else }}LOOKUP[vault,/secrets/data/{{ .ProjectName }}/github#webhookSecret]{{ end }}
       token: $?nil # extra token for webhook validation, recommend using signature instead
 {{- end }}
 
   # Slack Integration
   slack_bot:
     data:
-      token: {{ if .SlackBotTokenPath }}{{ .SlackBotTokenPath | quote }}{{ else }}LOOKUP[vault,/secrets/data/{{ .ProjectName }}/slack#botToken]{{ end }}
-      interact_token: {{ if .SlackInteractionToken }}{{ .SlackInteractionToken | quote }}{{ else }}$?nil{{ end }}
-      slash_token: {{ if .SlackSlashCommandToken }}{{ .SlackSlashCommandToken | quote }}{{ else }}$?nil{{ end }}
-      signatureSecret: {{ if .SlackSigningSecretPath }}{{ .SlackSigningSecretPath | quote }}{{ else }}LOOKUP[vault,/secrets/data/{{ .ProjectName }}/slack#signingSecret]{{ end }}
+      token: {{ if .SlackBotTokenPath }}LOOKUP[vault,{{ .SlackBotTokenPath }}]{{ else }}LOOKUP[vault,/secrets/data/{{ .ProjectName }}/slack#botToken]{{ end }}
+      interact_token: {{ if .SlackInteractionToken }}LOOKUP[vault,{{ .SlackInteractionToken }}]{{ else }}$?nil{{ end }}
+      slash_token: {{ if .SlackSlashCommandToken }}LOOKUP[vault,{{ .SlackSlashCommandToken }}]{{ else }}$?nil{{ end }}
+      signatureSecret: {{ if .SlackSigningSecretPath }}LOOKUP[vault,{{ .SlackSigningSecretPath }}]{{ else }}LOOKUP[vault,/secrets/data/{{ .ProjectName }}/slack#signingSecret]{{ end }}

@@ -815,16 +815,16 @@ func TestSlackSecretPathsInIntegrations(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "token: \"secrets/slack/bot-token\"") {
+		if !strings.Contains(yamlStr, "token: LOOKUP[vault,secrets/slack/bot-token]") {
 			t.Errorf("integrations.yaml should contain custom bot token path, got:\n%s", yamlStr)
 		}
-		if !strings.Contains(yamlStr, "signatureSecret: \"secrets/slack/signing-secret\"") {
+		if !strings.Contains(yamlStr, "signatureSecret: LOOKUP[vault,secrets/slack/signing-secret]") {
 			t.Errorf("integrations.yaml should contain custom signing secret path, got:\n%s", yamlStr)
 		}
-		if !strings.Contains(yamlStr, "interact_token: \"secrets/slack/interaction\"") {
+		if !strings.Contains(yamlStr, "interact_token: LOOKUP[vault,secrets/slack/interaction]") {
 			t.Errorf("integrations.yaml should contain custom interaction token, got:\n%s", yamlStr)
 		}
-		if !strings.Contains(yamlStr, "slash_token: \"secrets/slack/slash\"") {
+		if !strings.Contains(yamlStr, "slash_token: LOOKUP[vault,secrets/slack/slash]") {
 			t.Errorf("integrations.yaml should contain custom slash command token, got:\n%s", yamlStr)
 		}
 	})
@@ -883,13 +883,13 @@ func TestSlackSecretPathsInIntegrations(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "token: \"custom/bot-token\"") {
+		if !strings.Contains(yamlStr, "token: LOOKUP[vault,custom/bot-token]") {
 			t.Errorf("integrations.yaml should contain custom bot token path")
 		}
 		if !strings.Contains(yamlStr, "LOOKUP[vault,/secrets/data/test-slack-partial/slack#signingSecret]") {
 			t.Errorf("integrations.yaml should contain default LOOKUP for signing secret")
 		}
-		if !strings.Contains(yamlStr, "interact_token: \"custom/interaction\"") {
+		if !strings.Contains(yamlStr, "interact_token: LOOKUP[vault,custom/interaction]") {
 			t.Errorf("integrations.yaml should contain custom interaction token")
 		}
 		if !strings.Contains(yamlStr, "slash_token: $?nil") {
@@ -920,7 +920,7 @@ func TestGithubTokenPathInIntegrations(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "pat: \"secrets/github/my-pat\"") {
+		if !strings.Contains(yamlStr, "pat: LOOKUP[vault,secrets/github/my-pat]") {
 			t.Errorf("integrations.yaml should contain custom GitHub token path, got:\n%s", yamlStr)
 		}
 	})
@@ -945,7 +945,7 @@ func TestGithubTokenPathInIntegrations(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "signatureSecret: \"secrets/github/webhook-secret\"") {
+		if !strings.Contains(yamlStr, "signatureSecret: LOOKUP[vault,secrets/github/webhook-secret]") {
 			t.Errorf("integrations.yaml should contain custom webhook secret path, got:\n%s", yamlStr)
 		}
 	})

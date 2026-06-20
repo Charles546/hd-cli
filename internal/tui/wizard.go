@@ -220,7 +220,7 @@ func (m *WizardModel) handleDone(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "esc", "backspace":
 			m.done = false
-			m.step = stepCount - 1
+			m.step = prevStep(stepCount, m.config)
 			return m, m.initStep(m.step)
 		}
 	}
@@ -277,7 +277,7 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 			if m.step >= m.total {
 				m.done = true
 			} else {
-				return m, m.initStep(m.step + 1)
+				return m, m.initStep(nextStep(m.step, m.config))
 			}
 			return m, nil
 
@@ -294,7 +294,7 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 			}
 			// First field: go back to previous step
 			if m.step > 1 {
-				return m, m.initStep(m.step - 1)
+				return m, m.initStep(prevStep(m.step, m.config))
 			}
 			return m, nil
 
@@ -311,7 +311,7 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 					return m, nil
 				}
 				if m.step > 1 {
-					return m, m.initStep(m.step - 1)
+					return m, m.initStep(prevStep(m.step, m.config))
 				}
 				return m, nil
 			}
@@ -368,12 +368,12 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 			if m.step >= m.total {
 				m.done = true
 			} else {
-				return m, m.initStep(m.step + 1)
+				return m, m.initStep(nextStep(m.step, m.config))
 			}
 			return m, nil
 		case "esc", "backspace":
 			if m.step > 1 {
-				return m, m.initStep(m.step - 1)
+				return m, m.initStep(prevStep(m.step, m.config))
 			}
 			return m, nil
 		}
@@ -463,7 +463,7 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 					if m.step >= m.total {
 						m.done = true
 					} else {
-						return m, m.initStep(m.step + 1)
+						return m, m.initStep(nextStep(m.step, m.config))
 					}
 				}
 			} else {
@@ -485,7 +485,7 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 					if m.step >= m.total {
 						m.done = true
 					} else {
-						return m, m.initStep(m.step + 1)
+						return m, m.initStep(nextStep(m.step, m.config))
 					}
 				}
 			}
@@ -509,7 +509,7 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 					if m.step >= m.total {
 						m.done = true
 					} else {
-						return m, m.initStep(m.step + 1)
+						return m, m.initStep(nextStep(m.step, m.config))
 					}
 				}
 			} else {
@@ -531,7 +531,7 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 					if m.step >= m.total {
 						m.done = true
 					} else {
-						return m, m.initStep(m.step + 1)
+						return m, m.initStep(nextStep(m.step, m.config))
 					}
 				}
 			}
@@ -551,7 +551,7 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 			}
 			// On checkboxes: go back a step
 			if m.step > 1 {
-				return m, m.initStep(m.step - 1)
+				return m, m.initStep(prevStep(m.step, m.config))
 			}
 			return m, nil
 		case "backspace":
@@ -574,7 +574,7 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 			}
 			// On checkboxes: go back a step
 			if m.step > 1 {
-				return m, m.initStep(m.step - 1)
+				return m, m.initStep(prevStep(m.step, m.config))
 			}
 			return m, nil
 		}
@@ -599,11 +599,11 @@ func (m *WizardModel) handleNavigate(msg tea.Msg, stepInfo *stepInfo) (tea.Model
 			if m.step >= m.total {
 				m.done = true
 			} else {
-				return m, m.initStep(m.step + 1)
+				return m, m.initStep(nextStep(m.step, m.config))
 			}
 		case "esc", "backspace":
 			if m.step > 1 {
-				return m, m.initStep(m.step - 1)
+				return m, m.initStep(prevStep(m.step, m.config))
 			}
 		}
 	}

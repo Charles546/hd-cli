@@ -246,7 +246,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Path to the webhook signing secret (recommended for github_app integration)",
 					getValue:    func(c *config.WizardConfig) string { return c.GithubWebhookSecret },
 					setValue:    func(c *config.WizardConfig, v string) { c.GithubWebhookSecret = v },
-					condition:   func(c *config.WizardConfig) bool { return c.HasGitHubAppIntegration || c.HasGithubPATIntegration },
+					condition:   func(c *config.WizardConfig) bool { return c.HasGitHubAppIntegration },
 				},
 			},
 		}
@@ -434,4 +434,42 @@ func getStepInfo(step int) *stepInfo {
 	default:
 		return nil
 	}
+}
+
+// isStepRequired returns whether the given step should be shown based on the
+// current configuration.  Steps 11 (Docker), 12 (Kubernetes), and 13 (Source)
+// are deployment-mode-specific and are only required when the matching mode is selected.
+func isStepRequired(step int, cfg *config.WizardConfig) bool {
+	switch step {
+	case 11: // Docker configuration
+		return cfg.DeploymentMode == "docker"
+	case 12: // Kubernetes configuration
+		return cfg.DeploymentMode == "kubernetes"
+	case 13: // Source configuration
+		return cfg.DeploymentMode == "source"
+	default:
+		return true
+	}
+}
+
+// nextStep returns the next required step after the given step,
+// or the current step if there is no next required step.
+func nextStep(step int, cfg *config.WizardConfig) int {
+	for s := step + 1; s <= stepCount; s++ {
+		if isStepRequired(s, cfg) {
+			return s
+		}
+	}
+	return step
+}
+
+// prevStep returns the previous required step before the given step,
+// or the current step if there is no previous required step.
+func prevStep(step int, cfg *config.WizardConfig) int {
+	for s := step - 1; s >= 1; s-- {
+		if isStepRequired(s, cfg) {
+			return s
+		}
+	}
+	return step
 }
