@@ -710,6 +710,75 @@ func TestDockerComposeRepoEnvVar(t *testing.T) {
 	})
 }
 
+// TestDockerComposeVolumeMount verifies the config volume mount when not using GitHub repo.
+func TestDockerComposeVolumeMount(t *testing.T) {
+	// Test without GitHub repo creation - should have volume mount
+	t.Run("without github repo creation has volume mount", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-vol-local"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = false
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "volumes:") {
+			t.Errorf("docker-compose.yaml should contain volumes directive, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "/etc/honeydipper/config") {
+			t.Errorf("docker-compose.yaml should mount config to /etc/honeydipper/config, got:\n%s", yamlStr)
+		}
+	})
+
+	// Test with GitHub repo creation - should NOT have volume mount
+	t.Run("with github repo creation has no volume mount", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-vol-gh"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.GithubRepoName = "myuser/hd-config"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		// The volumes: directive for config should NOT exist
+		// (redis volume might still exist if RedisMode is local)
+		// We check that there's no bind mount to /etc/honeydipper/config
+		if strings.Contains(yamlStr, "/etc/honeydipper/config") {
+			// It's OK if it's in the REPO env var line
+			lines := strings.Split(yamlStr, "\n")
+			for _, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "-") && strings.Contains(trimmed, "/etc/honeydipper/config") {
+					t.Errorf("docker-compose.yaml should NOT have volume mount to /etc/honeydipper/config when using GitHub repo, line: %s", trimmed)
+				}
+			}
+		}
+	})
+}
+
 // TestSlackSecretPathsInIntegrations verifies user-provided Slack paths are used.
 func TestSlackSecretPathsInIntegrations(t *testing.T) {
 	// Test with user-provided paths

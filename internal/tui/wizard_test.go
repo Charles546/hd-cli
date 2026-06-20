@@ -854,5 +854,63 @@ func updateWizardCmd(m *WizardModel, msg tea.Msg) (*WizardModel, tea.Cmd) {
 	return model.(*WizardModel), cmd
 }
 
+func TestTextInputSelectAllOnFocus(t *testing.T) {
+	// Use default config which has ProjectName = "hd-config"
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name step - has default "hd-config"
+
+	// The text input should have the default value
+	if m.textInput.Value() != "hd-config" {
+		t.Fatalf("textInput.Value() = %q, want %q", m.textInput.Value(), "hd-config")
+	}
+
+	// pendingDefault should be true
+	if !m.pendingDefault {
+		t.Fatal("pendingDefault should be true when text input has a default value")
+	}
+
+	// Simulate typing a character - should clear the default first
+	for _, ch := range "my" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// After typing, the value should be "my" (default was cleared and replaced)
+	if m.textInput.Value() != "my" {
+		t.Errorf("textInput.Value() after typing = %q, want %q", m.textInput.Value(), "my")
+	}
+
+	// pendingDefault should now be false
+	if m.pendingDefault {
+		t.Error("pendingDefault should be false after typing")
+	}
+}
+
+func TestTextInputBackspaceClearsDefault(t *testing.T) {
+	// Use default config which has ProjectName = "hd-config"
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// pendingDefault should be true
+	if !m.pendingDefault {
+		t.Fatal("pendingDefault should be true")
+	}
+
+	// Simulate Backspace - should clear the entire default
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyBackspace})
+
+	// Value should be empty (default was cleared)
+	if m.textInput.Value() != "" {
+		t.Errorf("textInput.Value() after backspace = %q, want empty", m.textInput.Value())
+	}
+
+	// pendingDefault should be false
+	if m.pendingDefault {
+		t.Error("pendingDefault should be false after backspace clears default")
+	}
+}
+
 // Ensure textinput.Model is used (compile-time check)
 var _ textinput.Model

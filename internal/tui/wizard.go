@@ -53,6 +53,10 @@ type WizardModel struct {
 
 	// Error display
 	validationErr string
+
+	// pendingDefault tracks whether the current text input holds a default value
+	// that should be cleared on the next character or backspace keypress.
+	pendingDefault bool
 }
 
 // stepCount is the total number of wizard steps (used for progress).
@@ -83,6 +87,7 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 	m.mode = modeNavigate
 	m.textInputs = nil
 	m.textInput = textinput.Model{}
+	m.pendingDefault = false
 
 	stepInfo := getStepInfo(s)
 	if stepInfo == nil {
@@ -117,6 +122,9 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 		m.textInputs = []textinput.Model{ti}
 		m.textInput = ti
 		m.textInput.Focus()
+		if defaultValue != "" {
+			m.pendingDefault = true
+		}
 	}
 
 	return nil
@@ -143,6 +151,9 @@ func (m *WizardModel) buildMultiFieldInputs(stepInfo *stepInfo) {
 	if len(m.textInputs) > 0 {
 		m.textInput = m.textInputs[0]
 		m.textInput.Focus()
+		if m.textInputs[0].Value() != "" {
+			m.pendingDefault = true
+		}
 	}
 }
 
@@ -304,6 +315,22 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 				return m, nil
 			}
 			// Otherwise let textinput handle it
+		}
+	}
+
+	// Handle pendingDefault: clear the default value on first keystroke
+	if m.pendingDefault {
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			switch keyMsg.Type {
+			case tea.KeyRunes:
+				// Typing a character: clear the default value first
+				m.textInput.SetValue("")
+				m.pendingDefault = false
+			case tea.KeyBackspace:
+				// Backspace: clear the entire default value
+				m.textInput.SetValue("")
+				m.pendingDefault = false
+			}
 		}
 	}
 
