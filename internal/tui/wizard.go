@@ -9,6 +9,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"gopkg.in/yaml.v3"
 
 	"github.com/Charles546/hd-cli/internal/config"
 )
@@ -216,6 +218,14 @@ func (m *WizardModel) handleDone(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "enter":
+			m.err = m.generateConfig()
+			return m, tea.Quit
+		case "s":
+			// Save answers to YAML file, then generate config
+			if err := m.saveAnswersFile(); err != nil {
+				m.validationErr = fmt.Sprintf("failed to save answers: %v", err)
+				return m, nil
+			}
 			m.err = m.generateConfig()
 			return m, tea.Quit
 		case "esc", "backspace":
@@ -664,9 +674,10 @@ func (m *WizardModel) View() string {
 
 	if m.done {
 		b.WriteString(m.renderSummary())
-		b.WriteString(ConfirmStyle.Render("\n  Press Enter to confirm and generate configs, or q to quit."))
+		b.WriteString(ConfirmStyle.Render("\n  Press Enter to confirm and generate configs."))
 		b.WriteString("\n")
-		b.WriteString(m.renderNavigation())
+		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • q=quit"))
+		b.WriteString("\n")
 		return b.String()
 	}
 
@@ -699,8 +710,8 @@ func (m *WizardModel) renderStepContent() string {
 		return b.String()
 	case 15:
 		b.WriteString(renderStepTitle("Step 15: Summary & Confirm"))
-		b.WriteString(m.renderSummary())
-		b.WriteString(ConfirmStyle.Render("\n  Press Enter to confirm and generate configs, or q to quit."))
+		b.WriteString(DescriptionStyle.Render("  Review your configuration before generating files.\n"))
+		b.WriteString(ConfirmStyle.Render("  Press Enter to review and confirm, or Esc to go back."))
 		return b.String()
 	}
 
@@ -1023,6 +1034,19 @@ func (m *WizardModel) generateConfig() error {
 	}
 	generator := config.NewGenerator()
 	return generator.Generate(m.config, m.config.ConfigDir, false)
+}
+
+// saveAnswersFile saves the wizard answers to a YAML file for reuse with --config flag.
+func (m *WizardModel) saveAnswersFile() error {
+	answersPath := "./" + m.config.ProjectName + "-answers.yaml"
+	data, err := yaml.Marshal(m.config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal answers: %w", err)
+	}
+	if err := os.WriteFile(answersPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write answers file: %w", err)
+	}
+	return nil
 }
 
 // RunWizard is the entry point that starts the interactive wizard.
