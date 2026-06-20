@@ -9,6 +9,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -330,6 +331,10 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 				// Backspace: clear the entire default value
 				m.textInput.SetValue("")
 				m.pendingDefault = false
+			case tea.KeyLeft, tea.KeyRight:
+				// Arrow keys: exit select-all mode, move cursor to end
+				m.pendingDefault = false
+				m.textInput.SetCursor(len(m.textInput.Value()))
 			}
 		}
 	}
@@ -715,7 +720,11 @@ func (m *WizardModel) renderStepContent() string {
 				if visibleIdx < len(m.textInputs) {
 					ti := m.textInputs[visibleIdx]
 					if visibleIdx == m.currentField {
-						b.WriteString(FocusedInputStyle.Render(ti.View()))
+						if m.pendingDefault {
+							b.WriteString(SelectAllStyle.Render(ti.View()))
+						} else {
+							b.WriteString(FocusedInputStyle.Render(ti.View()))
+						}
 					} else {
 						val := ti.Value()
 						if val != "" {
@@ -740,7 +749,11 @@ func (m *WizardModel) renderStepContent() string {
 				if i < len(m.textInputs) {
 					ti := m.textInputs[i]
 					if i == m.currentField {
-						b.WriteString(FocusedInputStyle.Render(ti.View()))
+						if m.pendingDefault {
+							b.WriteString(SelectAllStyle.Render(ti.View()))
+						} else {
+							b.WriteString(FocusedInputStyle.Render(ti.View()))
+						}
 					} else {
 						val := ti.Value()
 						if val != "" {
@@ -1000,6 +1013,14 @@ func (m *WizardModel) validateCurrentStep() error {
 
 // generateConfig invokes the config generator with the wizard's config.
 func (m *WizardModel) generateConfig() error {
+	// Compute absolute path for ConfigDir if not already set
+	if m.config.ConfigDirAbs == "" {
+		if abs, err := filepath.Abs(m.config.ConfigDir); err == nil {
+			m.config.ConfigDirAbs = abs
+		} else {
+			m.config.ConfigDirAbs = m.config.ConfigDir
+		}
+	}
 	generator := config.NewGenerator()
 	return generator.Generate(m.config, m.config.ConfigDir, false)
 }

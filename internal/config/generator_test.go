@@ -739,6 +739,17 @@ func TestDockerComposeVolumeMount(t *testing.T) {
 		if !strings.Contains(yamlStr, "/etc/honeydipper/config") {
 			t.Errorf("docker-compose.yaml should mount config to /etc/honeydipper/config, got:\n%s", yamlStr)
 		}
+		// Verify the volume mount uses an absolute path (starts with /)
+		lines := strings.Split(yamlStr, "\n")
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "- ") && strings.HasSuffix(trimmed, ":/etc/honeydipper/config") {
+				hostPath := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(trimmed, "- "), ":/etc/honeydipper/config"))
+				if !strings.HasPrefix(hostPath, "/") {
+					t.Errorf("volume mount should use absolute path, got: %q", hostPath)
+				}
+			}
+		}
 	})
 
 	// Test with GitHub repo creation - should NOT have volume mount

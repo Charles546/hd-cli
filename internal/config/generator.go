@@ -72,6 +72,9 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 		return fmt.Errorf("wizard config is nil")
 	}
 
+	// Apply defaults for any missing values
+	applyDefaults(cfg)
+
 	// Ensure output directory exists (unless dry run)
 	if !dryRun {
 		if err := util.EnsureDir(outputDir); err != nil {
@@ -178,6 +181,11 @@ func applyDefaults(cfg *WizardConfig) {
 	}
 	if cfg.ConfigDir == "" {
 		cfg.ConfigDir = "./" + cfg.ProjectName
+	}
+	if abs, err := filepath.Abs(cfg.ConfigDir); err == nil {
+		cfg.ConfigDirAbs = abs
+	} else {
+		cfg.ConfigDirAbs = cfg.ConfigDir
 	}
 	if cfg.DeploymentMode == "" {
 		cfg.DeploymentMode = def.DeploymentMode

@@ -12,6 +12,7 @@ type WizardConfig struct {
 	// Project settings
 	ProjectName    string `yaml:"project_name"`
 	ConfigDir      string `yaml:"config_dir"`
+	ConfigDirAbs   string `yaml:"-"`               // Absolute path of ConfigDir, computed during generation
 	DeploymentMode string `yaml:"deployment_mode"` // docker, source, kubernetes
 
 	// Essentials repo
