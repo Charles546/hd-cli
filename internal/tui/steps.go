@@ -73,10 +73,8 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 		switch key {
 		case "has_github_pat_integration":
 			cfg.HasGithubPATIntegration = value == "true" || value == "yes"
-			cfg.HasGitHubAppIntegration = value != "true" && value != "yes"
 		case "has_github_app_integration":
 			cfg.HasGitHubAppIntegration = value == "true" || value == "yes"
-			cfg.HasGithubPATIntegration = value != "true" && value != "yes"
 		case "github_app_id":
 			cfg.GithubAppID = value
 		case "github_installation_id":
@@ -243,22 +241,24 @@ func ValidateStepComplete(m *WizardModel) error {
 			return fmt.Errorf("essentials repo URL is required")
 		}
 	case 6:
-		// Secrets backend selection is required
 		if cfg.SecretsBackend == "" {
 			return fmt.Errorf("secrets backend selection is required")
 		}
 	case 8:
 		if cfg.HasGitHubAppIntegration {
 			if strings.TrimSpace(cfg.GithubAppID) == "" {
-				return fmt.Errorf("github App ID is required")
+				return fmt.Errorf("github App ID is required when GitHub App integration is enabled")
 			}
 			if strings.TrimSpace(cfg.GithubInstallationID) == "" {
-				return fmt.Errorf("github Installation ID is required")
+				return fmt.Errorf("github Installation ID is required when GitHub App integration is enabled")
+			}
+			if strings.TrimSpace(cfg.GithubKeyPath) == "" {
+				return fmt.Errorf("private key secret path is required when GitHub App integration is enabled")
 			}
 		}
 		if cfg.HasGithubPATIntegration {
 			if strings.TrimSpace(cfg.GithubTokenPath) == "" {
-				return fmt.Errorf("token secret path is required")
+				return fmt.Errorf("token secret path is required when PAT integration is enabled")
 			}
 		}
 	case 11:
