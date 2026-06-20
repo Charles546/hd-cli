@@ -106,7 +106,7 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 		// Fix 1: For step 3 (Config Directory), default to ./<project-name>
 		placeholder := stepInfo.fields[0].placeholder
 		defaultValue := stepInfo.fields[0].getValue(m.config)
-		if s == 3 && defaultValue == "" && m.config.ProjectName != "" {
+		if s == 3 && m.config.ProjectName != "" {
 			defaultValue = "./" + m.config.ProjectName
 		}
 		ti := textinput.New()
@@ -404,7 +404,7 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 				m.buildCheckboxTextInputs(stepInfo)
 			}
 			return m, nil
-		case "enter", "tab":
+		case "enter":
 			if m.currentField == 0 {
 				// On checkboxes: toggle current, then move to next checkbox or text fields
 				if m.checkboxIndex < len(stepInfo.checkboxes) {
@@ -458,9 +458,73 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 				}
 			}
 			return m, nil
-		case "esc", "backspace":
+		case "tab":
+			if m.currentField == 0 {
+				// On checkboxes: move to next checkbox or to text fields (no toggle)
+				if m.checkboxIndex < len(stepInfo.checkboxes)-1 {
+					m.checkboxIndex++
+				} else if len(m.textInputs) > 0 {
+					m.currentField = 1
+					m.textInput = m.textInputs[0]
+					m.textInput.Focus()
+					m.textInputs[0] = m.textInput
+				} else {
+					// No text fields, advance to next step
+					if err := m.validateCurrentStep(); err != nil {
+						m.validationErr = err.Error()
+						return m, nil
+					}
+					if m.step >= m.total {
+						m.done = true
+					} else {
+						return m, m.initStep(m.step + 1)
+					}
+				}
+			} else {
+				// In text fields: move to next field or advance step
+				m.saveCheckboxFieldValue(stepInfo)
+				if m.currentField < len(m.textInputs) {
+					m.textInput.Blur()
+					m.textInputs[m.currentField-1] = m.textInput
+					m.currentField++
+					m.textInput = m.textInputs[m.currentField-1]
+					m.textInput.Focus()
+					m.textInputs[m.currentField-1] = m.textInput
+				} else {
+					// Last text field: validate and advance
+					if err := m.validateCurrentStep(); err != nil {
+						m.validationErr = err.Error()
+						return m, nil
+					}
+					if m.step >= m.total {
+						m.done = true
+					} else {
+						return m, m.initStep(m.step + 1)
+					}
+				}
+			}
+			return m, nil
+		case "esc":
 			if m.currentField > 0 {
-				// In text fields: go back
+				// In text fields: go back to previous field
+				m.textInput.Blur()
+				m.textInputs[m.currentField-1] = m.textInput
+				m.currentField--
+				if m.currentField > 0 {
+					m.textInput = m.textInputs[m.currentField-1]
+					m.textInput.Focus()
+					m.textInputs[m.currentField-1] = m.textInput
+				}
+				return m, nil
+			}
+			// On checkboxes: go back a step
+			if m.step > 1 {
+				return m, m.initStep(m.step - 1)
+			}
+			return m, nil
+		case "backspace":
+			if m.currentField > 0 {
+				// In text fields: only navigate back if text is empty
 				if m.textInput.Value() == "" {
 					m.textInput.Blur()
 					m.textInputs[m.currentField-1] = m.textInput
@@ -472,8 +536,11 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 					}
 					return m, nil
 				}
+				// Otherwise let textinput handle backspace (delete character)
+				// Exit switch and delegate to text input below
+				break
 			}
-			// On checkboxes or empty text: go back a step
+			// On checkboxes: go back a step
 			if m.step > 1 {
 				return m, m.initStep(m.step - 1)
 			}
