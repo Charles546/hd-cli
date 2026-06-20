@@ -8,14 +8,19 @@ deployment_mode: docker
 essentials_repo_url: https://github.com/honeydipper/honeydipper-config-essentials.git
 essentials_branch: v4-rc
 
-github_integration_type: pat
+essentials_clone_type: pat
+essentials_clone_pat: DIPPER_GIT_PAT
+
+bootstrap_clone_credential_type: pat
+
+has_github_pat_integration: true
 github_token_path: secrets/github-token
 github_webhook_secret_path: secrets/github-webhook-secret
 
 slack_bot_token_path: secrets/slack-bot-token
 slack_signing_secret_path: secrets/slack-signing-secret
-slack_interaction_token_path: ""
-slack_slash_command_token_path: ""
+slack_interaction_token: ""
+slack_slash_command_token: ""
 
 ai_enabled: false
 

@@ -90,7 +90,9 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 		{"drivers.yaml", "drivers.yaml.tmpl", true},
 		{"daemon.yaml", "daemon.yaml.tmpl", true},
 		{"workflows.yaml", "workflows.yaml.tmpl", true},
-		{"ai/basic.yaml", "ai.yaml.tmpl", cfg.AIEnabled},
+		{"ai/agents.yaml", "ai-agents.yaml.tmpl", cfg.AIEnabled},
+		{"ai/contexts.yaml", "ai-contexts.yaml.tmpl", cfg.AIEnabled},
+		{"ai/mcp.yaml", "ai-mcp.yaml.tmpl", cfg.AIEnabled},
 		{"ai/engines.yaml", "ai-engines.yaml.tmpl", cfg.AIEnabled},
 	}
 
@@ -186,8 +188,11 @@ func applyDefaults(cfg *WizardConfig) {
 	if cfg.EssentialsBranch == "" {
 		cfg.EssentialsBranch = def.EssentialsBranch
 	}
-	if cfg.GithubIntegrationType == "" {
-		cfg.GithubIntegrationType = def.GithubIntegrationType
+	if cfg.BootstrapCloneCredentialType == "" {
+		cfg.BootstrapCloneCredentialType = def.BootstrapCloneCredentialType
+	}
+	if cfg.EssentialsCloneType == "" {
+		cfg.EssentialsCloneType = def.EssentialsCloneType
 	}
 	if cfg.SecretsBackend == "" {
 		cfg.SecretsBackend = def.SecretsBackend

@@ -9,7 +9,6 @@ package tui
 import (
 	"fmt"
 	"strings"
-
 )
 
 // UpdateStep processes a single step's input and updates the config.
@@ -43,6 +42,16 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.EssentialsRepoURL = value
 		case "essentials_branch":
 			cfg.EssentialsBranch = value
+		case "essentials_clone_type":
+			cfg.EssentialsCloneType = value
+			// Also update the docker-compose field for consistency
+			cfg.BootstrapCloneCredentialType = value
+		case "essentials_clone_pat":
+			cfg.EssentialsClonePAT = value
+		case "essentials_clone_key":
+			cfg.EssentialsCloneKey = value
+		case "essentials_clone_key_pass_env":
+			cfg.EssentialsCloneKeyPassEnv = value
 		}
 	case 6:
 		switch key {
@@ -62,8 +71,12 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 		}
 	case 8:
 		switch key {
-		case "github_integration_type":
-			cfg.GithubIntegrationType = value
+		case "has_github_pat_integration":
+			cfg.HasGithubPATIntegration = value == "true" || value == "yes"
+			cfg.HasGitHubAppIntegration = value != "true" && value != "yes"
+		case "has_github_app_integration":
+			cfg.HasGitHubAppIntegration = value == "true" || value == "yes"
+			cfg.HasGithubPATIntegration = value != "true" && value != "yes"
 		case "github_app_id":
 			cfg.GithubAppID = value
 		case "github_installation_id":
@@ -81,10 +94,10 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.SlackBotTokenPath = value
 		case "slack_signing_secret_path":
 			cfg.SlackSigningSecretPath = value
-		case "slack_interaction_token_path":
-			cfg.SlackInteractionTokenPath = value
-		case "slack_slash_command_token_path":
-			cfg.SlackSlashCommandTokenPath = value
+		case "slack_interaction_token":
+			cfg.SlackInteractionToken = value
+		case "slack_slash_command_token":
+			cfg.SlackSlashCommandToken = value
 		}
 	case 10:
 		switch key {
@@ -235,15 +248,15 @@ func ValidateStepComplete(m *WizardModel) error {
 			return fmt.Errorf("secrets backend selection is required")
 		}
 	case 8:
-		switch cfg.GithubIntegrationType {
-		case "github_app":
+		if cfg.HasGitHubAppIntegration {
 			if strings.TrimSpace(cfg.GithubAppID) == "" {
 				return fmt.Errorf("github App ID is required")
 			}
 			if strings.TrimSpace(cfg.GithubInstallationID) == "" {
 				return fmt.Errorf("github Installation ID is required")
 			}
-		case "pat":
+		}
+		if cfg.HasGithubPATIntegration {
 			if strings.TrimSpace(cfg.GithubTokenPath) == "" {
 				return fmt.Errorf("token secret path is required")
 			}
@@ -284,6 +297,7 @@ func renderWelcome(m *WizardModel) string {
 			"  • Secrets backend and Redis\n" +
 			"  • GitHub and Slack integrations\n" +
 			"  • AI agent configuration\n" +
+			"  • Repo clone credentials\n" +
 			"  • Platform-specific options\n\n" +
 			"At the end, all configuration files will be generated.\n",
 	))

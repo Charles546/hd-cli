@@ -495,6 +495,7 @@ func (m *WizardModel) renderSummary() string {
 	items = append(items, fmt.Sprintf("  Config dir: %s", cfg.ConfigDir))
 	items = append(items, fmt.Sprintf("  Deployment: %s", cfg.DeploymentMode))
 	items = append(items, fmt.Sprintf("  Essentials repo: %s (%s)", cfg.EssentialsRepoURL, cfg.EssentialsBranch))
+	items = append(items, fmt.Sprintf("  Clone credentials: %s", cfg.EssentialsCloneType))
 	items = append(items, fmt.Sprintf("  Secrets backend: %s", cfg.SecretsBackend))
 	items = append(items, fmt.Sprintf("  Redis: %s", cfg.RedisMode))
 
@@ -512,7 +513,13 @@ func (m *WizardModel) renderSummary() string {
 		items = append(items, fmt.Sprintf("  Branch: %s", cfg.SourceBranch))
 	}
 
-	items = append(items, fmt.Sprintf("  GitHub integration: %s", cfg.GithubIntegrationType))
+	ghIntegration := "none"
+	if cfg.HasGitHubAppIntegration {
+		ghIntegration = "github_app"
+	} else if cfg.HasGithubPATIntegration {
+		ghIntegration = "pat"
+	}
+	items = append(items, fmt.Sprintf("  GitHub integration: %s", ghIntegration))
 	items = append(items, "  Slack integration: enabled")
 	if cfg.AIEnabled {
 		items = append(items, fmt.Sprintf("  AI agent: enabled (%s, %s)", cfg.AIModel, cfg.AIBaseURL))
@@ -549,7 +556,7 @@ func (m *WizardModel) validateCurrentStep() error {
 			return fmt.Errorf("secrets backend selection is required")
 		}
 	case 8:
-		if m.config.GithubIntegrationType == "github_app" {
+		if m.config.HasGitHubAppIntegration {
 			if strings.TrimSpace(m.config.GithubAppID) == "" {
 				return fmt.Errorf("github App ID is required")
 			}
