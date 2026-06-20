@@ -9,8 +9,6 @@ repos:
 {{- with .EssentialsPath }}
     path: {{ . | quote }}
 {{- end }}
-## by default the .EssentialCloneType should be public, meaning
-#  no auth is needed for public repo
 {{- if eq .EssentialsCloneType "ssh" }}
     key_file: {{ .EssentialsCloneKey | quote }}
 {{- with .EssentialsCloneKeyPassEnv }}
@@ -20,9 +18,11 @@ repos:
     token_source: github
 {{- else if eq .EssentialsCloneType "pat" }}
     pass_env: {{ .EssentialsClonePAT | default "DIPPER_GIT_PAT" | quote }}
+{{- else }}
+    ## no auth needed for public repo.
 {{- end }}
-    options:
 {{- if .AIEnabled }}
+    options:
       ai: true
 {{- end }}
 

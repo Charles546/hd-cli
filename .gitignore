@@ -37,3 +37,6 @@ hd.exe
 # Test coverage
 coverage.out
 coverage.html
+
+# Generated config output from tests
+internal/tui/hd-config/

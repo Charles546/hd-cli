@@ -653,3 +653,300 @@ func TestInitYamlAIIncludes(t *testing.T) {
 		t.Error("init.yaml should contain 'ai/*.yaml' when AI is enabled")
 	}
 }
+
+// TestDockerComposeRepoEnvVar verifies the REPO env var in docker-compose.yaml.
+func TestDockerComposeRepoEnvVar(t *testing.T) {
+	// Test with GitHub repo creation
+	t.Run("with github repo creation", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-repo-gh"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.GithubRepoName = "myuser/hd-config"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "REPO=https://github.com/myuser/hd-config.git") {
+			t.Errorf("docker-compose.yaml should contain REPO with GitHub URL, got:\n%s", yamlStr)
+		}
+	})
+
+	// Test without GitHub repo creation (local path)
+	t.Run("without github repo creation", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-repo-local"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = false
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+			t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
+		}
+	})
+}
+
+// TestDockerComposeVolumeMount verifies the config volume mount when not using GitHub repo.
+func TestDockerComposeVolumeMount(t *testing.T) {
+	// Test without GitHub repo creation - should have volume mount
+	t.Run("without github repo creation has volume mount", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-vol-local"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = false
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "volumes:") {
+			t.Errorf("docker-compose.yaml should contain volumes directive, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "/etc/honeydipper/config") {
+			t.Errorf("docker-compose.yaml should mount config to /etc/honeydipper/config, got:\n%s", yamlStr)
+		}
+		// Verify the volume mount uses an absolute path (starts with /)
+		lines := strings.Split(yamlStr, "\n")
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "- ") && strings.HasSuffix(trimmed, ":/etc/honeydipper/config") {
+				hostPath := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(trimmed, "- "), ":/etc/honeydipper/config"))
+				if !strings.HasPrefix(hostPath, "/") {
+					t.Errorf("volume mount should use absolute path, got: %q", hostPath)
+				}
+			}
+		}
+	})
+
+	// Test with GitHub repo creation - should NOT have volume mount
+	t.Run("with github repo creation has no volume mount", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-vol-gh"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.GithubRepoName = "myuser/hd-config"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		// The volumes: directive for config should NOT exist
+		// (redis volume might still exist if RedisMode is local)
+		// We check that there's no bind mount to /etc/honeydipper/config
+		if strings.Contains(yamlStr, "/etc/honeydipper/config") {
+			// It's OK if it's in the REPO env var line
+			lines := strings.Split(yamlStr, "\n")
+			for _, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "-") && strings.Contains(trimmed, "/etc/honeydipper/config") {
+					t.Errorf("docker-compose.yaml should NOT have volume mount to /etc/honeydipper/config when using GitHub repo, line: %s", trimmed)
+				}
+			}
+		}
+	})
+}
+
+// TestSlackSecretPathsInIntegrations verifies user-provided Slack paths are used.
+func TestSlackSecretPathsInIntegrations(t *testing.T) {
+	// Test with user-provided paths
+	t.Run("with custom slack paths", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-slack-custom"
+		cfg.SlackBotTokenPath = "secrets/slack/bot-token"
+		cfg.SlackSigningSecretPath = "secrets/slack/signing-secret"
+		cfg.SlackInteractionToken = "secrets/slack/interaction"
+		cfg.SlackSlashCommandToken = "secrets/slack/slash"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		intPath := filepath.Join(tmpDir, "integrations.yaml")
+		content, err := os.ReadFile(intPath)
+		if err != nil {
+			t.Fatalf("failed to read integrations.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "token: LOOKUP[vault,secrets/slack/bot-token]") {
+			t.Errorf("integrations.yaml should contain custom bot token path, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "signatureSecret: LOOKUP[vault,secrets/slack/signing-secret]") {
+			t.Errorf("integrations.yaml should contain custom signing secret path, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "interact_token: LOOKUP[vault,secrets/slack/interaction]") {
+			t.Errorf("integrations.yaml should contain custom interaction token, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "slash_token: LOOKUP[vault,secrets/slack/slash]") {
+			t.Errorf("integrations.yaml should contain custom slash command token, got:\n%s", yamlStr)
+		}
+	})
+
+	// Test with default (empty) paths — should use LOOKUP
+	t.Run("with default slack paths", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-slack-default"
+		// Slack paths left empty
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		intPath := filepath.Join(tmpDir, "integrations.yaml")
+		content, err := os.ReadFile(intPath)
+		if err != nil {
+			t.Fatalf("failed to read integrations.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "LOOKUP[vault,/secrets/data/test-slack-default/slack#botToken]") {
+			t.Errorf("integrations.yaml should contain default LOOKUP for bot token, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "LOOKUP[vault,/secrets/data/test-slack-default/slack#signingSecret]") {
+			t.Errorf("integrations.yaml should contain default LOOKUP for signing secret, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "$?nil") {
+			t.Errorf("integrations.yaml should contain $?nil for default interact/slash tokens, got:\n%s", yamlStr)
+		}
+	})
+
+	// Test with partial paths — some custom, some default
+	t.Run("with partial slack paths", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-slack-partial"
+		cfg.SlackBotTokenPath = "custom/bot-token"
+		// signing secret left empty
+		cfg.SlackInteractionToken = "custom/interaction"
+		// slash command token left empty
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		intPath := filepath.Join(tmpDir, "integrations.yaml")
+		content, err := os.ReadFile(intPath)
+		if err != nil {
+			t.Fatalf("failed to read integrations.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "token: LOOKUP[vault,custom/bot-token]") {
+			t.Errorf("integrations.yaml should contain custom bot token path")
+		}
+		if !strings.Contains(yamlStr, "LOOKUP[vault,/secrets/data/test-slack-partial/slack#signingSecret]") {
+			t.Errorf("integrations.yaml should contain default LOOKUP for signing secret")
+		}
+		if !strings.Contains(yamlStr, "interact_token: LOOKUP[vault,custom/interaction]") {
+			t.Errorf("integrations.yaml should contain custom interaction token")
+		}
+		if !strings.Contains(yamlStr, "slash_token: $?nil") {
+			t.Errorf("integrations.yaml should contain default $?nil for slash token")
+		}
+	})
+}
+
+// TestGithubTokenPathInIntegrations verifies user-provided GitHub paths are used.
+func TestGithubTokenPathInIntegrations(t *testing.T) {
+	t.Run("with custom github token path", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-gh-custom"
+		cfg.HasGithubPATIntegration = true
+		cfg.GithubTokenPath = "secrets/github/my-pat"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		intPath := filepath.Join(tmpDir, "integrations.yaml")
+		content, err := os.ReadFile(intPath)
+		if err != nil {
+			t.Fatalf("failed to read integrations.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "pat: LOOKUP[vault,secrets/github/my-pat]") {
+			t.Errorf("integrations.yaml should contain custom GitHub token path, got:\n%s", yamlStr)
+		}
+	})
+
+	t.Run("with custom github webhook secret path", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-gh-webhook"
+		cfg.HasGitHubAppIntegration = true
+		cfg.GithubWebhookSecret = "secrets/github/webhook-secret"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		intPath := filepath.Join(tmpDir, "integrations.yaml")
+		content, err := os.ReadFile(intPath)
+		if err != nil {
+			t.Fatalf("failed to read integrations.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "signatureSecret: LOOKUP[vault,secrets/github/webhook-secret]") {
+			t.Errorf("integrations.yaml should contain custom webhook secret path, got:\n%s", yamlStr)
+		}
+	})
+}

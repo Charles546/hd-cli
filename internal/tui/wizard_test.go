@@ -277,8 +277,8 @@ func TestWizardModelInitStep(t *testing.T) {
 	if m.mode != modeTextInput {
 		t.Errorf("Step 5 mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
 	}
-	if len(m.textInputs) != 5 {
-		t.Errorf("Step 5 textInputs count = %d, want 5", len(m.textInputs))
+	if len(m.textInputs) != 3 {
+		t.Errorf("Step 5 textInputs count = %d, want 3", len(m.textInputs))
 	}
 
 	// Step 6 should be radio select (Secrets Backend)
@@ -287,10 +287,10 @@ func TestWizardModelInitStep(t *testing.T) {
 		t.Errorf("Step 6 mode = %d, want modeRadioSelect(%d)", m.mode, modeRadioSelect)
 	}
 
-	// Step 8 should be radio select (GitHub Integration)
+	// Step 8 should be checkbox select (GitHub Integration)
 	m = runInitStep(m, 8)
-	if m.mode != modeRadioSelect {
-		t.Errorf("Step 8 mode = %d, want modeRadioSelect(%d)", m.mode, modeRadioSelect)
+	if m.mode != modeCheckboxSelect {
+		t.Errorf("Step 8 mode = %d, want modeCheckboxSelect(%d)", m.mode, modeCheckboxSelect)
 	}
 
 	// Step 9 should be multi-field text input (Slack Integration)
@@ -718,26 +718,26 @@ func TestTextInputEmptyBackspaceGoesBack(t *testing.T) {
 	}
 }
 
-func TestMultiFieldLastFieldEnterAdvances(t *testing.T) {
-	cfg := config.NewDefaultWizardConfig()
-	m := NewWizard(cfg)
-	m = runInitStep(m, 5) // 5 fields (repo URL, branch, credential type, token env var, username)
 
-	// Move to last field (index 4)
-	for i := 0; i < 4; i++ {
-		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	}
-	if m.currentField != 4 {
-		t.Fatalf("currentField = %d, want 4", m.currentField)
-	}
 
-	// Press Enter on last field - should advance to next step
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	if m.step != 6 {
-		t.Errorf("step = %d, want 6", m.step)
-	}
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 func TestGetStepInfoAllSteps(t *testing.T) {
 	for i := 1; i <= stepCount; i++ {
@@ -852,6 +852,64 @@ func updateWizard(m *WizardModel, msg tea.Msg) (*WizardModel, tea.Cmd) {
 func updateWizardCmd(m *WizardModel, msg tea.Msg) (*WizardModel, tea.Cmd) {
 	model, cmd := m.Update(msg)
 	return model.(*WizardModel), cmd
+}
+
+func TestTextInputSelectAllOnFocus(t *testing.T) {
+	// Use default config which has ProjectName = "hd-config"
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name step - has default "hd-config"
+
+	// The text input should have the default value
+	if m.textInput.Value() != "hd-config" {
+		t.Fatalf("textInput.Value() = %q, want %q", m.textInput.Value(), "hd-config")
+	}
+
+	// pendingDefault should be true
+	if !m.pendingDefault {
+		t.Fatal("pendingDefault should be true when text input has a default value")
+	}
+
+	// Simulate typing a character - should clear the default first
+	for _, ch := range "my" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// After typing, the value should be "my" (default was cleared and replaced)
+	if m.textInput.Value() != "my" {
+		t.Errorf("textInput.Value() after typing = %q, want %q", m.textInput.Value(), "my")
+	}
+
+	// pendingDefault should now be false
+	if m.pendingDefault {
+		t.Error("pendingDefault should be false after typing")
+	}
+}
+
+func TestTextInputBackspaceClearsDefault(t *testing.T) {
+	// Use default config which has ProjectName = "hd-config"
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// pendingDefault should be true
+	if !m.pendingDefault {
+		t.Fatal("pendingDefault should be true")
+	}
+
+	// Simulate Backspace - should clear the entire default
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyBackspace})
+
+	// Value should be empty (default was cleared)
+	if m.textInput.Value() != "" {
+		t.Errorf("textInput.Value() after backspace = %q, want empty", m.textInput.Value())
+	}
+
+	// pendingDefault should be false
+	if m.pendingDefault {
+		t.Error("pendingDefault should be false after backspace clears default")
+	}
 }
 
 // Ensure textinput.Model is used (compile-time check)

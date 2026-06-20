@@ -65,6 +65,15 @@ var (
 				Padding(0, 1).
 				MarginBottom(1)
 
+	// SelectAllStyle is used for text inputs in "select all" mode (pendingDefault)
+	SelectAllStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(accentColor)).
+			Background(lipgloss.Color(accentColor)).
+			Foreground(lipgloss.Color("#000000")).
+			Padding(0, 1).
+			MarginBottom(1)
+
 	// SelectedItemStyle is used for radio/option selections
 	SelectedItemStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color(accentColor)).

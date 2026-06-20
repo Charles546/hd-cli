@@ -20,6 +20,7 @@ const (
 	stepTypeSingleField               // One text input field
 	stepTypeMultiField                // Multiple text input fields
 	stepTypeRadio                     // Radio selection (possibly with conditional fields)
+	stepTypeCheckbox                  // Multiple checkbox toggles (yes/no for each option)
 )
 
 // fieldDescriptor describes a single text input field within a step.
@@ -29,17 +30,30 @@ type fieldDescriptor struct {
 	help        string
 	getValue    func(*config.WizardConfig) string
 	setValue    func(*config.WizardConfig, string)
+	// condition, if set, determines whether this field is shown.
+	// When nil, the field is always shown.
+	condition func(*config.WizardConfig) bool
+}
+
+// checkboxOption describes a single checkbox toggle within a step.
+type checkboxOption struct {
+	label    string
+	help     string
+	getValue func(*config.WizardConfig) bool
+	setValue func(*config.WizardConfig, bool)
 }
 
 // stepInfo describes the structure and behavior of a wizard step.
 type stepInfo struct {
-	title        string
-	stepType     stepType
-	fields       []fieldDescriptor
-	radioLabel   string
-	radioOptions []string
-	radioGetter  func(*config.WizardConfig) string
-	radioSetter  func(*config.WizardConfig, string)
+	title          string
+	stepType       stepType
+	fields         []fieldDescriptor
+	checkboxes     []checkboxOption
+	checkboxLabel  string
+	radioLabel     string
+	radioOptions   []string
+	radioGetter    func(*config.WizardConfig) string
+	radioSetter    func(*config.WizardConfig, string)
 }
 
 // getStepInfo returns the stepInfo for a given step number.
@@ -72,7 +86,7 @@ func getStepInfo(step int) *stepInfo {
 				{
 					label:       "Config directory",
 					placeholder: "Path where config files will be written",
-					help:        "The path where config files will be written. Use absolute or relative path.",
+					help:        "The path where config files will be written. Use absolute or relative path. Defaults to the project name.",
 					getValue:    func(c *config.WizardConfig) string { return c.ConfigDir },
 					setValue:    func(c *config.WizardConfig, v string) { c.ConfigDir = v },
 				},
@@ -119,6 +133,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Name of env var that holds the token (for pat type). Will be passed to Docker container.",
 					getValue:    func(c *config.WizardConfig) string { return c.EssentialsClonePAT },
 					setValue:    func(c *config.WizardConfig, v string) { c.EssentialsClonePAT = v },
+					condition:   func(c *config.WizardConfig) bool { return c.EssentialsCloneType == "pat" },
 				},
 				{
 					label:       "Username",
@@ -126,6 +141,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Username for git authentication (only used with pat type).",
 					getValue:    func(c *config.WizardConfig) string { return c.EssentialsCloneKey },
 					setValue:    func(c *config.WizardConfig, v string) { c.EssentialsCloneKey = v },
+					condition:   func(c *config.WizardConfig) bool { return c.EssentialsCloneType == "pat" },
 				},
 			},
 		}
@@ -175,18 +191,21 @@ func getStepInfo(step int) *stepInfo {
 	case 8:
 		return &stepInfo{
 			title:    "Step 8: GitHub Integration",
-			stepType: stepTypeRadio,
-			radioLabel: "Integration type",
-			radioOptions: []string{"github_app", "pat"},
-			radioGetter: func(c *config.WizardConfig) string {
-				if c.HasGitHubAppIntegration {
-					return "github_app"
-				}
-				return "pat"
-			},
-			radioSetter: func(c *config.WizardConfig, v string) {
-				c.HasGithubPATIntegration = v == "pat"
-				c.HasGitHubAppIntegration = v == "github_app"
+			stepType: stepTypeCheckbox,
+			checkboxLabel: "GitHub integration type",
+			checkboxes: []checkboxOption{
+				{
+					label:    "GitHub App integration",
+					help:     "Use GitHub App for authentication (can be combined with PAT)",
+					getValue: func(c *config.WizardConfig) bool { return c.HasGitHubAppIntegration },
+					setValue: func(c *config.WizardConfig, v bool) { c.HasGitHubAppIntegration = v },
+				},
+				{
+					label:    "PAT integration",
+					help:     "Use Personal Access Token for authentication (can be combined with GitHub App)",
+					getValue: func(c *config.WizardConfig) bool { return c.HasGithubPATIntegration },
+					setValue: func(c *config.WizardConfig, v bool) { c.HasGithubPATIntegration = v },
+				},
 			},
 			fields: []fieldDescriptor{
 				{
@@ -195,6 +214,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "GitHub App ID (only for github_app integration)",
 					getValue:    func(c *config.WizardConfig) string { return c.GithubAppID },
 					setValue:    func(c *config.WizardConfig, v string) { c.GithubAppID = v },
+					condition:   func(c *config.WizardConfig) bool { return c.HasGitHubAppIntegration },
 				},
 				{
 					label:       "Installation ID",
@@ -202,27 +222,31 @@ func getStepInfo(step int) *stepInfo {
 					help:        "GitHub App Installation ID (only for github_app integration)",
 					getValue:    func(c *config.WizardConfig) string { return c.GithubInstallationID },
 					setValue:    func(c *config.WizardConfig, v string) { c.GithubInstallationID = v },
+					condition:   func(c *config.WizardConfig) bool { return c.HasGitHubAppIntegration },
 				},
 				{
 					label:       "Private key secret path",
 					placeholder: "Path to secret containing the private key",
-					help:        "Path to the secret containing the GitHub App private key",
+					help:        "Path to the secret containing the GitHub App private key (only for github_app integration)",
 					getValue:    func(c *config.WizardConfig) string { return c.GithubKeyPath },
 					setValue:    func(c *config.WizardConfig, v string) { c.GithubKeyPath = v },
+					condition:   func(c *config.WizardConfig) bool { return c.HasGitHubAppIntegration },
 				},
 				{
 					label:       "Token secret path",
 					placeholder: "Path to secret containing the PAT",
-					help:        "Path to the secret containing the Personal Access Token",
+					help:        "Path to the secret containing the Personal Access Token (only for PAT integration)",
 					getValue:    func(c *config.WizardConfig) string { return c.GithubTokenPath },
 					setValue:    func(c *config.WizardConfig, v string) { c.GithubTokenPath = v },
+					condition:   func(c *config.WizardConfig) bool { return c.HasGithubPATIntegration },
 				},
 				{
 					label:       "Webhook secret path",
 					placeholder: "Path to webhook signing secret",
-					help:        "Path to the webhook signing secret",
+					help:        "Path to the webhook signing secret (recommended for github_app integration)",
 					getValue:    func(c *config.WizardConfig) string { return c.GithubWebhookSecret },
 					setValue:    func(c *config.WizardConfig, v string) { c.GithubWebhookSecret = v },
+					condition:   func(c *config.WizardConfig) bool { return c.HasGitHubAppIntegration },
 				},
 			},
 		}
@@ -410,4 +434,42 @@ func getStepInfo(step int) *stepInfo {
 	default:
 		return nil
 	}
+}
+
+// isStepRequired returns whether the given step should be shown based on the
+// current configuration.  Steps 11 (Docker), 12 (Kubernetes), and 13 (Source)
+// are deployment-mode-specific and are only required when the matching mode is selected.
+func isStepRequired(step int, cfg *config.WizardConfig) bool {
+	switch step {
+	case 11: // Docker configuration
+		return cfg.DeploymentMode == "docker"
+	case 12: // Kubernetes configuration
+		return cfg.DeploymentMode == "kubernetes"
+	case 13: // Source configuration
+		return cfg.DeploymentMode == "source"
+	default:
+		return true
+	}
+}
+
+// nextStep returns the next required step after the given step,
+// or the current step if there is no next required step.
+func nextStep(step int, cfg *config.WizardConfig) int {
+	for s := step + 1; s <= stepCount; s++ {
+		if isStepRequired(s, cfg) {
+			return s
+		}
+	}
+	return step
+}
+
+// prevStep returns the previous required step before the given step,
+// or the current step if there is no previous required step.
+func prevStep(step int, cfg *config.WizardConfig) int {
+	for s := step - 1; s >= 1; s-- {
+		if isStepRequired(s, cfg) {
+			return s
+		}
+	}
+	return step
 }

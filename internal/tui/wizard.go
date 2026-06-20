@@ -9,6 +9,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -23,9 +24,10 @@ import (
 type inputMode int
 
 const (
-	modeNavigate inputMode = iota // Navigating between fields/steps
-	modeTextInput                 // Actively typing in a text input
-	modeRadioSelect               // Selecting a radio option
+	modeNavigate        inputMode = iota // Navigating between fields/steps (welcome)
+	modeTextInput                        // Actively typing in a text input
+	modeRadioSelect                      // Selecting a radio option
+	modeCheckboxSelect                   // Toggling checkboxes
 )
 
 // WizardModel is the top-level Bubble Tea model that orchestrates the init wizard.
@@ -47,8 +49,15 @@ type WizardModel struct {
 	// Radio selection state
 	radioIndex  int // currently highlighted radio option index
 
+	// Checkbox selection state
+	checkboxIndex int // currently highlighted checkbox option index
+
 	// Error display
 	validationErr string
+
+	// pendingDefault tracks whether the current text input holds a default value
+	// that should be cleared on the next character or backspace keypress.
+	pendingDefault bool
 }
 
 // stepCount is the total number of wizard steps (used for progress).
@@ -79,6 +88,7 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 	m.mode = modeNavigate
 	m.textInputs = nil
 	m.textInput = textinput.Model{}
+	m.pendingDefault = false
 
 	stepInfo := getStepInfo(s)
 	if stepInfo == nil {
@@ -88,36 +98,84 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 	switch stepInfo.stepType {
 	case stepTypeRadio:
 		m.mode = modeRadioSelect
-		// Set radioIndex to match current config value
 		m.radioIndex = m.findRadioIndex(stepInfo)
+	case stepTypeCheckbox:
+		m.mode = modeCheckboxSelect
+		m.checkboxIndex = 0
+		// Build text inputs for conditional fields based on current config
+		m.buildCheckboxTextInputs(stepInfo)
 	case stepTypeMultiField:
-		m.textInputs = make([]textinput.Model, len(stepInfo.fields))
-		for i, field := range stepInfo.fields {
-			ti := textinput.New()
-			ti.Placeholder = field.placeholder
-			ti.Width = 60
-			ti.Prompt = ""
-			// Pre-fill with existing value
-			ti.SetValue(field.getValue(m.config))
-			m.textInputs[i] = ti
-		}
-		// Focus first field
 		m.mode = modeTextInput
-		m.textInput = m.textInputs[0]
-		m.textInput.Focus()
+		m.buildMultiFieldInputs(stepInfo)
 	case stepTypeSingleField:
+		m.mode = modeTextInput
+		// Fix 1: For step 3 (Config Directory), default to ./<project-name>
+		placeholder := stepInfo.fields[0].placeholder
+		defaultValue := stepInfo.fields[0].getValue(m.config)
+		if s == 3 && m.config.ProjectName != "" {
+			defaultValue = "./" + m.config.ProjectName
+		}
 		ti := textinput.New()
-		ti.Placeholder = stepInfo.fields[0].placeholder
+		ti.Placeholder = placeholder
 		ti.Width = 60
 		ti.Prompt = ""
-		ti.SetValue(stepInfo.fields[0].getValue(m.config))
+		ti.SetValue(defaultValue)
 		m.textInputs = []textinput.Model{ti}
 		m.textInput = ti
-		m.mode = modeTextInput
 		m.textInput.Focus()
+		if defaultValue != "" {
+			m.pendingDefault = true
+		}
 	}
 
 	return nil
+}
+
+// buildMultiFieldInputs creates text inputs for a multi-field step,
+// filtering out conditional fields whose conditions are not met.
+func (m *WizardModel) buildMultiFieldInputs(stepInfo *stepInfo) {
+	var visibleFields []fieldDescriptor
+	for _, f := range stepInfo.fields {
+		if f.condition == nil || f.condition(m.config) {
+			visibleFields = append(visibleFields, f)
+		}
+	}
+	m.textInputs = make([]textinput.Model, len(visibleFields))
+	for i, field := range visibleFields {
+		ti := textinput.New()
+		ti.Placeholder = field.placeholder
+		ti.Width = 60
+		ti.Prompt = ""
+		ti.SetValue(field.getValue(m.config))
+		m.textInputs[i] = ti
+	}
+	if len(m.textInputs) > 0 {
+		m.textInput = m.textInputs[0]
+		m.textInput.Focus()
+		if m.textInputs[0].Value() != "" {
+			m.pendingDefault = true
+		}
+	}
+}
+
+// buildCheckboxTextInputs creates text inputs for conditional fields
+// in a checkbox step, based on current config values.
+func (m *WizardModel) buildCheckboxTextInputs(stepInfo *stepInfo) {
+	var visibleFields []fieldDescriptor
+	for _, f := range stepInfo.fields {
+		if f.condition == nil || f.condition(m.config) {
+			visibleFields = append(visibleFields, f)
+		}
+	}
+	m.textInputs = make([]textinput.Model, len(visibleFields))
+	for i, field := range visibleFields {
+		ti := textinput.New()
+		ti.Placeholder = field.placeholder
+		ti.Width = 60
+		ti.Prompt = ""
+		ti.SetValue(field.getValue(m.config))
+		m.textInputs[i] = ti
+	}
 }
 
 // findRadioIndex finds the index of the currently selected radio option.
@@ -162,7 +220,7 @@ func (m *WizardModel) handleDone(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "esc", "backspace":
 			m.done = false
-			m.step = stepCount - 1
+			m.step = prevStep(stepCount, m.config)
 			return m, m.initStep(m.step)
 		}
 	}
@@ -181,6 +239,8 @@ func (m *WizardModel) handleStepInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleTextInput(msg, stepInfo)
 	case modeRadioSelect:
 		return m.handleRadioSelect(msg, stepInfo)
+	case modeCheckboxSelect:
+		return m.handleCheckboxSelect(msg, stepInfo)
 	case modeNavigate:
 		return m.handleNavigate(msg, stepInfo)
 	}
@@ -217,7 +277,7 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 			if m.step >= m.total {
 				m.done = true
 			} else {
-				return m, m.initStep(m.step + 1)
+				return m, m.initStep(nextStep(m.step, m.config))
 			}
 			return m, nil
 
@@ -234,7 +294,7 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 			}
 			// First field: go back to previous step
 			if m.step > 1 {
-				return m, m.initStep(m.step - 1)
+				return m, m.initStep(prevStep(m.step, m.config))
 			}
 			return m, nil
 
@@ -251,11 +311,31 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 					return m, nil
 				}
 				if m.step > 1 {
-					return m, m.initStep(m.step - 1)
+					return m, m.initStep(prevStep(m.step, m.config))
 				}
 				return m, nil
 			}
 			// Otherwise let textinput handle it
+		}
+	}
+
+	// Handle pendingDefault: clear the default value on first keystroke
+	if m.pendingDefault {
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			switch keyMsg.Type {
+			case tea.KeyRunes:
+				// Typing a character: clear the default value first
+				m.textInput.SetValue("")
+				m.pendingDefault = false
+			case tea.KeyBackspace:
+				// Backspace: clear the entire default value
+				m.textInput.SetValue("")
+				m.pendingDefault = false
+			case tea.KeyLeft, tea.KeyRight:
+				// Arrow keys: exit select-all mode, move cursor to end
+				m.pendingDefault = false
+				m.textInput.SetCursor(len(m.textInput.Value()))
+			}
 		}
 	}
 
@@ -288,15 +368,224 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 			if m.step >= m.total {
 				m.done = true
 			} else {
-				return m, m.initStep(m.step + 1)
+				return m, m.initStep(nextStep(m.step, m.config))
 			}
 			return m, nil
 		case "esc", "backspace":
 			if m.step > 1 {
-				return m, m.initStep(m.step - 1)
+				return m, m.initStep(prevStep(m.step, m.config))
 			}
 			return m, nil
 		}
+	}
+	return m, nil
+}
+
+// handleCheckboxSelect handles checkbox toggle navigation and text input for conditional fields.
+func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "up", "k":
+			if m.currentField == 0 {
+				// Navigate within checkboxes
+				if m.checkboxIndex > 0 {
+					m.checkboxIndex--
+				}
+			} else {
+				// Navigate within text fields
+				m.textInput.Blur()
+				m.textInputs[m.currentField-1] = m.textInput
+				m.currentField--
+				if m.currentField > 0 {
+					m.textInput = m.textInputs[m.currentField-1]
+					m.textInput.Focus()
+					m.textInputs[m.currentField-1] = m.textInput
+				}
+			}
+			return m, nil
+		case "down", "j":
+			if m.currentField == 0 {
+				if m.checkboxIndex < len(stepInfo.checkboxes)-1 {
+					m.checkboxIndex++
+				} else if len(m.textInputs) > 0 {
+					// Move from last checkbox to first text field
+					m.currentField = 1
+					m.textInput = m.textInputs[0]
+					m.textInput.Focus()
+					m.textInputs[0] = m.textInput
+				}
+			} else if m.currentField < len(m.textInputs) {
+				m.textInput.Blur()
+				m.textInputs[m.currentField-1] = m.textInput
+				m.currentField++
+				if m.currentField <= len(m.textInputs) {
+					m.textInput = m.textInputs[m.currentField-1]
+					m.textInput.Focus()
+					m.textInputs[m.currentField-1] = m.textInput
+				}
+			}
+			return m, nil
+		case " ":
+			// Toggle the current checkbox (only when on checkbox row)
+			if m.currentField == 0 && m.checkboxIndex < len(stepInfo.checkboxes) {
+				opt := stepInfo.checkboxes[m.checkboxIndex]
+				current := opt.getValue(m.config)
+				opt.setValue(m.config, !current)
+				// Rebuild text inputs since conditions may have changed
+				m.buildCheckboxTextInputs(stepInfo)
+			}
+			return m, nil
+		case "enter":
+			if m.currentField == 0 {
+				// On checkboxes: toggle current, then move to next checkbox or text fields
+				if m.checkboxIndex < len(stepInfo.checkboxes) {
+					opt := stepInfo.checkboxes[m.checkboxIndex]
+					current := opt.getValue(m.config)
+					opt.setValue(m.config, !current)
+					// Rebuild text inputs since conditions may have changed
+					m.buildCheckboxTextInputs(stepInfo)
+				}
+				// Move to next checkbox or to text fields
+				if m.checkboxIndex < len(stepInfo.checkboxes)-1 {
+					m.checkboxIndex++
+				} else if len(m.textInputs) > 0 {
+					m.currentField = 1
+					m.textInput = m.textInputs[0]
+					m.textInput.Focus()
+					m.textInputs[0] = m.textInput
+				} else {
+					// No text fields, advance to next step
+					if err := m.validateCurrentStep(); err != nil {
+						m.validationErr = err.Error()
+						return m, nil
+					}
+					if m.step >= m.total {
+						m.done = true
+					} else {
+						return m, m.initStep(nextStep(m.step, m.config))
+					}
+				}
+			} else {
+				// In text fields: move to next or advance
+				m.saveCheckboxFieldValue(stepInfo)
+				if m.currentField < len(m.textInputs) {
+					m.textInput.Blur()
+					m.textInputs[m.currentField-1] = m.textInput
+					m.currentField++
+					m.textInput = m.textInputs[m.currentField-1]
+					m.textInput.Focus()
+					m.textInputs[m.currentField-1] = m.textInput
+				} else {
+					// Last text field: validate and advance
+					if err := m.validateCurrentStep(); err != nil {
+						m.validationErr = err.Error()
+						return m, nil
+					}
+					if m.step >= m.total {
+						m.done = true
+					} else {
+						return m, m.initStep(nextStep(m.step, m.config))
+					}
+				}
+			}
+			return m, nil
+		case "tab":
+			if m.currentField == 0 {
+				// On checkboxes: move to next checkbox or to text fields (no toggle)
+				if m.checkboxIndex < len(stepInfo.checkboxes)-1 {
+					m.checkboxIndex++
+				} else if len(m.textInputs) > 0 {
+					m.currentField = 1
+					m.textInput = m.textInputs[0]
+					m.textInput.Focus()
+					m.textInputs[0] = m.textInput
+				} else {
+					// No text fields, advance to next step
+					if err := m.validateCurrentStep(); err != nil {
+						m.validationErr = err.Error()
+						return m, nil
+					}
+					if m.step >= m.total {
+						m.done = true
+					} else {
+						return m, m.initStep(nextStep(m.step, m.config))
+					}
+				}
+			} else {
+				// In text fields: move to next field or advance step
+				m.saveCheckboxFieldValue(stepInfo)
+				if m.currentField < len(m.textInputs) {
+					m.textInput.Blur()
+					m.textInputs[m.currentField-1] = m.textInput
+					m.currentField++
+					m.textInput = m.textInputs[m.currentField-1]
+					m.textInput.Focus()
+					m.textInputs[m.currentField-1] = m.textInput
+				} else {
+					// Last text field: validate and advance
+					if err := m.validateCurrentStep(); err != nil {
+						m.validationErr = err.Error()
+						return m, nil
+					}
+					if m.step >= m.total {
+						m.done = true
+					} else {
+						return m, m.initStep(nextStep(m.step, m.config))
+					}
+				}
+			}
+			return m, nil
+		case "esc":
+			if m.currentField > 0 {
+				// In text fields: go back to previous field
+				m.textInput.Blur()
+				m.textInputs[m.currentField-1] = m.textInput
+				m.currentField--
+				if m.currentField > 0 {
+					m.textInput = m.textInputs[m.currentField-1]
+					m.textInput.Focus()
+					m.textInputs[m.currentField-1] = m.textInput
+				}
+				return m, nil
+			}
+			// On checkboxes: go back a step
+			if m.step > 1 {
+				return m, m.initStep(prevStep(m.step, m.config))
+			}
+			return m, nil
+		case "backspace":
+			if m.currentField > 0 {
+				// In text fields: only navigate back if text is empty
+				if m.textInput.Value() == "" {
+					m.textInput.Blur()
+					m.textInputs[m.currentField-1] = m.textInput
+					m.currentField--
+					if m.currentField > 0 {
+						m.textInput = m.textInputs[m.currentField-1]
+						m.textInput.Focus()
+						m.textInputs[m.currentField-1] = m.textInput
+					}
+					return m, nil
+				}
+				// Otherwise let textinput handle backspace (delete character)
+				// Exit switch and delegate to text input below
+				break
+			}
+			// On checkboxes: go back a step
+			if m.step > 1 {
+				return m, m.initStep(prevStep(m.step, m.config))
+			}
+			return m, nil
+		}
+	}
+
+	// Delegate to text input when in text field mode
+	if m.currentField > 0 {
+		var cmd tea.Cmd
+		m.textInput, cmd = m.textInput.Update(msg)
+		m.textInputs[m.currentField-1] = m.textInput
+		return m, cmd
 	}
 	return m, nil
 }
@@ -310,11 +599,11 @@ func (m *WizardModel) handleNavigate(msg tea.Msg, stepInfo *stepInfo) (tea.Model
 			if m.step >= m.total {
 				m.done = true
 			} else {
-				return m, m.initStep(m.step + 1)
+				return m, m.initStep(nextStep(m.step, m.config))
 			}
 		case "esc", "backspace":
 			if m.step > 1 {
-				return m, m.initStep(m.step - 1)
+				return m, m.initStep(prevStep(m.step, m.config))
 			}
 		}
 	}
@@ -323,9 +612,43 @@ func (m *WizardModel) handleNavigate(msg tea.Msg, stepInfo *stepInfo) (tea.Model
 
 // saveCurrentFieldValue saves the current text input's value to the config.
 func (m *WizardModel) saveCurrentFieldValue(stepInfo *stepInfo) {
-	if m.currentField < len(stepInfo.fields) {
+	// For multi-field steps, we need to map the visible field index back to the original field
+	if stepInfo.stepType == stepTypeMultiField {
+		visibleIdx := 0
+		for _, f := range stepInfo.fields {
+			if f.condition == nil || f.condition(m.config) {
+				if visibleIdx == m.currentField {
+					val := m.textInput.Value()
+					f.setValue(m.config, val)
+					return
+				}
+				visibleIdx++
+			}
+		}
+	} else if m.currentField < len(stepInfo.fields) {
 		val := m.textInput.Value()
 		stepInfo.fields[m.currentField].setValue(m.config, val)
+	}
+}
+
+// saveCheckboxFieldValue saves the current text input's value to the config
+// for checkbox step conditional fields.
+func (m *WizardModel) saveCheckboxFieldValue(stepInfo *stepInfo) {
+	if m.currentField < 1 || m.currentField > len(m.textInputs) {
+		return
+	}
+	// Find the corresponding field descriptor
+	fieldIdx := m.currentField - 1
+	visibleIdx := 0
+	for _, f := range stepInfo.fields {
+		if f.condition == nil || f.condition(m.config) {
+			if visibleIdx == fieldIdx {
+				val := m.textInput.Value()
+				f.setValue(m.config, val)
+				return
+			}
+			visibleIdx++
+		}
 	}
 }
 
@@ -385,33 +708,68 @@ func (m *WizardModel) renderStepContent() string {
 
 	switch m.mode {
 	case modeTextInput:
-		for i, field := range stepInfo.fields {
-			b.WriteString(LabelStyle.Render(field.label + ":"))
-			b.WriteString("\n")
-
-			if i < len(m.textInputs) {
-				// Render the text input
-				ti := m.textInputs[i]
-				if i == m.currentField {
-					// Active field: show with focused style
-					b.WriteString(FocusedInputStyle.Render(ti.View()))
-				} else {
-					// Inactive field: show value or placeholder
-					val := ti.Value()
-					if val != "" {
-						b.WriteString(InputStyle.Render(val))
+		// For multi-field steps, render only visible fields
+		if stepInfo.stepType == stepTypeMultiField {
+			visibleIdx := 0
+			for _, field := range stepInfo.fields {
+				if field.condition != nil && !field.condition(m.config) {
+					continue
+				}
+				b.WriteString(LabelStyle.Render(field.label + ":"))
+				b.WriteString("\n")
+				if visibleIdx < len(m.textInputs) {
+					ti := m.textInputs[visibleIdx]
+					if visibleIdx == m.currentField {
+						if m.pendingDefault {
+							b.WriteString(SelectAllStyle.Render(ti.View()))
+						} else {
+							b.WriteString(FocusedInputStyle.Render(ti.View()))
+						}
 					} else {
-						b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(field.placeholder))
+						val := ti.Value()
+						if val != "" {
+							b.WriteString(InputStyle.Render(val))
+						} else {
+							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(field.placeholder))
+						}
 					}
 				}
+				b.WriteString("\n")
+				if field.help != "" {
+					b.WriteString(HelpStyle.Render(field.help))
+					b.WriteString("\n")
+				}
+				b.WriteString("\n")
+				visibleIdx++
 			}
-			b.WriteString("\n")
-
-			if field.help != "" {
-				b.WriteString(HelpStyle.Render(field.help))
+		} else {
+			for i, field := range stepInfo.fields {
+				b.WriteString(LabelStyle.Render(field.label + ":"))
+				b.WriteString("\n")
+				if i < len(m.textInputs) {
+					ti := m.textInputs[i]
+					if i == m.currentField {
+						if m.pendingDefault {
+							b.WriteString(SelectAllStyle.Render(ti.View()))
+						} else {
+							b.WriteString(FocusedInputStyle.Render(ti.View()))
+						}
+					} else {
+						val := ti.Value()
+						if val != "" {
+							b.WriteString(InputStyle.Render(val))
+						} else {
+							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(field.placeholder))
+						}
+					}
+				}
+				b.WriteString("\n")
+				if field.help != "" {
+					b.WriteString(HelpStyle.Render(field.help))
+					b.WriteString("\n")
+				}
 				b.WriteString("\n")
 			}
-			b.WriteString("\n")
 		}
 
 	case modeRadioSelect:
@@ -429,7 +787,6 @@ func (m *WizardModel) renderStepContent() string {
 		}
 		b.WriteString("\n")
 		if stepInfo.fields != nil {
-			// Render conditional fields after radio selection
 			for i, field := range stepInfo.fields {
 				if i < len(m.textInputs) {
 					b.WriteString(LabelStyle.Render(field.label + ":"))
@@ -443,6 +800,65 @@ func (m *WizardModel) renderStepContent() string {
 					}
 					b.WriteString("\n")
 				}
+			}
+		}
+
+	case modeCheckboxSelect:
+		b.WriteString(LabelStyle.Render(stepInfo.checkboxLabel + ":"))
+		b.WriteString("\n")
+		for i, cb := range stepInfo.checkboxes {
+			checked := cb.getValue(m.config)
+			checkboxChar := "☐"
+			if checked {
+				checkboxChar = "☑"
+			}
+			if i == m.checkboxIndex && m.currentField == 0 {
+				b.WriteString(SelectedItemStyle.Render("  " + checkboxChar + " "))
+				b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)).Render(cb.label))
+			} else {
+				b.WriteString(UnselectedItemStyle.Render("  " + checkboxChar + " "))
+				b.WriteString(UnselectedItemStyle.Render(cb.label))
+			}
+			b.WriteString("\n")
+			if cb.help != "" {
+				b.WriteString(HelpStyle.Render("      " + cb.help))
+				b.WriteString("\n")
+			}
+		}
+		b.WriteString("\n")
+		// Render conditional text fields
+		if len(m.textInputs) > 0 {
+			b.WriteString(LabelStyle.Render("Secret paths:"))
+			b.WriteString("\n")
+			// Map visible fields to labels
+			visibleIdx := 0
+			for _, field := range stepInfo.fields {
+				if field.condition != nil && !field.condition(m.config) {
+					continue
+				}
+				b.WriteString(LabelStyle.Render("  " + field.label + ":"))
+				b.WriteString("\n")
+				if visibleIdx < len(m.textInputs) {
+					ti := m.textInputs[visibleIdx]
+					fieldInputIdx := visibleIdx + 1 // +1 because 0 is checkboxes
+					if fieldInputIdx == m.currentField {
+						b.WriteString(FocusedInputStyle.Render(ti.View()))
+					} else {
+						val := ti.Value()
+						if val != "" {
+							b.WriteString(InputStyle.Render(val))
+						} else {
+							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(field.placeholder))
+						}
+					}
+				}
+				b.WriteString("\n")
+				if field.help != "" {
+					b.WriteString(HelpStyle.Render("  " + field.help))
+					b.WriteString("\n")
+				}
+				b.WriteString("\n")
+				visibleIdx++
 			}
 		}
 	}
@@ -469,6 +885,13 @@ func (m *WizardModel) renderNavigation() string {
 		case modeRadioSelect:
 			hints = append(hints, "↑↓ select")
 			hints = append(hints, "enter=confirm")
+			if m.step > 1 {
+				hints = append(hints, "esc=back")
+			}
+		case modeCheckboxSelect:
+			hints = append(hints, "↑↓ navigate")
+			hints = append(hints, "space=toggle")
+			hints = append(hints, "enter=next")
 			if m.step > 1 {
 				hints = append(hints, "esc=back")
 			}
@@ -513,11 +936,17 @@ func (m *WizardModel) renderSummary() string {
 		items = append(items, fmt.Sprintf("  Branch: %s", cfg.SourceBranch))
 	}
 
-	ghIntegration := "none"
+	// Show both integration types
+	var ghTypes []string
 	if cfg.HasGitHubAppIntegration {
-		ghIntegration = "github_app"
-	} else if cfg.HasGithubPATIntegration {
-		ghIntegration = "pat"
+		ghTypes = append(ghTypes, "github_app")
+	}
+	if cfg.HasGithubPATIntegration {
+		ghTypes = append(ghTypes, "pat")
+	}
+	ghIntegration := "none"
+	if len(ghTypes) > 0 {
+		ghIntegration = strings.Join(ghTypes, "+")
 	}
 	items = append(items, fmt.Sprintf("  GitHub integration: %s", ghIntegration))
 	items = append(items, "  Slack integration: enabled")
@@ -551,24 +980,24 @@ func (m *WizardModel) validateCurrentStep() error {
 			return fmt.Errorf("config directory is required")
 		}
 	case 6:
-		// Validate secrets backend selection
 		if m.config.SecretsBackend == "" {
 			return fmt.Errorf("secrets backend selection is required")
 		}
 	case 8:
 		if m.config.HasGitHubAppIntegration {
 			if strings.TrimSpace(m.config.GithubAppID) == "" {
-				return fmt.Errorf("github App ID is required")
+				return fmt.Errorf("github App ID is required when GitHub App integration is enabled")
 			}
 			if strings.TrimSpace(m.config.GithubInstallationID) == "" {
-				return fmt.Errorf("github Installation ID is required")
+				return fmt.Errorf("github Installation ID is required when GitHub App integration is enabled")
 			}
 			if strings.TrimSpace(m.config.GithubKeyPath) == "" {
-				return fmt.Errorf("private key secret path is required")
+				return fmt.Errorf("private key secret path is required when GitHub App integration is enabled")
 			}
-		} else {
+		}
+		if m.config.HasGithubPATIntegration {
 			if strings.TrimSpace(m.config.GithubTokenPath) == "" {
-				return fmt.Errorf("token secret path is required")
+				return fmt.Errorf("token secret path is required when PAT integration is enabled")
 			}
 		}
 	case 11:
@@ -584,6 +1013,14 @@ func (m *WizardModel) validateCurrentStep() error {
 
 // generateConfig invokes the config generator with the wizard's config.
 func (m *WizardModel) generateConfig() error {
+	// Compute absolute path for ConfigDir if not already set
+	if m.config.ConfigDirAbs == "" {
+		if abs, err := filepath.Abs(m.config.ConfigDir); err == nil {
+			m.config.ConfigDirAbs = abs
+		} else {
+			m.config.ConfigDirAbs = m.config.ConfigDir
+		}
+	}
 	generator := config.NewGenerator()
 	return generator.Generate(m.config, m.config.ConfigDir, false)
 }
@@ -604,7 +1041,6 @@ func RunWizard() (*config.WizardConfig, error) {
 	}
 	return resultModel.config, nil
 }
-
 
 func boolToRadio(b bool) string {
 	if b {

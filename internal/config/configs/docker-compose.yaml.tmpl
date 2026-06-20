@@ -24,12 +24,17 @@ services:
       - "{{ .DockerAPIPort }}:9000"
       - "{{ .DockerWebhookPort }}:8080"
     environment:
+      - REPO={{ if .GithubCreateRepo }}https://github.com/{{ .GithubRepoName }}.git{{ else }}/etc/honeydipper/config{{ end }}
 {{- if eq .BootstrapCloneCredentialType "pat" }}
       - DIPPER_GIT_PAT=${DIPPER_GIT_PAT}
 {{- else if eq .BootstrapCloneCredentialType "github_app" }}
       - GH_APP_ID=${GH_APP_ID}
       - GH_APP_INSTALLATION_ID=${GH_APP_INSTALLATION_ID}
       - GH_APP_KEY=${GH_APP_KEY}
+{{- end }}
+{{- if not .GithubCreateRepo }}
+    volumes:
+      - {{ .ConfigDirAbs }}:/etc/honeydipper/config
 {{- end }}
 {{- if eq .RedisMode "local" }}
     depends_on:
