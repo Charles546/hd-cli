@@ -23,6 +23,9 @@ var deployCmd = &cobra.Command{
 		fmt.Printf("hd deploy %s: not yet implemented\n", deploymentType)
 		fmt.Printf("This command will deploy Honeydipper using %s.\n", deploymentType)
 	},
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"docker", "source", "kubernetes"}, cobra.ShellCompDirectiveNoFileComp
+	},
 }
 
 func init() {

@@ -23,6 +23,9 @@ var configCmd = &cobra.Command{
 		fmt.Printf("hd config %s: not yet implemented\n", action)
 		fmt.Printf("This command will %s Honeydipper configuration.\n", action)
 	},
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"show", "edit", "validate", "push", "diff"}, cobra.ShellCompDirectiveNoFileComp
+	},
 }
 
 func init() {

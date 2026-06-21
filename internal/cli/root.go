@@ -30,6 +30,9 @@ manage Honeydipper instances.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"init", "deploy", "config", "status", "destroy", "version", "completion"}, cobra.ShellCompDirectiveNoFileComp
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

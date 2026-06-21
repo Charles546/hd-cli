@@ -21,6 +21,9 @@ var statusCmd = &cobra.Command{
 		fmt.Println("hd status: not yet implemented")
 		fmt.Println("This command will check the daemon status.")
 	},
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	},
 }
 
 func init() {
