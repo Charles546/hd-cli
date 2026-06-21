@@ -435,18 +435,9 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 				if m.checkboxIndex > 0 {
 					m.checkboxIndex--
 				}
-			} else {
-				// Navigate within text fields
-				m.textInput.Blur()
-				m.textInputs[m.currentField-1] = m.textInput
-				m.currentField--
-				if m.currentField > 0 {
-					m.textInput = m.textInputs[m.currentField-1]
-					m.textInput.Focus()
-					m.textInputs[m.currentField-1] = m.textInput
-				}
+				return m, nil
 			}
-			return m, nil
+			// When in text fields, let the text input handle 'k' (fall through)
 		case "down", "j":
 			if m.currentField == 0 {
 				if m.checkboxIndex < len(stepInfo.checkboxes)-1 {
@@ -458,17 +449,9 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 					m.textInput.Focus()
 					m.textInputs[0] = m.textInput
 				}
-			} else if m.currentField < len(m.textInputs) {
-				m.textInput.Blur()
-				m.textInputs[m.currentField-1] = m.textInput
-				m.currentField++
-				if m.currentField <= len(m.textInputs) {
-					m.textInput = m.textInputs[m.currentField-1]
-					m.textInput.Focus()
-					m.textInputs[m.currentField-1] = m.textInput
-				}
+				return m, nil
 			}
-			return m, nil
+			// When in text fields, let the text input handle 'j' (fall through)
 		case " ":
 			// Toggle the current checkbox (only when on checkbox row)
 			if m.currentField == 0 && m.checkboxIndex < len(stepInfo.checkboxes) {
@@ -1041,7 +1024,7 @@ func (m *WizardModel) renderSummary() string {
 	items = append(items, "  Slack integration: enabled")
 	// Show secret format hint based on secrets backend
 	if isDevMode(m.config) {
-		items = append(items, "  Secret format: plain values / $ENV_VAR refs")
+		items = append(items, "  Secret format: plain values / $HD_* refs")
 	} else {
 		items = append(items, "  Secret format: LOOKUP[vault,...] paths")
 	}
@@ -1084,15 +1067,43 @@ func (m *WizardModel) validateCurrentStep() error {
 				return fmt.Errorf("github App ID is required when GitHub App integration is enabled")
 			}
 			if strings.TrimSpace(m.config.GithubInstallationID) == "" {
-				return fmt.Errorf("github Installation ID is required when GitHub App integration is enabled")
+				return fmt.Errorf("GitHub Installation ID is required when GitHub App integration is enabled")
 			}
 			if strings.TrimSpace(m.config.GithubKeyPath) == "" {
-				return fmt.Errorf("private key secret path is required when GitHub App integration is enabled")
+				return fmt.Errorf("private key value is required when GitHub App integration is enabled")
 			}
 		}
 		if m.config.HasGithubPATIntegration {
 			if strings.TrimSpace(m.config.GithubTokenPath) == "" {
-				return fmt.Errorf("token secret path is required when PAT integration is enabled")
+				return fmt.Errorf("token value is required when PAT integration is enabled")
+			}
+		}
+		// Validate dev mode secret fields: reject non-HD_ env var references
+		if isDevMode(m.config) {
+			if err := validateDevSecretValue(m.config.GithubKeyPath); err != "" {
+				return fmt.Errorf("private key: %s", err)
+			}
+			if err := validateDevSecretValue(m.config.GithubTokenPath); err != "" {
+				return fmt.Errorf("token: %s", err)
+			}
+			if err := validateDevSecretValue(m.config.GithubWebhookSecret); err != "" {
+				return fmt.Errorf("webhook secret: %s", err)
+			}
+		}
+	case 9:
+		// Validate dev mode secret fields for Slack
+		if isDevMode(m.config) {
+			if err := validateDevSecretValue(m.config.SlackBotTokenPath); err != "" {
+				return fmt.Errorf("bot token: %s", err)
+			}
+			if err := validateDevSecretValue(m.config.SlackSigningSecretPath); err != "" {
+				return fmt.Errorf("signing secret: %s", err)
+			}
+			if err := validateDevSecretValue(m.config.SlackInteractionToken); err != "" {
+				return fmt.Errorf("interaction token: %s", err)
+			}
+			if err := validateDevSecretValue(m.config.SlackSlashCommandToken); err != "" {
+				return fmt.Errorf("slash command token: %s", err)
 			}
 		}
 	case 11:

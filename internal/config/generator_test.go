@@ -960,12 +960,13 @@ func TestGenerateDevModeIntegrations(t *testing.T) {
 	cfg.SecretsBackend = "dev"
 	cfg.HasGithubPATIntegration = true
 	cfg.HasGitHubAppIntegration = true
-	cfg.GithubTokenPath = "$GITHUB_TOKEN"
-	cfg.GithubWebhookSecret = "$GITHUB_WEBHOOK_SECRET"
-	cfg.SlackBotTokenPath = "$SLACK_BOT_TOKEN"
-	cfg.SlackSigningSecretPath = "$SLACK_SIGNING_SECRET"
-	cfg.SlackInteractionToken = "$SLACK_INTERACTION_TOKEN"
-	cfg.SlackSlashCommandToken = "$SLACK_SLASH_TOKEN"
+	// In dev mode, values are stored with "$" prefix (stripped during template rendering)
+	cfg.GithubTokenPath = "$HD_GITHUB_TOKEN"
+	cfg.GithubWebhookSecret = "$HD_GITHUB_WEBHOOK_SECRET"
+	cfg.SlackBotTokenPath = "$HD_SLACK_BOT_TOKEN"
+	cfg.SlackSigningSecretPath = "$HD_SLACK_SIGNING_SECRET"
+	cfg.SlackInteractionToken = "$HD_SLACK_INTERACTION_TOKEN"
+	cfg.SlackSlashCommandToken = "$HD_SLACK_SLASH_TOKEN"
 
 	tmpDir := t.TempDir()
 	err := g.Generate(cfg, tmpDir, false)
@@ -980,29 +981,29 @@ func TestGenerateDevModeIntegrations(t *testing.T) {
 	}
 	yamlStr := string(content)
 
-	// Dev mode: should use plain values, not LOOKUP[vault,...]
+	// Dev mode: should NOT contain LOOKUP[vault,...]
 	if strings.Contains(yamlStr, "LOOKUP[vault") {
 		t.Errorf("dev mode integrations.yaml should not contain LOOKUP[vault, got:\n%s", yamlStr)
 	}
 
-	// Should contain the env var references directly
-	if !strings.Contains(yamlStr, "$GITHUB_TOKEN") {
-		t.Errorf("dev mode integrations.yaml should contain $GITHUB_TOKEN, got:\n%s", yamlStr)
+	// Should contain {% .env.* %} references for HD_ prefixed values
+	if !strings.Contains(yamlStr, "{% .env.GITHUB_TOKEN %}") {
+		t.Errorf("dev mode integrations.yaml should contain {%% .env.GITHUB_TOKEN %%}, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "$GITHUB_WEBHOOK_SECRET") {
-		t.Errorf("dev mode integrations.yaml should contain $GITHUB_WEBHOOK_SECRET, got:\n%s", yamlStr)
+	if !strings.Contains(yamlStr, "{% .env.GITHUB_WEBHOOK_SECRET %}") {
+		t.Errorf("dev mode integrations.yaml should contain {%% .env.GITHUB_WEBHOOK_SECRET %%}, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "$SLACK_BOT_TOKEN") {
-		t.Errorf("dev mode integrations.yaml should contain $SLACK_BOT_TOKEN, got:\n%s", yamlStr)
+	if !strings.Contains(yamlStr, "{% .env.SLACK_BOT_TOKEN %}") {
+		t.Errorf("dev mode integrations.yaml should contain {%% .env.SLACK_BOT_TOKEN %%}, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "$SLACK_SIGNING_SECRET") {
-		t.Errorf("dev mode integrations.yaml should contain $SLACK_SIGNING_SECRET, got:\n%s", yamlStr)
+	if !strings.Contains(yamlStr, "{% .env.SLACK_SIGNING_SECRET %}") {
+		t.Errorf("dev mode integrations.yaml should contain {%% .env.SLACK_SIGNING_SECRET %%}, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "$SLACK_INTERACTION_TOKEN") {
-		t.Errorf("dev mode integrations.yaml should contain $SLACK_INTERACTION_TOKEN, got:\n%s", yamlStr)
+	if !strings.Contains(yamlStr, "{% .env.SLACK_INTERACTION_TOKEN %}") {
+		t.Errorf("dev mode integrations.yaml should contain {%% .env.SLACK_INTERACTION_TOKEN %%}, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "$SLACK_SLASH_TOKEN") {
-		t.Errorf("dev mode integrations.yaml should contain $SLACK_SLASH_TOKEN, got:\n%s", yamlStr)
+	if !strings.Contains(yamlStr, "{% .env.SLACK_SLASH_TOKEN %}") {
+		t.Errorf("dev mode integrations.yaml should contain {%% .env.SLACK_SLASH_TOKEN %%}, got:\n%s", yamlStr)
 	}
 }
 
@@ -1071,9 +1072,12 @@ func TestGenerateDevModePlainValues(t *testing.T) {
 	if !strings.Contains(yamlStr, "pat: my-plain-token-value") {
 		t.Errorf("dev mode should use plain value directly for token, got:\n%s", yamlStr)
 	}
-	// The plain value should NOT be wrapped in LOOKUP
+	// The plain value should NOT be wrapped in LOOKUP and NOT be an env ref
 	if strings.Contains(yamlStr, "LOOKUP[vault,my-plain-token-value]") {
 		t.Errorf("dev mode should not wrap plain values in LOOKUP, got:\n%s", yamlStr)
+	}
+	if strings.Contains(yamlStr, "{% .env") {
+		t.Errorf("dev mode should not render plain values as env refs, got:\n%s", yamlStr)
 	}
 }
 

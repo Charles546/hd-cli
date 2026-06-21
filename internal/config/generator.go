@@ -31,6 +31,7 @@ func NewGenerator() *Generator {
 	funcMap := sprig.TxtFuncMap()
 	// Add custom template functions
 	funcMap["hasStr"] = func(s string) bool { return strings.TrimSpace(s) != "" }
+	funcMap["envRef"] = func(name string) string { return "{% .env." + name + " %}" }
 
 	g := &Generator{
 		funcMap: funcMap,

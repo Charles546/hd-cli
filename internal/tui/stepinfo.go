@@ -7,7 +7,8 @@
 package tui
 
 import (
-	"strconv"
+	"fmt"
+	"strings"
 
 	"github.com/Charles546/hd-cli/internal/config"
 )
@@ -67,11 +68,11 @@ func ghSecretLabels(cfg *config.WizardConfig, field string) (label, placeholder,
 	if isDevMode(cfg) {
 		switch field {
 		case "key":
-			return "Private key value", "Plain text or $ENV_VAR", "GitHub App private key value or env var name (only for github_app integration)"
+			return "Private key value", "Plain text or $HD_ENV_VAR", "GitHub App private key value or env var reference (only for github_app integration)"
 		case "token":
-			return "Token value", "Plain text or $ENV_VAR", "Personal Access Token value or env var name (only for PAT integration)"
+			return "Token value", "Plain text or $HD_ENV_VAR", "Personal Access Token value or env var reference (only for PAT integration)"
 		case "webhook":
-			return "Webhook secret value", "Plain text or $ENV_VAR", "Webhook signing secret value or env var name (recommended for github_app integration)"
+			return "Webhook secret value", "Plain text or $HD_ENV_VAR", "Webhook signing secret value or env var reference (recommended for github_app integration)"
 		}
 	}
 	switch field {
@@ -91,13 +92,13 @@ func slackSecretLabels(cfg *config.WizardConfig, field string) (label, placehold
 	if isDevMode(cfg) {
 		switch field {
 		case "bot_token":
-			return "Bot token value", "Plain text or $ENV_VAR", "Slack bot token value or env var name"
+			return "Bot token value", "Plain text or $HD_ENV_VAR", "Slack bot token value or env var reference"
 		case "signing":
-			return "Signing secret value", "Plain text or $ENV_VAR", "Slack signing secret value or env var name"
+			return "Signing secret value", "Plain text or $HD_ENV_VAR", "Slack signing secret value or env var reference"
 		case "interaction":
-			return "Interaction token value", "Plain text or $ENV_VAR (optional)", "(Optional) Slack interaction token value or env var name"
+			return "Interaction token value", "Plain text or $HD_ENV_VAR (optional)", "(Optional) Slack interaction token value or env var reference"
 		case "slash":
-			return "Slash command token value", "Plain text or $ENV_VAR (optional)", "(Optional) Slack slash command token value or env var name"
+			return "Slash command token value", "Plain text or $HD_ENV_VAR (optional)", "(Optional) Slack slash command token value or env var reference"
 		}
 	}
 	switch field {
@@ -404,14 +405,14 @@ func getStepInfo(step int) *stepInfo {
 					label:       "API port",
 					placeholder: "API server port",
 					help:        "API server port number",
-					getValue:    func(c *config.WizardConfig) string { return strconv.Itoa(c.DockerAPIPort) },
+					getValue:    func(c *config.WizardConfig) string { return fmt.Sprintf("%d", c.DockerAPIPort) },
 					setValue:    func(c *config.WizardConfig, v string) { c.DockerAPIPort = parseInt(v) },
 				},
 				{
 					label:       "Webhook port",
 					placeholder: "Webhook server port",
 					help:        "Webhook server port number",
-					getValue:    func(c *config.WizardConfig) string { return strconv.Itoa(c.DockerWebhookPort) },
+					getValue:    func(c *config.WizardConfig) string { return fmt.Sprintf("%d", c.DockerWebhookPort) },
 					setValue:    func(c *config.WizardConfig, v string) { c.DockerWebhookPort = parseInt(v) },
 				},
 			},
@@ -561,4 +562,49 @@ func slackSecretFieldKey(label string) string {
 	default:
 		return ""
 	}
+}
+
+// isDevSecretField returns true if the given step and field label is a secret
+// field in dev mode (i.e. a field whose value should be validated as either
+// a plain value or an $HD_* env var reference).
+func isDevSecretField(step int, label string) bool {
+	switch step {
+	case 8:
+		return ghSecretFieldKey(label) != ""
+	case 9:
+		return slackSecretFieldKey(label) != ""
+	default:
+		return false
+	}
+}
+
+// validateDevSecretValue validates a secret field value in dev mode.
+// If the value starts with "$", it must be "$HD_SOMETHING".
+// Plain values (no "$" prefix) are accepted as-is.
+// Returns an error message if validation fails, or "" if valid.
+func validateDevSecretValue(value string) string {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		return ""
+	}
+	if !strings.HasPrefix(v, "$") {
+		// Plain value — accepted as-is in dev mode
+		return ""
+	}
+	// Starts with "$" — must be $HD_SOMETHING
+	if !strings.HasPrefix(v, "$HD_") {
+		return fmt.Sprintf("env var reference %q must use $HD_ prefix (only HD_* env vars are supported for interpolation)", v)
+	}
+	// Strip the "$" prefix and store just the variable name
+	return ""
+}
+
+// stripEnvVarPrefix strips the leading "$" from an env var reference.
+// e.g. "$HD_GITHUB_TOKEN" → "HD_GITHUB_TOKEN"
+// If the value doesn't start with "$", it is returned unchanged.
+func stripEnvVarPrefix(value string) string {
+	if strings.HasPrefix(value, "$") {
+		return value[1:]
+	}
+	return value
 }
