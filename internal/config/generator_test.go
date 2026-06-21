@@ -8,6 +8,7 @@ package config
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1322,4 +1323,197 @@ func TestCollectDevEnvVars(t *testing.T) {
 			t.Errorf("expected nil for nil config, got %v", vars)
 		}
 	})
+}
+
+// ===== Git init / git remote tests =====
+
+func TestGitInitWhenCreatingRepo(t *testing.T) {
+	// Use a temp dir as the config dir so git init runs in it
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, "my-config")
+
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-git-init"
+	cfg.ConfigDir = configDir
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.GithubRepoName = "myuser/hd-config"
+	cfg.GitRemoteURL = "git@github.com:myuser/hd-config.git"
+
+	// Generate should run git init and git remote add
+	err := g.Generate(cfg, configDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Check that git init was run
+	if !cfg.GitInit {
+		t.Error("GitInit should be true after generating with GithubCreateRepo")
+	}
+
+	// Check that a .git directory was created
+	gitDir := filepath.Join(configDir, ".git")
+	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+		t.Errorf("git init should create .git directory at %s", gitDir)
+	}
+
+	// Check that the remote was added
+	remoteOutput, err := exec.Command("git", "-C", configDir, "remote", "get-url", "origin").Output()
+	if err != nil {
+		t.Fatalf("git remote get-url origin failed: %v", err)
+	}
+	remoteURL := strings.TrimSpace(string(remoteOutput))
+	if remoteURL != "git@github.com:myuser/hd-config.git" {
+		t.Errorf("expected remote URL 'git@github.com:myuser/hd-config.git', got %q", remoteURL)
+	}
+}
+
+func TestGitNotInitWhenNotCreatingRepo(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, "my-config")
+
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-no-git"
+	cfg.ConfigDir = configDir
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = false
+
+	err := g.Generate(cfg, configDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Check that git init was NOT run
+	if cfg.GitInit {
+		t.Error("GitInit should be false when GithubCreateRepo is false")
+	}
+
+	// Check that no .git directory was created
+	gitDir := filepath.Join(configDir, ".git")
+	if _, err := os.Stat(gitDir); err == nil {
+		t.Error("git init should NOT be called when GithubCreateRepo is false")
+	}
+}
+
+func TestGitInitWithoutRemoteURL(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, "my-config")
+
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-git-no-remote"
+	cfg.ConfigDir = configDir
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.GithubRepoName = "myuser/hd-config"
+	// No GitRemoteURL set
+
+	err := g.Generate(cfg, configDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Check that git init was run
+	if !cfg.GitInit {
+		t.Error("GitInit should be true after generating with GithubCreateRepo")
+	}
+
+	// Check that .git exists
+	gitDir := filepath.Join(configDir, ".git")
+	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+		t.Error("git init should create .git directory")
+	}
+
+	// Check that no remote was added
+	_, err = exec.Command("git", "-C", configDir, "remote", "get-url", "origin").Output()
+	if err == nil {
+		t.Error("git remote should NOT be set when GitRemoteURL is empty")
+	}
+}
+
+func TestDockerComposeRemoteURL(t *testing.T) {
+	// Test that GitRemoteURL is used as REPO env var in docker-compose
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-remote-url"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.GithubRepoName = "myuser/hd-config"
+	cfg.GitRemoteURL = "git@github.com:myuser/hd-config.git"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should use the git remote URL as REPO
+	if !strings.Contains(yamlStr, "REPO=git@github.com:myuser/hd-config.git") {
+		t.Errorf("docker-compose.yaml should contain REPO with git remote URL, got:\n%s", yamlStr)
+	}
+}
+
+func TestDockerComposeFallbackREPO(t *testing.T) {
+	// Test that when GitRemoteURL is not set, REPO falls back to github URL or local path
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-fallback-repo"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.GithubRepoName = "myuser/hd-config"
+	// No GitRemoteURL
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should use the GitHub URL as REPO
+	if !strings.Contains(yamlStr, "REPO=https://github.com/myuser/hd-config.git") {
+		t.Errorf("docker-compose.yaml should contain REPO with GitHub URL, got:\n%s", yamlStr)
+	}
+}
+
+func TestDockerComposeLocalREPO(t *testing.T) {
+	// Test that when GithubCreateRepo is false, REPO uses local path
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-local-repo"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = false
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should use local path as REPO
+	if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+		t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
+	}
 }

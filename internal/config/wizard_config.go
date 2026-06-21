@@ -78,6 +78,8 @@ type WizardConfig struct {
 	GithubCreateRepo bool   `yaml:"github_create_repo,omitempty"`
 	GithubRepoName   string `yaml:"github_repo_name,omitempty"`
 	GithubRepoVis    string `yaml:"github_repo_visibility,omitempty"` // private, public
+	GitRemoteURL     string `yaml:"git_remote_url,omitempty"`        // git remote URL for the config repo
+	GitInit          bool   `yaml:"git_init,omitempty"`               // whether to git init the config dir
 
 	// Dev mode env vars tracks which HD_* variables are referenced during the wizard.
 	// Used by the docker-compose template to pass them into the container.

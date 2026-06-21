@@ -474,6 +474,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Name for the new GitHub repository",
 					getValue:    func(c *config.WizardConfig) string { return c.GithubRepoName },
 					setValue:    func(c *config.WizardConfig, v string) { c.GithubRepoName = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
 				},
 				{
 					label:       "Visibility",
@@ -481,6 +482,15 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Repository visibility",
 					getValue:    func(c *config.WizardConfig) string { return c.GithubRepoVis },
 					setValue:    func(c *config.WizardConfig, v string) { c.GithubRepoVis = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
+				},
+				{
+					label:       "Git remote URL",
+					placeholder: "git@github.com:user/repo.git or https://github.com/user/repo.git",
+					help:        "Git remote URL for the config repository (used as REPO env var in docker-compose)",
+					getValue:    func(c *config.WizardConfig) string { return c.GitRemoteURL },
+					setValue:    func(c *config.WizardConfig, v string) { c.GitRemoteURL = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
 				},
 			},
 		}
