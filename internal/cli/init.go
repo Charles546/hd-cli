@@ -69,6 +69,10 @@ func runInteractive() error {
 	if err != nil {
 		return fmt.Errorf("wizard error: %w", err)
 	}
+	// User quit without completing — no files to generate
+	if cfg == nil {
+		return nil
+	}
 
 	return generateAndPrintSummary(cfg)
 }
@@ -89,6 +93,10 @@ func runInteractiveWithConfig(configPath string) error {
 	updatedCfg, err := tui.RunWizardWithConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("wizard error: %w", err)
+	}
+	// User quit without completing — no files to generate
+	if updatedCfg == nil {
+		return nil
 	}
 
 	return generateAndPrintSummary(updatedCfg)

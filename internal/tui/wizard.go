@@ -63,6 +63,10 @@ type WizardModel struct {
 	// pendingDefault tracks whether the current text input holds a default value
 	// that should be cleared on the next character or backspace keypress.
 	pendingDefault bool
+
+	// quit is set to true when the user quits via q or ctrl+c.
+	// RunWizard checks this to distinguish quit from completion.
+	quit bool
 }
 
 // stepCount is the total number of wizard steps (used for progress).
@@ -202,6 +206,7 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			// Ctrl+C always quits, even in text input mode
+			m.quit = true
 			return m, tea.Quit
 		case "q":
 			// q quits only when not in text input mode.
@@ -210,6 +215,7 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.mode == modeTextInput || (m.mode == modeCheckboxSelect && m.currentField > 0) {
 				// In text input mode (pure or within checkbox), let text input handle q
 			} else {
+				m.quit = true
 				return m, tea.Quit
 			}
 		case "ctrl+s":
@@ -251,6 +257,7 @@ func (m *WizardModel) handleDone(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "q":
 			// Quit without generating config
+			m.quit = true
 			return m, tea.Quit
 		case "esc", "backspace":
 			m.done = false
@@ -1097,6 +1104,7 @@ func (m *WizardModel) saveAnswersFile() error {
 
 // RunWizard is the entry point that starts the interactive wizard.
 // It takes over the terminal and returns the completed WizardConfig or an error.
+// Returns nil, nil if the user quit without completing.
 func RunWizard() (*config.WizardConfig, error) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
@@ -1109,12 +1117,17 @@ func RunWizard() (*config.WizardConfig, error) {
 	if resultModel.err != nil {
 		return nil, resultModel.err
 	}
+	// If the user quit (via q or ctrl+c), return nil config
+	if resultModel.quit {
+		return nil, nil
+	}
 	return resultModel.config, nil
 }
 
 // RunWizardWithConfig starts the interactive wizard with a pre-populated config.
 // Used by hd init --config <file> (without --non-interactive) to let the user
 // review and modify the loaded answers before generating.
+// Returns nil, nil if the user quit without completing.
 func RunWizardWithConfig(cfg *config.WizardConfig) (*config.WizardConfig, error) {
 	m := NewWizard(cfg)
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -1125,6 +1138,10 @@ func RunWizardWithConfig(cfg *config.WizardConfig) (*config.WizardConfig, error)
 	resultModel := result.(*WizardModel)
 	if resultModel.err != nil {
 		return nil, resultModel.err
+	}
+	// If the user quit (via q or ctrl+c), return nil config
+	if resultModel.quit {
+		return nil, nil
 	}
 	return resultModel.config, nil
 }

@@ -1244,3 +1244,74 @@ func TestQInCheckboxTextFieldDoesNotQuit(t *testing.T) {
 		t.Errorf("step = %d, want 8 (should not advance)", m.step)
 	}
 }
+
+// TestQuitSetsQuitFlag verifies that pressing q sets the quit flag
+// so RunWizard() can distinguish quit from completion.
+func TestQuitSetsQuitFlag(t *testing.T) {
+	// Press q on a navigate step (welcome)
+	m := NewWizard(nil)
+	m = runInitStep(m, 1)
+
+	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+
+	if !m.quit {
+		t.Error("quit flag should be true after pressing q")
+	}
+	if cmd == nil {
+		t.Error("cmd should be tea.Quit (non-nil)")
+	}
+}
+
+func TestQuitSetsQuitFlagOnRadioStep(t *testing.T) {
+	m := NewWizard(nil)
+	m = runInitStep(m, 4) // radio select
+
+	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+
+	if !m.quit {
+		t.Error("quit flag should be true after pressing q on radio step")
+	}
+}
+
+func TestQuitSetsQuitFlagOnCheckboxStep(t *testing.T) {
+	m := NewWizard(nil)
+	m = runInitStep(m, 8) // checkbox
+
+	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+
+	if !m.quit {
+		t.Error("quit flag should be true after pressing q on checkbox step")
+	}
+}
+
+func TestCtrlCSetsQuitFlag(t *testing.T) {
+	m := NewWizard(nil)
+	m = runInitStep(m, 1)
+
+	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlC})
+
+	if !m.quit {
+		t.Error("quit flag should be true after pressing ctrl+c")
+	}
+}
+
+func TestCompleteDoesNotSetQuitFlag(t *testing.T) {
+	// When user completes the wizard (presses Enter on step 15),
+	// quit should remain false.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if m.quit {
+		t.Error("quit flag should be false after completing the wizard")
+	}
+}
+
+func TestQuitFlagInitiallyFalse(t *testing.T) {
+	m := NewWizard(nil)
+	if m.quit {
+		t.Error("quit flag should be false initially")
+	}
+}
