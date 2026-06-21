@@ -1021,6 +1021,60 @@ func TestCtrlSWorksInTextInputMode(t *testing.T) {
 	}
 }
 
+func TestCtrlSSavesCurrentTextInputValue(t *testing.T) {
+	// Bug fix: Ctrl+S should commit the current text input value
+	// to WizardConfig before saving, otherwise the typed value is lost.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "save-current-value"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name (text input)
+
+	// Type a new project name
+	for _, ch := range "new-name" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Ctrl+S - should commit text and save
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	// The config should have the typed value
+	if m.config.ProjectName != "new-name" {
+		t.Errorf("ProjectName = %q, want %q (Ctrl+S should commit current text)", m.config.ProjectName, "new-name")
+	}
+}
+
+func TestCtrlSSavesCheckboxTextFieldValue(t *testing.T) {
+	// Ctrl+S in checkbox mode with active text field should commit
+	// the text field value before saving.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "checkbox-save"
+	cfg.HasGitHubAppIntegration = true // Enable conditional text fields
+	m := NewWizard(cfg)
+	m = runInitStep(m, 8) // GitHub Integration (checkbox)
+
+	// Move to text field (past checkboxes)
+	m.currentField = 1
+	if len(m.textInputs) > 0 {
+		m.textInput = m.textInputs[0]
+		m.textInput.Focus()
+	}
+
+	// Type a value in the text field
+	for _, ch := range "my-app-id" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Ctrl+S
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	// The config should have the typed value committed
+	if m.config.GithubAppID != "my-app-id" {
+		t.Errorf("GithubAppID = %q, want %q (Ctrl+S should commit checkbox text field)", m.config.GithubAppID, "my-app-id")
+	}
+}
+
 func TestSaveMsgClearedOnStepAdvance(t *testing.T) {
 	// After saving with Ctrl+S and advancing, the save message should be cleared
 	cfg := config.NewDefaultWizardConfig()

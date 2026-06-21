@@ -215,6 +215,16 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+s":
 			// Save answers at any step (including text input mode)
 			if !m.done {
+				// Commit current text input value before saving,
+				// otherwise the typed value is lost (still in textinput.Model).
+				stepInfo := getStepInfo(m.step)
+				if stepInfo != nil {
+					if m.mode == modeTextInput {
+						m.saveCurrentFieldValue(stepInfo)
+					} else if m.mode == modeCheckboxSelect && m.currentField > 0 {
+						m.saveCheckboxFieldValue(stepInfo)
+					}
+				}
 				if err := m.saveAnswersFile(); err != nil {
 					m.saveMsg = fmt.Sprintf("✗ Failed to save: %v", err)
 				} else {
