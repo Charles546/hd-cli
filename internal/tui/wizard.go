@@ -109,6 +109,8 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 	case stepTypeRadio:
 		m.mode = modeRadioSelect
 		m.radioIndex = m.findRadioIndex(stepInfo)
+		// Build text inputs for conditional fields based on current config
+		m.buildRadioTextInputs(stepInfo)
 	case stepTypeCheckbox:
 		m.mode = modeCheckboxSelect
 		m.checkboxIndex = 0
@@ -185,6 +187,29 @@ func (m *WizardModel) buildCheckboxTextInputs(stepInfo *stepInfo) {
 		ti.Prompt = ""
 		ti.SetValue(field.getValue(m.config))
 		m.textInputs[i] = ti
+	}
+}
+
+// buildRadioTextInputs creates text inputs for conditional fields
+// in a radio step, based on current config values.
+func (m *WizardModel) buildRadioTextInputs(stepInfo *stepInfo) {
+	var visibleFields []fieldDescriptor
+	for _, f := range stepInfo.fields {
+		if f.condition == nil || f.condition(m.config) {
+			visibleFields = append(visibleFields, f)
+		}
+	}
+	m.textInputs = make([]textinput.Model, len(visibleFields))
+	for i, field := range visibleFields {
+		ti := textinput.New()
+		ti.Placeholder = field.placeholder
+		ti.Width = 60
+		ti.Prompt = ""
+		ti.SetValue(field.getValue(m.config))
+		m.textInputs[i] = ti
+	}
+	if len(m.textInputs) > 0 {
+		m.textInput = m.textInputs[0]
 	}
 }
 
@@ -397,18 +422,36 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 		case "up", "k":
 			if m.radioIndex > 0 {
 				m.radioIndex--
+				// Tentatively apply the selection and rebuild text inputs
+				stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
+				m.buildRadioTextInputs(stepInfo)
 			}
 			return m, nil
 		case "down", "j":
 			if m.radioIndex < len(stepInfo.radioOptions)-1 {
 				m.radioIndex++
+				// Tentatively apply the selection and rebuild text inputs
+				stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
+				m.buildRadioTextInputs(stepInfo)
 			}
 			return m, nil
 		case "enter", "tab":
 			// Commit the selection
 			stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
+			// Rebuild text inputs to reflect the committed selection
+			m.buildRadioTextInputs(stepInfo)
 			m.validationErr = ""
 			m.saveMsg = ""
+			// If there are visible conditional fields, switch to text input mode
+			if len(m.textInputs) > 0 {
+				m.mode = modeTextInput
+				m.currentField = 0
+				m.textInput = m.textInputs[0]
+				m.textInput.Focus()
+				m.textInputs[0] = m.textInput
+				return m, nil
+			}
+			// No conditional fields, advance to next step
 			if m.step >= m.total {
 				m.err = m.generateConfig()
 				return m, tea.Quit
@@ -650,8 +693,8 @@ func (m *WizardModel) handleNavigate(msg tea.Msg, stepInfo *stepInfo) (tea.Model
 
 // saveCurrentFieldValue saves the current text input's value to the config.
 func (m *WizardModel) saveCurrentFieldValue(stepInfo *stepInfo) {
-	// For multi-field steps, we need to map the visible field index back to the original field
-	if stepInfo.stepType == stepTypeMultiField {
+	// For multi-field and radio steps, we need to map the visible field index back to the original field
+	if stepInfo.stepType == stepTypeMultiField || stepInfo.stepType == stepTypeRadio {
 		visibleIdx := 0
 		for _, f := range stepInfo.fields {
 			if f.condition == nil || f.condition(m.config) {
@@ -846,21 +889,25 @@ func (m *WizardModel) renderStepContent() string {
 			b.WriteString("\n")
 		}
 		b.WriteString("\n")
-		if stepInfo.fields != nil {
-			for i, field := range stepInfo.fields {
-				if i < len(m.textInputs) {
-					b.WriteString(LabelStyle.Render(field.label + ":"))
-					b.WriteString("\n")
-					ti := m.textInputs[i]
-					b.WriteString(FocusedInputStyle.Render(ti.View()))
-					b.WriteString("\n")
-					if field.help != "" {
-						b.WriteString(HelpStyle.Render(field.help))
-						b.WriteString("\n")
-					}
+		// Render conditional text fields that match current conditions
+		visibleIdx := 0
+		for _, field := range stepInfo.fields {
+			if field.condition != nil && !field.condition(m.config) {
+				continue
+			}
+			if visibleIdx < len(m.textInputs) {
+				b.WriteString(LabelStyle.Render(field.label + ":"))
+				b.WriteString("\n")
+				ti := m.textInputs[visibleIdx]
+				b.WriteString(FocusedInputStyle.Render(ti.View()))
+				b.WriteString("\n")
+				if field.help != "" {
+					b.WriteString(HelpStyle.Render(field.help))
 					b.WriteString("\n")
 				}
+				b.WriteString("\n")
 			}
+			visibleIdx++
 		}
 
 	case modeCheckboxSelect:
