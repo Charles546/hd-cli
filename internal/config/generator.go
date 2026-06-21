@@ -76,6 +76,11 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 	// Apply defaults for any missing values
 	applyDefaults(cfg)
 
+	// Populate DevEnvVars for dev mode docker-compose env passthrough
+	if cfg.SecretsBackend == "dev" {
+		cfg.DevEnvVars = cfg.CollectDevEnvVars()
+	}
+
 	// Ensure output directory exists (unless dry run)
 	if !dryRun {
 		if err := util.EnsureDir(outputDir); err != nil {
