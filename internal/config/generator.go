@@ -236,3 +236,9 @@ func applyDefaults(cfg *WizardConfig) {
 		cfg.AIEngineName = def.AIEngineName
 	}
 }
+
+// ApplyDefaults fills in default values for fields that are empty.
+// This is the exported version of applyDefaults for use by the CLI layer.
+func ApplyDefaults(cfg *WizardConfig) {
+	applyDefaults(cfg)
+}

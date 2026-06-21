@@ -650,28 +650,135 @@ func TestViewContainsNavigationHints(t *testing.T) {
 	m = runInitStep(m, 2)
 
 	view := m.View()
-	if !strings.Contains(view, "q=quit") {
-		t.Errorf("View() should contain 'q=quit' hint, got: %s", view)
+	if !strings.Contains(view, "ctrl+q=quit") {
+		t.Errorf("View() should contain 'ctrl+q=quit' hint, got: %s", view)
+	}
+}
+
+func TestCtrlQInTextInputModeQuits(t *testing.T) {
+	// Ctrl+Q should quit even in text input mode
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name step (text input mode)
+
+	// Press Ctrl+Q - should quit
+	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
+
+	if cmd == nil {
+		t.Error("ctrl+q in text input mode should produce a quit command")
+	}
+}
+
+func TestCtrlQOnDoneScreenQuits(t *testing.T) {
+	// Ctrl+Q on the done screen should quit without generating config
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m.done = true
+
+	// Press ctrl+q - should quit without generating
+	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
+
+	if cmd == nil {
+		t.Error("ctrl+q on done screen should produce a quit command")
+	}
+	// err should be nil (no config generation)
+	if m.err != nil {
+		t.Errorf("err = %v, want nil (no config generation on quit)", m.err)
 	}
 }
 
 func TestViewSummaryScreen(t *testing.T) {
+	// With refinement 1, the summary is shown at step 15, not on the done screen.
+	// The done screen shows a confirmation prompt instead.
 	m := NewWizard(nil)
 	m.done = true
 
 	view := m.View()
+	// Done screen should show the confirmation prompt
+	if !strings.Contains(view, "Press Enter to confirm and generate configs") {
+		t.Errorf("View() should contain confirmation prompt, got: %s", view)
+	}
+	// Done screen should NOT contain the summary (it's shown at step 15)
+	if strings.Contains(view, "Configuration Summary") {
+		t.Errorf("Done screen should NOT contain 'Configuration Summary' (shown at step 15)")
+	}
+}
+
+func TestStep15ShowsSummary(t *testing.T) {
+	// Refinement 1: Step 15 should show the summary directly
+	m := NewWizard(nil)
+	m = runInitStep(m, 15)
+
+	view := m.View()
 	if !strings.Contains(view, "Configuration Summary") {
-		t.Errorf("View() should contain 'Configuration Summary', got: %s", view)
+		t.Errorf("Step 15 View() should contain 'Configuration Summary', got: %s", view)
 	}
 	if !strings.Contains(view, "Project:") {
-		t.Errorf("View() should contain 'Project:' in summary, got: %s", view)
+		t.Errorf("Step 15 View() should contain 'Project:' in summary, got: %s", view)
 	}
 	// Verify new order in summary
 	if !strings.Contains(view, "Secrets backend:") {
-		t.Errorf("View() should contain 'Secrets backend:' in summary, got: %s", view)
+		t.Errorf("Step 15 View() should contain 'Secrets backend:' in summary, got: %s", view)
 	}
 	if !strings.Contains(view, "Redis:") {
-		t.Errorf("View() should contain 'Redis:' in summary, got: %s", view)
+		t.Errorf("Step 15 View() should contain 'Redis:' in summary, got: %s", view)
+	}
+	// Step 15 should also show the generate prompt
+	if !strings.Contains(view, "Press Enter to generate configs") {
+		t.Errorf("Step 15 View() should contain 'Press Enter to generate configs', got: %s", view)
+	}
+	// Step 15 should show the save hint
+	if !strings.Contains(view, "s=save answers") {
+		t.Errorf("Step 15 View() should contain save hint, got: %s", view)
+	}
+}
+
+func TestStep15EnterGeneratesDirectly(t *testing.T) {
+	// Fix 1: Pressing Enter on step 15 should generate config directly
+	// without going through the done/confirmation screen.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15) // Summary step (navigate mode)
+
+	// Press Enter - should trigger generateConfig and return quit
+	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if cmd == nil {
+		t.Error("expected quit command after enter on step 15")
+	}
+	// Should NOT be in done state (direct generation, no intermediate done)
+	if m.done {
+		t.Error("should not be in done state after enter on step 15")
+	}
+}
+
+func TestStep15SaveAndGenerateDirectly(t *testing.T) {
+	// Fix 1: Pressing 's' on step 15 should save answers and generate directly.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "save-gen-test"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	// Press 's' - should save and generate
+	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+
+	if cmd == nil {
+		t.Error("expected quit command after 's' on step 15")
+	}
+	if m.done {
+		t.Error("should not be in done state after 's' on step 15")
+	}
+}
+
+func TestStep15EscGoesBack(t *testing.T) {
+	// Pressing Esc on step 15 should go back to previous step
+	m := NewWizard(nil)
+	m = runInitStep(m, 15)
+
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
+
+	if m.step == 15 {
+		t.Errorf("step = %d, should have gone back from step 15", m.step)
 	}
 }
 
@@ -834,6 +941,173 @@ func TestStepOrder(t *testing.T) {
 	}
 }
 
+func TestRunWizardWithConfig(t *testing.T) {
+	cfg := &config.WizardConfig{
+		ProjectName:    "preloaded-project",
+		DeploymentMode: "kubernetes",
+		SecretsBackend: "dev",
+	}
+	// Just verify the wizard model is created correctly with pre-populated config
+	m := NewWizard(cfg)
+	if m.config.ProjectName != "preloaded-project" {
+		t.Errorf("ProjectName = %q, want preloaded-project", m.config.ProjectName)
+	}
+	if m.config.DeploymentMode != "kubernetes" {
+		t.Errorf("DeploymentMode = %q, want kubernetes", m.config.DeploymentMode)
+	}
+}
+
+func TestCtrlSSaveAtAnyStep(t *testing.T) {
+	// Refinement 3: Ctrl+S should save answers at any non-text-input step
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "save-test"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 1) // Welcome step (navigate mode)
+
+	// Press Ctrl+S
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	// Should show save confirmation message
+	view := m.View()
+	if !strings.Contains(view, "Answers saved to") {
+		t.Errorf("View() should contain save confirmation, got: %s", view)
+	}
+	// Should still be on the same step
+	if m.step != 1 {
+		t.Errorf("step = %d, want 1 (should not advance after save)", m.step)
+	}
+}
+
+func TestCtrlSSaveOnRadioStep(t *testing.T) {
+	// Refinement 3: Ctrl+S should save on radio select steps
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "radio-save-test"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 4) // Deployment Mode (radio)
+
+	// Press Ctrl+S
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	// Should show save confirmation
+	view := m.View()
+	if !strings.Contains(view, "Answers saved to") {
+		t.Errorf("View() should contain save confirmation, got: %s", view)
+	}
+	// Should still be on step 4
+	if m.step != 4 {
+		t.Errorf("step = %d, want 4", m.step)
+	}
+}
+
+func TestCtrlSWorksInTextInputMode(t *testing.T) {
+	// Ctrl+S should now work even in text input mode
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "text-save-test"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name (text input)
+
+	// Type some text first
+	for _, ch := range "my-project" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Ctrl+S - should save answers even in text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	view := m.View()
+	if !strings.Contains(view, "Answers saved to") {
+		t.Errorf("Ctrl+S should trigger save in text input mode, got: %s", view)
+	}
+}
+
+func TestCtrlSSavesCurrentTextInputValue(t *testing.T) {
+	// Bug fix: Ctrl+S should commit the current text input value
+	// to WizardConfig before saving, otherwise the typed value is lost.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "save-current-value"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name (text input)
+
+	// Type a new project name
+	for _, ch := range "new-name" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Ctrl+S - should commit text and save
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	// The config should have the typed value
+	if m.config.ProjectName != "new-name" {
+		t.Errorf("ProjectName = %q, want %q (Ctrl+S should commit current text)", m.config.ProjectName, "new-name")
+	}
+}
+
+func TestCtrlSSavesCheckboxTextFieldValue(t *testing.T) {
+	// Ctrl+S in checkbox mode with active text field should commit
+	// the text field value before saving.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "checkbox-save"
+	cfg.HasGitHubAppIntegration = true // Enable conditional text fields
+	m := NewWizard(cfg)
+	m = runInitStep(m, 8) // GitHub Integration (checkbox)
+
+	// Move to text field (past checkboxes)
+	m.currentField = 1
+	if len(m.textInputs) > 0 {
+		m.textInput = m.textInputs[0]
+		m.textInput.Focus()
+	}
+
+	// Type a value in the text field
+	for _, ch := range "my-app-id" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Ctrl+S
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	// The config should have the typed value committed
+	if m.config.GithubAppID != "my-app-id" {
+		t.Errorf("GithubAppID = %q, want %q (Ctrl+S should commit checkbox text field)", m.config.GithubAppID, "my-app-id")
+	}
+}
+
+func TestSaveMsgClearedOnStepAdvance(t *testing.T) {
+	// After saving with Ctrl+S and advancing, the save message should be cleared
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 1) // Welcome step
+
+	// Save
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if !strings.Contains(m.View(), "Answers saved to") {
+		t.Fatal("Expected save confirmation after Ctrl+S")
+	}
+
+	// Advance to next step
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Save message should be cleared
+	if m.saveMsg != "" {
+		t.Errorf("saveMsg should be cleared after advancing, got: %q", m.saveMsg)
+	}
+}
+
+func TestNavigationHintsIncludeCtrlS(t *testing.T) {
+	// Navigation hints should include ctrl+s=save for non-done, non-text-input steps
+	m := NewWizard(nil)
+	m = runInitStep(m, 1) // Welcome step
+
+	view := m.View()
+	if !strings.Contains(view, "ctrl+s=save") {
+		t.Errorf("View() should contain 'ctrl+s=save' hint, got: %s", view)
+	}
+}
+
+
 // runInitStep is a helper that calls initStep and returns the updated model.
 // Since initStep uses value receiver internally but modifies the model,
 // we need to call it properly.
@@ -914,3 +1188,220 @@ func TestTextInputBackspaceClearsDefault(t *testing.T) {
 
 // Ensure textinput.Model is used (compile-time check)
 var _ textinput.Model
+
+// Bug fix tests: ctrl+q and ctrl+c behavior
+
+func TestQInTextInputModeIsRegularChar(t *testing.T) {
+	// q is now a regular character — no special quit handling.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "" // Clear default so we can type cleanly
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name step (text input mode)
+
+	// Press 'q' - should be added to text input as a regular character
+	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+
+	// The text input should contain 'q'
+	if m.textInput.Value() != "q" {
+		t.Errorf("textInput.Value() = %q, want %q", m.textInput.Value(), "q")
+	}
+	// Should still be on step 2
+	if m.step != 2 {
+		t.Errorf("step = %d, want 2 (should not advance)", m.step)
+	}
+	// err should be nil (no config generation)
+	if m.err != nil {
+		t.Errorf("err = %v, want nil", m.err)
+	}
+}
+
+func TestCtrlCInTextInputModeQuits(t *testing.T) {
+	// Ctrl+C should always quit, even in text input mode
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name step (text input mode)
+
+	// Press Ctrl+C - should quit
+	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlC})
+
+	if cmd == nil {
+		t.Error("ctrl+c in text input mode should produce a quit command")
+	}
+}
+
+func TestCtrlQOnDoneScreenQuitsWithoutGenerating(t *testing.T) {
+	// Pressing ctrl+q on the done screen should quit without generating config
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m.done = true
+
+	// Press ctrl+q - should quit without generating
+	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
+
+	if cmd == nil {
+		t.Error("ctrl+q on done screen should produce a quit command")
+	}
+	// err should be nil (no config generation)
+	if m.err != nil {
+		t.Errorf("err = %v, want nil (no config generation on quit)", m.err)
+	}
+}
+
+func TestCtrlQOnRadioStepQuits(t *testing.T) {
+	// Pressing ctrl+q on a radio select step should quit immediately
+	m := NewWizard(nil)
+	m = runInitStep(m, 4) // Deployment Mode (radio select)
+
+	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
+
+	if cmd == nil {
+		t.Error("ctrl+q on radio step should produce a quit command")
+	}
+}
+
+func TestCtrlQOnCheckboxStepQuits(t *testing.T) {
+	// Pressing ctrl+q on a checkbox step should quit immediately
+	m := NewWizard(nil)
+	m = runInitStep(m, 8) // GitHub Integration (checkbox)
+
+	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
+
+	if cmd == nil {
+		t.Error("ctrl+q on checkbox step should produce a quit command")
+	}
+}
+
+func TestCtrlQOnNavigateStepQuits(t *testing.T) {
+	// Pressing ctrl+q on a navigate step should quit immediately
+	m := NewWizard(nil)
+	m = runInitStep(m, 1) // Welcome (navigate mode)
+
+	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
+
+	if cmd == nil {
+		t.Error("ctrl+q on navigate step should produce a quit command")
+	}
+}
+
+func TestCtrlCAlwaysQuitsFromAnyMode(t *testing.T) {
+	// Ctrl+C should quit from every mode
+	modes := []struct {
+		name string
+		step int
+	}{
+		{"navigate", 1},
+		{"text input", 2},
+		{"radio", 4},
+		{"checkbox", 8},
+	}
+
+	for _, mode := range modes {
+		t.Run(mode.name, func(t *testing.T) {
+			m := NewWizard(nil)
+			m = runInitStep(m, mode.step)
+
+			_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlC})
+
+			if cmd == nil {
+				t.Errorf("ctrl+c in %s mode should produce a quit command", mode.name)
+			}
+		})
+	}
+}
+
+func TestQInCheckboxTextFieldIsRegularChar(t *testing.T) {
+	// q is a regular character everywhere, including checkbox text fields
+	cfg := config.NewDefaultWizardConfig()
+	cfg.HasGitHubAppIntegration = true // Enable to get text fields
+	m := NewWizard(cfg)
+	m = runInitStep(m, 8) // GitHub Integration (checkbox)
+
+	// Move to text field (past checkboxes)
+	m.currentField = 1
+	if len(m.textInputs) > 0 {
+		m.textInput = m.textInputs[0]
+		m.textInput.Focus()
+	}
+
+	// Press 'q' - should be treated as text input
+	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+
+	if m.textInput.Value() != "q" {
+		t.Errorf("textInput.Value() = %q, want %q", m.textInput.Value(), "q")
+	}
+	// Should still be on step 8
+	if m.step != 8 {
+		t.Errorf("step = %d, want 8 (should not advance)", m.step)
+	}
+}
+
+// TestQuitSetsQuitFlag verifies that pressing q sets the quit flag
+// so RunWizard() can distinguish quit from completion.
+func TestQuitSetsQuitFlag(t *testing.T) {
+	// Press ctrl+q on a navigate step (welcome)
+	m := NewWizard(nil)
+	m = runInitStep(m, 1)
+
+	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
+
+	if !m.quit {
+		t.Error("quit flag should be true after pressing ctrl+q")
+	}
+	if cmd == nil {
+		t.Error("cmd should be tea.Quit (non-nil)")
+	}
+}
+
+func TestQuitSetsQuitFlagOnRadioStep(t *testing.T) {
+	m := NewWizard(nil)
+	m = runInitStep(m, 4) // radio select
+
+	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
+
+	if !m.quit {
+		t.Error("quit flag should be true after pressing ctrl+q on radio step")
+	}
+}
+
+func TestQuitSetsQuitFlagOnCheckboxStep(t *testing.T) {
+	m := NewWizard(nil)
+	m = runInitStep(m, 8) // checkbox
+
+	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
+
+	if !m.quit {
+		t.Error("quit flag should be true after pressing ctrl+q on checkbox step")
+	}
+}
+
+func TestCtrlCSetsQuitFlag(t *testing.T) {
+	m := NewWizard(nil)
+	m = runInitStep(m, 1)
+
+	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlC})
+
+	if !m.quit {
+		t.Error("quit flag should be true after pressing ctrl+c")
+	}
+}
+
+func TestCompleteDoesNotSetQuitFlag(t *testing.T) {
+	// When user completes the wizard (presses Enter on step 15),
+	// quit should remain false.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if m.quit {
+		t.Error("quit flag should be false after completing the wizard")
+	}
+}
+
+func TestQuitFlagInitiallyFalse(t *testing.T) {
+	m := NewWizard(nil)
+	if m.quit {
+		t.Error("quit flag should be false initially")
+	}
+}

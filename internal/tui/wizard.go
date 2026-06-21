@@ -9,6 +9,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"gopkg.in/yaml.v3"
 
 	"github.com/Charles546/hd-cli/internal/config"
 )
@@ -55,9 +57,16 @@ type WizardModel struct {
 	// Error display
 	validationErr string
 
+	// saveMsg displays a temporary confirmation after saving answers.
+	saveMsg string
+
 	// pendingDefault tracks whether the current text input holds a default value
 	// that should be cleared on the next character or backspace keypress.
 	pendingDefault bool
+
+	// quit is set to true when the user quits via ctrl+q or ctrl+c.
+	// RunWizard checks this to distinguish quit from completion.
+	quit bool
 }
 
 // stepCount is the total number of wizard steps (used for progress).
@@ -85,6 +94,7 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 	m.step = s
 	m.currentField = 0
 	m.validationErr = ""
+	m.saveMsg = ""
 	m.mode = modeNavigate
 	m.textInputs = nil
 	m.textInput = textinput.Model{}
@@ -194,12 +204,34 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
-			if m.mode == modeTextInput {
-				// Let textinput handle q when typing
-				break
-			}
+		case "ctrl+c":
+			// Ctrl+C always quits, even in text input mode
+			m.quit = true
 			return m, tea.Quit
+		case "ctrl+q":
+			// Ctrl+Q always quits, even in text input mode
+			m.quit = true
+			return m, tea.Quit
+		case "ctrl+s":
+			// Save answers at any step (including text input mode)
+			if !m.done {
+				// Commit current text input value before saving,
+				// otherwise the typed value is lost (still in textinput.Model).
+				stepInfo := getStepInfo(m.step)
+				if stepInfo != nil {
+					if m.mode == modeTextInput {
+						m.saveCurrentFieldValue(stepInfo)
+					} else if m.mode == modeCheckboxSelect && m.currentField > 0 {
+						m.saveCheckboxFieldValue(stepInfo)
+					}
+				}
+				if err := m.saveAnswersFile(); err != nil {
+					m.saveMsg = fmt.Sprintf("✗ Failed to save: %v", err)
+				} else {
+					m.saveMsg = fmt.Sprintf("✓ Answers saved to ./%s-answers.yaml", m.config.ProjectName)
+				}
+				return m, nil
+			}
 		}
 	}
 
@@ -217,6 +249,18 @@ func (m *WizardModel) handleDone(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "enter":
 			m.err = m.generateConfig()
+			return m, tea.Quit
+		case "s":
+			// Refinement 2: Save answers to YAML file, then generate config (same as Enter)
+			if err := m.saveAnswersFile(); err != nil {
+				m.validationErr = fmt.Sprintf("failed to save answers: %v", err)
+				return m, nil
+			}
+			m.err = m.generateConfig()
+			return m, tea.Quit
+		case "ctrl+q":
+			// Quit without generating config
+			m.quit = true
 			return m, tea.Quit
 		case "esc", "backspace":
 			m.done = false
@@ -275,11 +319,10 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 			}
 
 			if m.step >= m.total {
-				m.done = true
-			} else {
-				return m, m.initStep(nextStep(m.step, m.config))
+				m.err = m.generateConfig()
+				return m, tea.Quit
 			}
-			return m, nil
+			return m, m.initStep(nextStep(m.step, m.config))
 
 		case "esc":
 			if m.currentField > 0 {
@@ -365,12 +408,12 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 			// Commit the selection
 			stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
 			m.validationErr = ""
+			m.saveMsg = ""
 			if m.step >= m.total {
-				m.done = true
-			} else {
-				return m, m.initStep(nextStep(m.step, m.config))
+				m.err = m.generateConfig()
+				return m, tea.Quit
 			}
-			return m, nil
+			return m, m.initStep(nextStep(m.step, m.config))
 		case "esc", "backspace":
 			if m.step > 1 {
 				return m, m.initStep(prevStep(m.step, m.config))
@@ -461,10 +504,10 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 						return m, nil
 					}
 					if m.step >= m.total {
-						m.done = true
-					} else {
-						return m, m.initStep(nextStep(m.step, m.config))
+						m.err = m.generateConfig()
+						return m, tea.Quit
 					}
+					return m, m.initStep(nextStep(m.step, m.config))
 				}
 			} else {
 				// In text fields: move to next or advance
@@ -483,10 +526,10 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 						return m, nil
 					}
 					if m.step >= m.total {
-						m.done = true
-					} else {
-						return m, m.initStep(nextStep(m.step, m.config))
+						m.err = m.generateConfig()
+						return m, tea.Quit
 					}
+					return m, m.initStep(nextStep(m.step, m.config))
 				}
 			}
 			return m, nil
@@ -507,10 +550,10 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 						return m, nil
 					}
 					if m.step >= m.total {
-						m.done = true
-					} else {
-						return m, m.initStep(nextStep(m.step, m.config))
+						m.err = m.generateConfig()
+						return m, tea.Quit
 					}
+					return m, m.initStep(nextStep(m.step, m.config))
 				}
 			} else {
 				// In text fields: move to next field or advance step
@@ -529,10 +572,10 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 						return m, nil
 					}
 					if m.step >= m.total {
-						m.done = true
-					} else {
-						return m, m.initStep(nextStep(m.step, m.config))
+						m.err = m.generateConfig()
+						return m, tea.Quit
 					}
+					return m, m.initStep(nextStep(m.step, m.config))
 				}
 			}
 			return m, nil
@@ -597,9 +640,21 @@ func (m *WizardModel) handleNavigate(msg tea.Msg, stepInfo *stepInfo) (tea.Model
 		switch msg.String() {
 		case "enter", "tab":
 			if m.step >= m.total {
-				m.done = true
-			} else {
-				return m, m.initStep(nextStep(m.step, m.config))
+				// Fix 1: On the last step (summary), generate config directly
+				// instead of going through an intermediate done/confirmation screen.
+				m.err = m.generateConfig()
+				return m, tea.Quit
+			}
+			return m, m.initStep(nextStep(m.step, m.config))
+		case "s":
+			// Fix 1: On the last step, 's' saves answers then generates directly.
+			if m.step >= m.total {
+				if err := m.saveAnswersFile(); err != nil {
+					m.validationErr = fmt.Sprintf("failed to save answers: %v", err)
+					return m, nil
+				}
+				m.err = m.generateConfig()
+				return m, tea.Quit
 			}
 		case "esc", "backspace":
 			if m.step > 1 {
@@ -663,10 +718,11 @@ func (m *WizardModel) View() string {
 	b.WriteString("\n\n")
 
 	if m.done {
-		b.WriteString(m.renderSummary())
-		b.WriteString(ConfirmStyle.Render("\n  Press Enter to confirm and generate configs, or q to quit."))
+		// Refinement 1: When done, show the confirmation prompt (summary already shown in step 15)
+		b.WriteString(ConfirmStyle.Render("  Press Enter to confirm and generate configs."))
 		b.WriteString("\n")
-		b.WriteString(m.renderNavigation())
+		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • ctrl+q=quit"))
+		b.WriteString("\n")
 		return b.String()
 	}
 
@@ -676,6 +732,12 @@ func (m *WizardModel) View() string {
 	// Validation error
 	if m.validationErr != "" {
 		b.WriteString(ErrorStyle.Render("  ✗ " + m.validationErr))
+		b.WriteString("\n")
+	}
+
+	// Save confirmation message
+	if m.saveMsg != "" {
+		b.WriteString(SuccessStyle.Render("  " + m.saveMsg))
 		b.WriteString("\n")
 	}
 
@@ -698,9 +760,13 @@ func (m *WizardModel) renderStepContent() string {
 		b.WriteString(renderWelcome(m))
 		return b.String()
 	case 15:
+		// Refinement 1: Show the summary directly when entering step 15
 		b.WriteString(renderStepTitle("Step 15: Summary & Confirm"))
 		b.WriteString(m.renderSummary())
-		b.WriteString(ConfirmStyle.Render("\n  Press Enter to confirm and generate configs, or q to quit."))
+		b.WriteString("\n")
+		b.WriteString(ConfirmStyle.Render("  Press Enter to generate configs."))
+		b.WriteString("\n")
+		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • ctrl+q=quit"))
 		return b.String()
 	}
 
@@ -901,11 +967,12 @@ func (m *WizardModel) renderNavigation() string {
 				hints = append(hints, "esc=back")
 			}
 		}
-		hints = append(hints, "q=quit")
+		hints = append(hints, "ctrl+s=save")
+		hints = append(hints, "ctrl+q=quit")
 	} else {
 		hints = append(hints, "enter=confirm")
 		hints = append(hints, "esc=back")
-		hints = append(hints, "q=quit")
+		hints = append(hints, "ctrl+q=quit")
 	}
 	return HelpStyle.Render(strings.Join(hints, "  "))
 }
@@ -1025,8 +1092,22 @@ func (m *WizardModel) generateConfig() error {
 	return generator.Generate(m.config, m.config.ConfigDir, false)
 }
 
+// saveAnswersFile saves the wizard answers to a YAML file for reuse with --config flag.
+func (m *WizardModel) saveAnswersFile() error {
+	answersPath := "./" + m.config.ProjectName + "-answers.yaml"
+	data, err := yaml.Marshal(m.config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal answers: %w", err)
+	}
+	if err := os.WriteFile(answersPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write answers file: %w", err)
+	}
+	return nil
+}
+
 // RunWizard is the entry point that starts the interactive wizard.
 // It takes over the terminal and returns the completed WizardConfig or an error.
+// Returns nil, nil if the user quit without completing.
 func RunWizard() (*config.WizardConfig, error) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
@@ -1038,6 +1119,32 @@ func RunWizard() (*config.WizardConfig, error) {
 	resultModel := result.(*WizardModel)
 	if resultModel.err != nil {
 		return nil, resultModel.err
+	}
+	// If the user quit (via q or ctrl+c), return nil config
+	if resultModel.quit {
+		return nil, nil
+	}
+	return resultModel.config, nil
+}
+
+// RunWizardWithConfig starts the interactive wizard with a pre-populated config.
+// Used by hd init --config <file> (without --non-interactive) to let the user
+// review and modify the loaded answers before generating.
+// Returns nil, nil if the user quit without completing.
+func RunWizardWithConfig(cfg *config.WizardConfig) (*config.WizardConfig, error) {
+	m := NewWizard(cfg)
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	result, err := p.Run()
+	if err != nil {
+		return nil, err
+	}
+	resultModel := result.(*WizardModel)
+	if resultModel.err != nil {
+		return nil, resultModel.err
+	}
+	// If the user quit (via q or ctrl+c), return nil config
+	if resultModel.quit {
+		return nil, nil
 	}
 	return resultModel.config, nil
 }
