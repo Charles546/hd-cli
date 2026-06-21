@@ -300,11 +300,10 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 			}
 
 			if m.step >= m.total {
-				m.done = true
-			} else {
-				return m, m.initStep(nextStep(m.step, m.config))
+				m.err = m.generateConfig()
+				return m, tea.Quit
 			}
-			return m, nil
+			return m, m.initStep(nextStep(m.step, m.config))
 
 		case "esc":
 			if m.currentField > 0 {
@@ -392,11 +391,10 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 			m.validationErr = ""
 			m.saveMsg = ""
 			if m.step >= m.total {
-				m.done = true
-			} else {
-				return m, m.initStep(nextStep(m.step, m.config))
+				m.err = m.generateConfig()
+				return m, tea.Quit
 			}
-			return m, nil
+			return m, m.initStep(nextStep(m.step, m.config))
 		case "esc", "backspace":
 			if m.step > 1 {
 				return m, m.initStep(prevStep(m.step, m.config))
@@ -487,10 +485,10 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 						return m, nil
 					}
 					if m.step >= m.total {
-						m.done = true
-					} else {
-						return m, m.initStep(nextStep(m.step, m.config))
+						m.err = m.generateConfig()
+						return m, tea.Quit
 					}
+					return m, m.initStep(nextStep(m.step, m.config))
 				}
 			} else {
 				// In text fields: move to next or advance
@@ -509,10 +507,10 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 						return m, nil
 					}
 					if m.step >= m.total {
-						m.done = true
-					} else {
-						return m, m.initStep(nextStep(m.step, m.config))
+						m.err = m.generateConfig()
+						return m, tea.Quit
 					}
+					return m, m.initStep(nextStep(m.step, m.config))
 				}
 			}
 			return m, nil
@@ -533,10 +531,10 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 						return m, nil
 					}
 					if m.step >= m.total {
-						m.done = true
-					} else {
-						return m, m.initStep(nextStep(m.step, m.config))
+						m.err = m.generateConfig()
+						return m, tea.Quit
 					}
+					return m, m.initStep(nextStep(m.step, m.config))
 				}
 			} else {
 				// In text fields: move to next field or advance step
@@ -555,10 +553,10 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 						return m, nil
 					}
 					if m.step >= m.total {
-						m.done = true
-					} else {
-						return m, m.initStep(nextStep(m.step, m.config))
+						m.err = m.generateConfig()
+						return m, tea.Quit
 					}
+					return m, m.initStep(nextStep(m.step, m.config))
 				}
 			}
 			return m, nil
@@ -623,9 +621,21 @@ func (m *WizardModel) handleNavigate(msg tea.Msg, stepInfo *stepInfo) (tea.Model
 		switch msg.String() {
 		case "enter", "tab":
 			if m.step >= m.total {
-				m.done = true
-			} else {
-				return m, m.initStep(nextStep(m.step, m.config))
+				// Fix 1: On the last step (summary), generate config directly
+				// instead of going through an intermediate done/confirmation screen.
+				m.err = m.generateConfig()
+				return m, tea.Quit
+			}
+			return m, m.initStep(nextStep(m.step, m.config))
+		case "s":
+			// Fix 1: On the last step, 's' saves answers then generates directly.
+			if m.step >= m.total {
+				if err := m.saveAnswersFile(); err != nil {
+					m.validationErr = fmt.Sprintf("failed to save answers: %v", err)
+					return m, nil
+				}
+				m.err = m.generateConfig()
+				return m, tea.Quit
 			}
 		case "esc", "backspace":
 			if m.step > 1 {

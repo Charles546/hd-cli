@@ -132,12 +132,20 @@ func runNonInteractive() error {
 		return fmt.Errorf("invalid answers file: %w", err)
 	}
 
+	// Load the answers to get ConfigDir (needed for default output directory)
+	cfg, err := loadAnswersFile(initConfigFile)
+	if err != nil {
+		return fmt.Errorf("failed to load answers file: %w", err)
+	}
+	// Apply defaults in case ConfigDir is empty
+	config.ApplyDefaults(cfg)
+
 	generator := config.NewGenerator()
 
-	// Determine output dir
+	// Determine output dir: use --output flag, or from answers file, or default
 	outputDir := initOutputDir
 	if outputDir == "" {
-		outputDir = "./hd-config"
+		outputDir = cfg.ConfigDir
 	}
 
 	if err := generator.GenerateFromAnswersFile(initConfigFile, outputDir, initDryRun); err != nil {

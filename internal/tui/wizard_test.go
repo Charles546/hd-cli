@@ -701,6 +701,55 @@ func TestStep15ShowsSummary(t *testing.T) {
 	}
 }
 
+func TestStep15EnterGeneratesDirectly(t *testing.T) {
+	// Fix 1: Pressing Enter on step 15 should generate config directly
+	// without going through the done/confirmation screen.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15) // Summary step (navigate mode)
+
+	// Press Enter - should trigger generateConfig and return quit
+	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if cmd == nil {
+		t.Error("expected quit command after enter on step 15")
+	}
+	// Should NOT be in done state (direct generation, no intermediate done)
+	if m.done {
+		t.Error("should not be in done state after enter on step 15")
+	}
+}
+
+func TestStep15SaveAndGenerateDirectly(t *testing.T) {
+	// Fix 1: Pressing 's' on step 15 should save answers and generate directly.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "save-gen-test"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	// Press 's' - should save and generate
+	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+
+	if cmd == nil {
+		t.Error("expected quit command after 's' on step 15")
+	}
+	if m.done {
+		t.Error("should not be in done state after 's' on step 15")
+	}
+}
+
+func TestStep15EscGoesBack(t *testing.T) {
+	// Pressing Esc on step 15 should go back to previous step
+	m := NewWizard(nil)
+	m = runInitStep(m, 15)
+
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
+
+	if m.step == 15 {
+		t.Errorf("step = %d, should have gone back from step 15", m.step)
+	}
+}
+
 func TestDoneScreenEnterConfirms(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
