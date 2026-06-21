@@ -64,7 +64,7 @@ type WizardModel struct {
 	// that should be cleared on the next character or backspace keypress.
 	pendingDefault bool
 
-	// quit is set to true when the user quits via q or ctrl+c.
+	// quit is set to true when the user quits via ctrl+q or ctrl+c.
 	// RunWizard checks this to distinguish quit from completion.
 	quit bool
 }
@@ -208,19 +208,13 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Ctrl+C always quits, even in text input mode
 			m.quit = true
 			return m, tea.Quit
-		case "q":
-			// q quits only when not in text input mode.
-			// modeCheckboxSelect with currentField > 0 means typing in a text field,
-			// so q should be treated as a regular character there too.
-			if m.mode == modeTextInput || (m.mode == modeCheckboxSelect && m.currentField > 0) {
-				// In text input mode (pure or within checkbox), let text input handle q
-			} else {
-				m.quit = true
-				return m, tea.Quit
-			}
+		case "ctrl+q":
+			// Ctrl+Q always quits, even in text input mode
+			m.quit = true
+			return m, tea.Quit
 		case "ctrl+s":
-			// Refinement 3: Save answers at any step (not when done or typing)
-			if !m.done && m.mode != modeTextInput {
+			// Save answers at any step (including text input mode)
+			if !m.done {
 				if err := m.saveAnswersFile(); err != nil {
 					m.saveMsg = fmt.Sprintf("✗ Failed to save: %v", err)
 				} else {
@@ -228,7 +222,6 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
-			// When in text input mode, let the text input handle ctrl+s
 		}
 	}
 
@@ -255,7 +248,7 @@ func (m *WizardModel) handleDone(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.err = m.generateConfig()
 			return m, tea.Quit
-		case "q":
+		case "ctrl+q":
 			// Quit without generating config
 			m.quit = true
 			return m, tea.Quit
@@ -718,7 +711,7 @@ func (m *WizardModel) View() string {
 		// Refinement 1: When done, show the confirmation prompt (summary already shown in step 15)
 		b.WriteString(ConfirmStyle.Render("  Press Enter to confirm and generate configs."))
 		b.WriteString("\n")
-		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • q=quit"))
+		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • ctrl+q=quit"))
 		b.WriteString("\n")
 		return b.String()
 	}
@@ -763,7 +756,7 @@ func (m *WizardModel) renderStepContent() string {
 		b.WriteString("\n")
 		b.WriteString(ConfirmStyle.Render("  Press Enter to generate configs."))
 		b.WriteString("\n")
-		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • q=quit"))
+		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • ctrl+q=quit"))
 		return b.String()
 	}
 
@@ -965,11 +958,11 @@ func (m *WizardModel) renderNavigation() string {
 			}
 		}
 		hints = append(hints, "ctrl+s=save")
-		hints = append(hints, "q=quit")
+		hints = append(hints, "ctrl+q=quit")
 	} else {
 		hints = append(hints, "enter=confirm")
 		hints = append(hints, "esc=back")
-		hints = append(hints, "q=quit")
+		hints = append(hints, "ctrl+q=quit")
 	}
 	return HelpStyle.Render(strings.Join(hints, "  "))
 }
