@@ -1110,3 +1110,216 @@ func TestGenerateDevModeDefaultPaths(t *testing.T) {
 		t.Errorf("dev mode with empty path should fall back to default LOOKUP, got:\n%s", yamlStr)
 	}
 }
+
+// ===== Dev mode docker-compose env var tests =====
+
+func TestDockerComposeDevModeEnvVars(t *testing.T) {
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-dev-compose"
+	cfg.DeploymentMode = "docker"
+	cfg.SecretsBackend = "dev"
+	cfg.HasGithubPATIntegration = true
+	cfg.HasGitHubAppIntegration = true
+	// Dev mode values stored with "$" prefix
+	cfg.GithubTokenPath = "$HD_GITHUB_TOKEN"
+	cfg.GithubWebhookSecret = "$HD_GITHUB_WEBHOOK_SECRET"
+	cfg.SlackBotTokenPath = "$HD_SLACK_BOT_TOKEN"
+	cfg.SlackSigningSecretPath = "$HD_SLACK_SIGNING_SECRET"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should contain HD_* env var passthroughs
+	if !strings.Contains(yamlStr, "HD_GITHUB_TOKEN=${HD_GITHUB_TOKEN}") {
+		t.Errorf("docker-compose.yaml should contain HD_GITHUB_TOKEN passthrough, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "HD_GITHUB_WEBHOOK_SECRET=${HD_GITHUB_WEBHOOK_SECRET}") {
+		t.Errorf("docker-compose.yaml should contain HD_GITHUB_WEBHOOK_SECRET passthrough, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "HD_SLACK_BOT_TOKEN=${HD_SLACK_BOT_TOKEN}") {
+		t.Errorf("docker-compose.yaml should contain HD_SLACK_BOT_TOKEN passthrough, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "HD_SLACK_SIGNING_SECRET=${HD_SLACK_SIGNING_SECRET}") {
+		t.Errorf("docker-compose.yaml should contain HD_SLACK_SIGNING_SECRET passthrough, got:\n%s", yamlStr)
+	}
+}
+
+func TestDockerComposeDevModePartialEnvVars(t *testing.T) {
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-dev-partial"
+	cfg.DeploymentMode = "docker"
+	cfg.SecretsBackend = "dev"
+	cfg.HasGithubPATIntegration = true
+	cfg.GithubTokenPath = "$HD_GITHUB_TOKEN"
+	// Slack fields left empty — should not appear
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should contain the one HD_ var
+	if !strings.Contains(yamlStr, "HD_GITHUB_TOKEN=${HD_GITHUB_TOKEN}") {
+		t.Errorf("docker-compose.yaml should contain HD_GITHUB_TOKEN, got:\n%s", yamlStr)
+	}
+	// Should NOT contain Slack vars (they were empty)
+	if strings.Contains(yamlStr, "HD_SLACK") {
+		t.Errorf("docker-compose.yaml should not contain HD_SLACK vars when empty, got:\n%s", yamlStr)
+	}
+}
+
+func TestDockerComposeVaultModeNoDevEnvVars(t *testing.T) {
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-vault-compose"
+	cfg.DeploymentMode = "docker"
+	cfg.SecretsBackend = "vault"
+	cfg.HasGithubPATIntegration = true
+	cfg.GithubTokenPath = "secrets/github/pat"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should NOT contain any HD_* env var passthroughs in vault mode
+	if strings.Contains(yamlStr, "HD_") {
+		t.Errorf("docker-compose.yaml should not contain HD_ vars in vault mode, got:\n%s", yamlStr)
+	}
+}
+
+func TestDockerComposeDevModeNoEnvVars(t *testing.T) {
+	// Dev mode but no HD_* vars referenced — should still generate without errors
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-dev-empty"
+	cfg.DeploymentMode = "docker"
+	cfg.SecretsBackend = "dev"
+	cfg.HasGithubPATIntegration = true
+	// Leave all secret fields empty
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should not contain any HD_ env var entries
+	if strings.Contains(yamlStr, "HD_") {
+		t.Errorf("docker-compose.yaml should not contain HD_ vars when none referenced, got:\n%s", yamlStr)
+	}
+	// Should still have the REPO env var
+	if !strings.Contains(yamlStr, "REPO=") {
+		t.Errorf("docker-compose.yaml should still have REPO env var, got:\n%s", yamlStr)
+	}
+}
+
+func TestCollectDevEnvVars(t *testing.T) {
+	t.Run("dev mode with HD_ vars", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.SecretsBackend = "dev"
+		cfg.GithubTokenPath = "$HD_GITHUB_TOKEN"
+		cfg.GithubWebhookSecret = "$HD_GITHUB_WEBHOOK"
+		cfg.SlackBotTokenPath = "$HD_SLACK_BOT"
+
+		vars := cfg.CollectDevEnvVars()
+		if len(vars) != 3 {
+			t.Fatalf("expected 3 dev env vars, got %d: %v", len(vars), vars)
+		}
+		expected := map[string]bool{
+			"HD_GITHUB_TOKEN":     true,
+			"HD_GITHUB_WEBHOOK":  true,
+			"HD_SLACK_BOT":      true,
+		}
+		for _, v := range vars {
+			if !expected[v] {
+				t.Errorf("unexpected var %q", v)
+			}
+		}
+	})
+
+	t.Run("vault mode returns nil", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.SecretsBackend = "vault"
+		cfg.GithubTokenPath = "secrets/github/pat"
+
+		vars := cfg.CollectDevEnvVars()
+		if vars != nil {
+			t.Errorf("expected nil for vault mode, got %v", vars)
+		}
+	})
+
+	t.Run("deduplication", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.SecretsBackend = "dev"
+		// Same var referenced in two fields
+		cfg.GithubTokenPath = "$HD_GITHUB_TOKEN"
+		cfg.GithubKeyPath = "$HD_GITHUB_TOKEN"
+
+		vars := cfg.CollectDevEnvVars()
+		if len(vars) != 1 {
+			t.Fatalf("expected 1 deduplicated var, got %d: %v", len(vars), vars)
+		}
+		if vars[0] != "HD_GITHUB_TOKEN" {
+			t.Errorf("expected HD_GITHUB_TOKEN, got %q", vars[0])
+		}
+	})
+
+	t.Run("plain values ignored", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.SecretsBackend = "dev"
+		cfg.GithubTokenPath = "my-plain-token"
+		cfg.GithubKeyPath = "$HD_GITHUB_KEY"
+
+		vars := cfg.CollectDevEnvVars()
+		if len(vars) != 1 {
+			t.Fatalf("expected 1 var, got %d: %v", len(vars), vars)
+		}
+		if vars[0] != "HD_GITHUB_KEY" {
+			t.Errorf("expected HD_GITHUB_KEY, got %q", vars[0])
+		}
+	})
+
+	t.Run("nil config", func(t *testing.T) {
+		var cfg *WizardConfig
+		vars := cfg.CollectDevEnvVars()
+		if vars != nil {
+			t.Errorf("expected nil for nil config, got %v", vars)
+		}
+	})
+}

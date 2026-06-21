@@ -34,7 +34,7 @@ services:
 {{- end }}
 {{- if eq .SecretsBackend "dev" }}
 {{- range .DevEnvVars }}
-      - {{ . }}={{ "${" . "}" }}
+      - {{ printf "%s=${%s}" . . }}
 {{- end }}
 {{- end }}
 {{- if not .GithubCreateRepo }}
