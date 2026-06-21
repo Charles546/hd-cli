@@ -218,6 +218,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Vault server URL (only for vault backend)",
 					getValue:    func(c *config.WizardConfig) string { return c.VaultAddress },
 					setValue:    func(c *config.WizardConfig, v string) { c.VaultAddress = v },
+					condition:   func(c *config.WizardConfig) bool { return c.SecretsBackend == "vault" },
 				},
 				{
 					label:       "Auth method",
@@ -225,6 +226,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Vault authentication method",
 					getValue:    func(c *config.WizardConfig) string { return c.VaultAuthMethod },
 					setValue:    func(c *config.WizardConfig, v string) { c.VaultAuthMethod = v },
+					condition:   func(c *config.WizardConfig) bool { return c.SecretsBackend == "vault" },
 				},
 			},
 		}
@@ -243,6 +245,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Redis connection string (only for external mode)",
 					getValue:    func(c *config.WizardConfig) string { return c.RedisConnString },
 					setValue:    func(c *config.WizardConfig, v string) { c.RedisConnString = v },
+					condition:   func(c *config.WizardConfig) bool { return c.RedisMode == "external" },
 				},
 			},
 		}
@@ -358,6 +361,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Path to the API key secret",
 					getValue:    func(c *config.WizardConfig) string { return c.AIAPIKeyPath },
 					setValue:    func(c *config.WizardConfig, v string) { c.AIAPIKeyPath = v },
+					condition:   func(c *config.WizardConfig) bool { return c.AIEnabled },
 				},
 				{
 					label:       "Base URL",
@@ -365,6 +369,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "OpenAI-compatible API base URL",
 					getValue:    func(c *config.WizardConfig) string { return c.AIBaseURL },
 					setValue:    func(c *config.WizardConfig, v string) { c.AIBaseURL = v },
+					condition:   func(c *config.WizardConfig) bool { return c.AIEnabled },
 				},
 				{
 					label:       "Model",
@@ -372,6 +377,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "LLM model name (e.g., gpt-4o)",
 					getValue:    func(c *config.WizardConfig) string { return c.AIModel },
 					setValue:    func(c *config.WizardConfig, v string) { c.AIModel = v },
+					condition:   func(c *config.WizardConfig) bool { return c.AIEnabled },
 				},
 				{
 					label:       "Engine name",
@@ -379,6 +385,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Honeydipper engine name for the AI agent",
 					getValue:    func(c *config.WizardConfig) string { return c.AIEngineName },
 					setValue:    func(c *config.WizardConfig, v string) { c.AIEngineName = v },
+					condition:   func(c *config.WizardConfig) bool { return c.AIEnabled },
 				},
 			},
 		}
