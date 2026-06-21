@@ -1405,3 +1405,335 @@ func TestQuitFlagInitiallyFalse(t *testing.T) {
 		t.Error("quit flag should be false initially")
 	}
 }
+
+// ===== Dev mode secret field tests =====
+
+func TestGhSecretLabels_VaultMode(t *testing.T) {
+	cfg := &config.WizardConfig{SecretsBackend: "vault"}
+
+	label, placeholder, help := ghSecretLabels(cfg, "key")
+	if label != "Private key secret path" {
+		t.Errorf("vault key label = %q, want %q", label, "Private key secret path")
+	}
+	if placeholder != "Path to secret containing the private key" {
+		t.Errorf("vault key placeholder = %q, want %q", placeholder, "Path to secret containing the private key")
+	}
+	if help != "Path to the secret containing the GitHub App private key (only for github_app integration)" {
+		t.Errorf("vault key help = %q, want path help", help)
+	}
+
+	label, placeholder, _ = ghSecretLabels(cfg, "token")
+	if label != "Token secret path" {
+		t.Errorf("vault token label = %q, want %q", label, "Token secret path")
+	}
+	if placeholder != "Path to secret containing the PAT" {
+		t.Errorf("vault token placeholder = %q, want %q", placeholder, "Path to secret containing the PAT")
+	}
+
+	label, placeholder, _ = ghSecretLabels(cfg, "webhook")
+	if label != "Webhook secret path" {
+		t.Errorf("vault webhook label = %q, want %q", label, "Webhook secret path")
+	}
+	if placeholder != "Path to webhook signing secret" {
+		t.Errorf("vault webhook placeholder = %q, want %q", placeholder, "Path to webhook signing secret")
+	}
+}
+
+func TestGhSecretLabels_DevMode(t *testing.T) {
+	cfg := &config.WizardConfig{SecretsBackend: "dev"}
+
+	label, placeholder, help := ghSecretLabels(cfg, "key")
+	if label != "Private key value" {
+		t.Errorf("dev key label = %q, want %q", label, "Private key value")
+	}
+	if placeholder != "Plain text or $ENV_VAR" {
+		t.Errorf("dev key placeholder = %q, want %q", placeholder, "Plain text or $ENV_VAR")
+	}
+	if help != "GitHub App private key value or env var name (only for github_app integration)" {
+		t.Errorf("dev key help = %q, want value help", help)
+	}
+
+	label, placeholder, _ = ghSecretLabels(cfg, "token")
+	if label != "Token value" {
+		t.Errorf("dev token label = %q, want %q", label, "Token value")
+	}
+	if placeholder != "Plain text or $ENV_VAR" {
+		t.Errorf("dev token placeholder = %q, want %q", placeholder, "Plain text or $ENV_VAR")
+	}
+
+	label, placeholder, _ = ghSecretLabels(cfg, "webhook")
+	if label != "Webhook secret value" {
+		t.Errorf("dev webhook label = %q, want %q", label, "Webhook secret value")
+	}
+	if placeholder != "Plain text or $ENV_VAR" {
+		t.Errorf("dev webhook placeholder = %q, want %q", placeholder, "Plain text or $ENV_VAR")
+	}
+}
+
+func TestSlackSecretLabels_VaultMode(t *testing.T) {
+	cfg := &config.WizardConfig{SecretsBackend: "vault"}
+
+	label, placeholder, _ := slackSecretLabels(cfg, "bot_token")
+	if label != "Bot token secret path" {
+		t.Errorf("vault bot_token label = %q, want %q", label, "Bot token secret path")
+	}
+	if placeholder != "Path to Slack bot token" {
+		t.Errorf("vault bot_token placeholder = %q, want %q", placeholder, "Path to Slack bot token")
+	}
+
+	label, _, _ = slackSecretLabels(cfg, "signing")
+	if label != "Signing secret path" {
+		t.Errorf("vault signing label = %q, want %q", label, "Signing secret path")
+	}
+
+	label, _, _ = slackSecretLabels(cfg, "interaction")
+	if label != "Interaction token" {
+		t.Errorf("vault interaction label = %q, want %q", label, "Interaction token")
+	}
+
+	label, _, _ = slackSecretLabels(cfg, "slash")
+	if label != "Slash command token" {
+		t.Errorf("vault slash label = %q, want %q", label, "Slash command token")
+	}
+}
+
+func TestSlackSecretLabels_DevMode(t *testing.T) {
+	cfg := &config.WizardConfig{SecretsBackend: "dev"}
+
+	label, placeholder, _ := slackSecretLabels(cfg, "bot_token")
+	if label != "Bot token value" {
+		t.Errorf("dev bot_token label = %q, want %q", label, "Bot token value")
+	}
+	if placeholder != "Plain text or $ENV_VAR" {
+		t.Errorf("dev bot_token placeholder = %q, want %q", placeholder, "Plain text or $ENV_VAR")
+	}
+
+	label, _, _ = slackSecretLabels(cfg, "signing")
+	if label != "Signing secret value" {
+		t.Errorf("dev signing label = %q, want %q", label, "Signing secret value")
+	}
+
+	label, placeholder, _ = slackSecretLabels(cfg, "interaction")
+	if label != "Interaction token value" {
+		t.Errorf("dev interaction label = %q, want %q", label, "Interaction token value")
+	}
+	if placeholder != "Plain text or $ENV_VAR (optional)" {
+		t.Errorf("dev interaction placeholder = %q, want %q", placeholder, "Plain text or $ENV_VAR (optional)")
+	}
+
+	label, placeholder, _ = slackSecretLabels(cfg, "slash")
+	if label != "Slash command token value" {
+		t.Errorf("dev slash label = %q, want %q", label, "Slash command token value")
+	}
+	if placeholder != "Plain text or $ENV_VAR (optional)" {
+		t.Errorf("dev slash placeholder = %q, want %q", placeholder, "Plain text or $ENV_VAR (optional)")
+	}
+}
+
+func TestGhSecretFieldKey(t *testing.T) {
+	tests := []struct {
+		label    string
+		expected string
+	}{
+		{"Private key secret path", "key"},
+		{"Private key value", "key"},
+		{"Token secret path", "token"},
+		{"Token value", "token"},
+		{"Webhook secret path", "webhook"},
+		{"Webhook secret value", "webhook"},
+		{"App ID", ""},
+		{"Installation ID", ""},
+		{"Something else", ""},
+	}
+
+	for _, tt := range tests {
+		got := ghSecretFieldKey(tt.label)
+		if got != tt.expected {
+			t.Errorf("ghSecretFieldKey(%q) = %q, want %q", tt.label, got, tt.expected)
+		}
+	}
+}
+
+func TestSlackSecretFieldKey(t *testing.T) {
+	tests := []struct {
+		label    string
+		expected string
+	}{
+		{"Bot token secret path", "bot_token"},
+		{"Bot token value", "bot_token"},
+		{"Signing secret path", "signing"},
+		{"Signing secret value", "signing"},
+		{"Interaction token", "interaction"},
+		{"Interaction token value", "interaction"},
+		{"Slash command token", "slash"},
+		{"Slash command token value", "slash"},
+		{"Something else", ""},
+	}
+
+	for _, tt := range tests {
+		got := slackSecretFieldKey(tt.label)
+		if got != tt.expected {
+			t.Errorf("slackSecretFieldKey(%q) = %q, want %q", tt.label, got, tt.expected)
+		}
+	}
+}
+
+func TestIsDevMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *config.WizardConfig
+		expected bool
+	}{
+		{"nil config", nil, false},
+		{"vault backend", &config.WizardConfig{SecretsBackend: "vault"}, false},
+		{"dev backend", &config.WizardConfig{SecretsBackend: "dev"}, true},
+		{"empty backend", &config.WizardConfig{SecretsBackend: ""}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isDevMode(tt.cfg)
+			if got != tt.expected {
+				t.Errorf("isDevMode() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestStep8DevModeLabels(t *testing.T) {
+	// When secrets backend is dev, the GitHub integration step should show
+	// dev-mode labels for secret fields
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecretsBackend = "dev"
+	cfg.HasGitHubAppIntegration = true
+	cfg.HasGithubPATIntegration = true
+	m := NewWizard(cfg)
+	m = runInitStep(m, 8)
+
+	view := m.View()
+
+	// In dev mode, should show "Private key value" instead of "Private key secret path"
+	if !strings.Contains(view, "Private key value") {
+		t.Errorf("Step 8 dev mode view should contain 'Private key value', got: %s", view)
+	}
+	if !strings.Contains(view, "Token value") {
+		t.Errorf("Step 8 dev mode view should contain 'Token value', got: %s", view)
+	}
+	if !strings.Contains(view, "Webhook secret value") {
+		t.Errorf("Step 8 dev mode view should contain 'Webhook secret value', got: %s", view)
+	}
+	// Should NOT show vault-mode labels
+	if strings.Contains(view, "Private key secret path") {
+		t.Errorf("Step 8 dev mode view should NOT contain 'Private key secret path'")
+	}
+	if strings.Contains(view, "Token secret path") {
+		t.Errorf("Step 8 dev mode view should NOT contain 'Token secret path'")
+	}
+}
+
+func TestStep8VaultModeLabels(t *testing.T) {
+	// When secrets backend is vault, the GitHub integration step should show
+	// vault-mode labels for secret fields (backward compatible)
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecretsBackend = "vault"
+	cfg.HasGitHubAppIntegration = true
+	cfg.HasGithubPATIntegration = true
+	m := NewWizard(cfg)
+	m = runInitStep(m, 8)
+
+	view := m.View()
+
+	// In vault mode, should show vault labels
+	if !strings.Contains(view, "Private key secret path") {
+		t.Errorf("Step 8 vault mode view should contain 'Private key secret path', got: %s", view)
+	}
+	if !strings.Contains(view, "Token secret path") {
+		t.Errorf("Step 8 vault mode view should contain 'Token secret path', got: %s", view)
+	}
+	if !strings.Contains(view, "Webhook secret path") {
+		t.Errorf("Step 8 vault mode view should contain 'Webhook secret path', got: %s", view)
+	}
+}
+
+func TestStep9DevModeLabels(t *testing.T) {
+	// When secrets backend is dev, the Slack integration step should show
+	// dev-mode labels
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecretsBackend = "dev"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 9)
+
+	view := m.View()
+
+	if !strings.Contains(view, "Bot token value") {
+		t.Errorf("Step 9 dev mode view should contain 'Bot token value', got: %s", view)
+	}
+	if !strings.Contains(view, "Signing secret value") {
+		t.Errorf("Step 9 dev mode view should contain 'Signing secret value', got: %s", view)
+	}
+	if !strings.Contains(view, "Interaction token value") {
+		t.Errorf("Step 9 dev mode view should contain 'Interaction token value', got: %s", view)
+	}
+	if !strings.Contains(view, "Slash command token value") {
+		t.Errorf("Step 9 dev mode view should contain 'Slash command token value', got: %s", view)
+	}
+	// Should NOT show vault-mode labels
+	if strings.Contains(view, "Bot token secret path") {
+		t.Errorf("Step 9 dev mode view should NOT contain 'Bot token secret path'")
+	}
+	if strings.Contains(view, "Signing secret path") {
+		t.Errorf("Step 9 dev mode view should NOT contain 'Signing secret path'")
+	}
+}
+
+func TestStep9VaultModeLabels(t *testing.T) {
+	// When secrets backend is vault, the Slack integration step should show
+	// vault-mode labels (backward compatible)
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecretsBackend = "vault"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 9)
+
+	view := m.View()
+
+	if !strings.Contains(view, "Bot token secret path") {
+		t.Errorf("Step 9 vault mode view should contain 'Bot token secret path', got: %s", view)
+	}
+	if !strings.Contains(view, "Signing secret path") {
+		t.Errorf("Step 9 vault mode view should contain 'Signing secret path', got: %s", view)
+	}
+}
+
+func TestSummaryDevModeSecretFormat(t *testing.T) {
+	// Summary screen should show dev-mode secret format hint
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecretsBackend = "dev"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	view := m.View()
+
+	if !strings.Contains(view, "Secret format: plain values / $ENV_VAR refs") {
+		t.Errorf("Summary dev mode should show dev secret format, got: %s", view)
+	}
+	if strings.Contains(view, "LOOKUP[vault,...]") {
+		t.Errorf("Summary dev mode should NOT show vault secret format")
+	}
+}
+
+func TestSummaryVaultModeSecretFormat(t *testing.T) {
+	// Summary screen should show vault-mode secret format hint (backward compatible)
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecretsBackend = "vault"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	view := m.View()
+
+	if !strings.Contains(view, "Secret format: LOOKUP[vault,...] paths") {
+		t.Errorf("Summary vault mode should show vault secret format, got: %s", view)
+	}
+	if strings.Contains(view, "$ENV_VAR refs") {
+		t.Errorf("Summary vault mode should NOT show dev secret format")
+	}
+}

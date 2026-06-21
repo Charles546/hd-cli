@@ -781,7 +781,18 @@ func (m *WizardModel) renderStepContent() string {
 				if field.condition != nil && !field.condition(m.config) {
 					continue
 				}
-				b.WriteString(LabelStyle.Render(field.label + ":"))
+				// Determine the label, placeholder, and help for this field
+				fieldLabel := field.label
+				fieldPlaceholder := field.placeholder
+				fieldHelp := field.help
+				// Override labels for Slack secret fields based on secrets backend
+				if m.step == 9 {
+					secretKey := slackSecretFieldKey(field.label)
+					if secretKey != "" {
+						fieldLabel, fieldPlaceholder, fieldHelp = slackSecretLabels(m.config, secretKey)
+					}
+				}
+				b.WriteString(LabelStyle.Render(fieldLabel + ":"))
 				b.WriteString("\n")
 				if visibleIdx < len(m.textInputs) {
 					ti := m.textInputs[visibleIdx]
@@ -796,13 +807,13 @@ func (m *WizardModel) renderStepContent() string {
 						if val != "" {
 							b.WriteString(InputStyle.Render(val))
 						} else {
-							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(field.placeholder))
+							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(fieldPlaceholder))
 						}
 					}
 				}
 				b.WriteString("\n")
-				if field.help != "" {
-					b.WriteString(HelpStyle.Render(field.help))
+				if fieldHelp != "" {
+					b.WriteString(HelpStyle.Render(fieldHelp))
 					b.WriteString("\n")
 				}
 				b.WriteString("\n")
@@ -902,7 +913,18 @@ func (m *WizardModel) renderStepContent() string {
 				if field.condition != nil && !field.condition(m.config) {
 					continue
 				}
-				b.WriteString(LabelStyle.Render("  " + field.label + ":"))
+				// Determine the label, placeholder, and help for this field
+				fieldLabel := field.label
+				fieldPlaceholder := field.placeholder
+				fieldHelp := field.help
+				// Override labels for GitHub secret fields based on secrets backend
+				if m.step == 8 {
+					secretKey := ghSecretFieldKey(field.label)
+					if secretKey != "" {
+						fieldLabel, fieldPlaceholder, fieldHelp = ghSecretLabels(m.config, secretKey)
+					}
+				}
+				b.WriteString(LabelStyle.Render("  " + fieldLabel + ":"))
 				b.WriteString("\n")
 				if visibleIdx < len(m.textInputs) {
 					ti := m.textInputs[visibleIdx]
@@ -914,13 +936,13 @@ func (m *WizardModel) renderStepContent() string {
 						if val != "" {
 							b.WriteString(InputStyle.Render(val))
 						} else {
-							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(field.placeholder))
+							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(fieldPlaceholder))
 						}
 					}
 				}
 				b.WriteString("\n")
-				if field.help != "" {
-					b.WriteString(HelpStyle.Render("  " + field.help))
+				if fieldHelp != "" {
+					b.WriteString(HelpStyle.Render("  " + fieldHelp))
 					b.WriteString("\n")
 				}
 				b.WriteString("\n")
@@ -1017,6 +1039,12 @@ func (m *WizardModel) renderSummary() string {
 	}
 	items = append(items, fmt.Sprintf("  GitHub integration: %s", ghIntegration))
 	items = append(items, "  Slack integration: enabled")
+	// Show secret format hint based on secrets backend
+	if isDevMode(m.config) {
+		items = append(items, "  Secret format: plain values / $ENV_VAR refs")
+	} else {
+		items = append(items, "  Secret format: LOOKUP[vault,...] paths")
+	}
 	if cfg.AIEnabled {
 		items = append(items, fmt.Sprintf("  AI agent: enabled (%s, %s)", cfg.AIModel, cfg.AIBaseURL))
 	} else {

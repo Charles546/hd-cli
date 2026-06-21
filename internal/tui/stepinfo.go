@@ -56,6 +56,63 @@ type stepInfo struct {
 	radioSetter    func(*config.WizardConfig, string)
 }
 
+// isDevMode returns true if the wizard is configured for dev secrets backend.
+func isDevMode(cfg *config.WizardConfig) bool {
+	return cfg != nil && cfg.SecretsBackend == "dev"
+}
+
+// ghSecretLabels returns the label, placeholder, and help text for a GitHub
+// secret field depending on the secrets backend.
+func ghSecretLabels(cfg *config.WizardConfig, field string) (label, placeholder, help string) {
+	if isDevMode(cfg) {
+		switch field {
+		case "key":
+			return "Private key value", "Plain text or $ENV_VAR", "GitHub App private key value or env var name (only for github_app integration)"
+		case "token":
+			return "Token value", "Plain text or $ENV_VAR", "Personal Access Token value or env var name (only for PAT integration)"
+		case "webhook":
+			return "Webhook secret value", "Plain text or $ENV_VAR", "Webhook signing secret value or env var name (recommended for github_app integration)"
+		}
+	}
+	switch field {
+	case "key":
+		return "Private key secret path", "Path to secret containing the private key", "Path to the secret containing the GitHub App private key (only for github_app integration)"
+	case "token":
+		return "Token secret path", "Path to secret containing the PAT", "Path to the secret containing the Personal Access Token (only for PAT integration)"
+	case "webhook":
+		return "Webhook secret path", "Path to webhook signing secret", "Path to the webhook signing secret (recommended for github_app integration)"
+	}
+	return "", "", ""
+}
+
+// slackSecretLabels returns the label, placeholder, and help text for a Slack
+// secret field depending on the secrets backend.
+func slackSecretLabels(cfg *config.WizardConfig, field string) (label, placeholder, help string) {
+	if isDevMode(cfg) {
+		switch field {
+		case "bot_token":
+			return "Bot token value", "Plain text or $ENV_VAR", "Slack bot token value or env var name"
+		case "signing":
+			return "Signing secret value", "Plain text or $ENV_VAR", "Slack signing secret value or env var name"
+		case "interaction":
+			return "Interaction token value", "Plain text or $ENV_VAR (optional)", "(Optional) Slack interaction token value or env var name"
+		case "slash":
+			return "Slash command token value", "Plain text or $ENV_VAR (optional)", "(Optional) Slack slash command token value or env var name"
+		}
+	}
+	switch field {
+	case "bot_token":
+		return "Bot token secret path", "Path to Slack bot token", "Path to the Slack bot token secret"
+	case "signing":
+		return "Signing secret path", "Path to Slack signing secret", "Path to the Slack signing secret"
+	case "interaction":
+		return "Interaction token", "Slack interaction token (optional)", "(Optional) Slack interaction token"
+	case "slash":
+		return "Slash command token", "Slack slash command token (optional)", "(Optional) Slack slash command token"
+	}
+	return "", "", ""
+}
+
 // getStepInfo returns the stepInfo for a given step number.
 func getStepInfo(step int) *stepInfo {
 	switch step {
@@ -472,4 +529,36 @@ func prevStep(step int, cfg *config.WizardConfig) int {
 		}
 	}
 	return step
+}
+
+// ghSecretFieldKey maps a GitHub integration field label to a secret key
+// recognized by ghSecretLabels.  Returns "" for non-secret fields.
+func ghSecretFieldKey(label string) string {
+	switch label {
+	case "Private key secret path", "Private key value":
+		return "key"
+	case "Token secret path", "Token value":
+		return "token"
+	case "Webhook secret path", "Webhook secret value":
+		return "webhook"
+	default:
+		return ""
+	}
+}
+
+// slackSecretFieldKey maps a Slack integration field label to a secret key
+// recognized by slackSecretLabels.  Returns "" for non-secret fields.
+func slackSecretFieldKey(label string) string {
+	switch label {
+	case "Bot token secret path", "Bot token value":
+		return "bot_token"
+	case "Signing secret path", "Signing secret value":
+		return "signing"
+	case "Interaction token", "Interaction token value":
+		return "interaction"
+	case "Slash command token", "Slash command token value":
+		return "slash"
+	default:
+		return ""
+	}
 }

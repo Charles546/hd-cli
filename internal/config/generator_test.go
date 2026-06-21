@@ -950,3 +950,159 @@ func TestGithubTokenPathInIntegrations(t *testing.T) {
 		}
 	})
 }
+
+// ===== Dev mode secret template tests =====
+
+func TestGenerateDevModeIntegrations(t *testing.T) {
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-dev"
+	cfg.SecretsBackend = "dev"
+	cfg.HasGithubPATIntegration = true
+	cfg.HasGitHubAppIntegration = true
+	cfg.GithubTokenPath = "$GITHUB_TOKEN"
+	cfg.GithubWebhookSecret = "$GITHUB_WEBHOOK_SECRET"
+	cfg.SlackBotTokenPath = "$SLACK_BOT_TOKEN"
+	cfg.SlackSigningSecretPath = "$SLACK_SIGNING_SECRET"
+	cfg.SlackInteractionToken = "$SLACK_INTERACTION_TOKEN"
+	cfg.SlackSlashCommandToken = "$SLACK_SLASH_TOKEN"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	intPath := filepath.Join(tmpDir, "integrations.yaml")
+	content, err := os.ReadFile(intPath)
+	if err != nil {
+		t.Fatalf("failed to read integrations.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Dev mode: should use plain values, not LOOKUP[vault,...]
+	if strings.Contains(yamlStr, "LOOKUP[vault") {
+		t.Errorf("dev mode integrations.yaml should not contain LOOKUP[vault, got:\n%s", yamlStr)
+	}
+
+	// Should contain the env var references directly
+	if !strings.Contains(yamlStr, "$GITHUB_TOKEN") {
+		t.Errorf("dev mode integrations.yaml should contain $GITHUB_TOKEN, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "$GITHUB_WEBHOOK_SECRET") {
+		t.Errorf("dev mode integrations.yaml should contain $GITHUB_WEBHOOK_SECRET, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "$SLACK_BOT_TOKEN") {
+		t.Errorf("dev mode integrations.yaml should contain $SLACK_BOT_TOKEN, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "$SLACK_SIGNING_SECRET") {
+		t.Errorf("dev mode integrations.yaml should contain $SLACK_SIGNING_SECRET, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "$SLACK_INTERACTION_TOKEN") {
+		t.Errorf("dev mode integrations.yaml should contain $SLACK_INTERACTION_TOKEN, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "$SLACK_SLASH_TOKEN") {
+		t.Errorf("dev mode integrations.yaml should contain $SLACK_SLASH_TOKEN, got:\n%s", yamlStr)
+	}
+}
+
+func TestGenerateVaultModeIntegrations(t *testing.T) {
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-vault"
+	cfg.SecretsBackend = "vault"
+	cfg.HasGithubPATIntegration = true
+	cfg.HasGitHubAppIntegration = true
+	cfg.GithubTokenPath = "secrets/github/pat"
+	cfg.GithubWebhookSecret = "secrets/github/webhook"
+	cfg.SlackBotTokenPath = "secrets/slack/bot-token"
+	cfg.SlackSigningSecretPath = "secrets/slack/signing"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	intPath := filepath.Join(tmpDir, "integrations.yaml")
+	content, err := os.ReadFile(intPath)
+	if err != nil {
+		t.Fatalf("failed to read integrations.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Vault mode: should wrap in LOOKUP[vault,...]
+	if !strings.Contains(yamlStr, "LOOKUP[vault,secrets/github/pat]") {
+		t.Errorf("vault mode integrations.yaml should contain LOOKUP[vault,secrets/github/pat], got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "LOOKUP[vault,secrets/github/webhook]") {
+		t.Errorf("vault mode integrations.yaml should contain LOOKUP[vault,secrets/github/webhook], got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "LOOKUP[vault,secrets/slack/bot-token]") {
+		t.Errorf("vault mode integrations.yaml should contain LOOKUP[vault,secrets/slack/bot-token], got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "LOOKUP[vault,secrets/slack/signing]") {
+		t.Errorf("vault mode integrations.yaml should contain LOOKUP[vault,secrets/slack/signing], got:\n%s", yamlStr)
+	}
+}
+
+func TestGenerateDevModePlainValues(t *testing.T) {
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-dev-plain"
+	cfg.SecretsBackend = "dev"
+	cfg.HasGithubPATIntegration = true
+	cfg.GithubTokenPath = "my-plain-token-value"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	intPath := filepath.Join(tmpDir, "integrations.yaml")
+	content, err := os.ReadFile(intPath)
+	if err != nil {
+		t.Fatalf("failed to read integrations.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Dev mode with plain value: should use the value directly for the token
+	if !strings.Contains(yamlStr, "pat: my-plain-token-value") {
+		t.Errorf("dev mode should use plain value directly for token, got:\n%s", yamlStr)
+	}
+	// The plain value should NOT be wrapped in LOOKUP
+	if strings.Contains(yamlStr, "LOOKUP[vault,my-plain-token-value]") {
+		t.Errorf("dev mode should not wrap plain values in LOOKUP, got:\n%s", yamlStr)
+	}
+}
+
+func TestGenerateDevModeDefaultPaths(t *testing.T) {
+	// When dev mode has empty secret paths, the template should fall back
+	// to default LOOKUP paths (same as vault mode defaults)
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-dev-default"
+	cfg.SecretsBackend = "dev"
+	cfg.HasGithubPATIntegration = true
+	// Leave GithubTokenPath empty
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	intPath := filepath.Join(tmpDir, "integrations.yaml")
+	content, err := os.ReadFile(intPath)
+	if err != nil {
+		t.Fatalf("failed to read integrations.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// When path is empty, the template falls back to default LOOKUP path
+	// This is the existing behavior for empty paths
+	if !strings.Contains(yamlStr, "LOOKUP[vault,/secrets/data/test-dev-default/github#pat]") {
+		t.Errorf("dev mode with empty path should fall back to default LOOKUP, got:\n%s", yamlStr)
+	}
+}
