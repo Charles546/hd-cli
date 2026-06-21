@@ -78,6 +78,10 @@ type WizardConfig struct {
 	GithubCreateRepo bool   `yaml:"github_create_repo,omitempty"`
 	GithubRepoName   string `yaml:"github_repo_name,omitempty"`
 	GithubRepoVis    string `yaml:"github_repo_visibility,omitempty"` // private, public
+
+	// Dev mode env vars tracks which HD_* variables are referenced during the wizard.
+	// Used by the docker-compose template to pass them into the container.
+	DevEnvVars []string `yaml:"dev_env_vars,omitempty"`
 }
 
 // NewDefaultWizardConfig returns a WizardConfig pre-filled with sensible defaults.
@@ -104,4 +108,37 @@ func NewDefaultWizardConfig() *WizardConfig {
 		AIBaseURL:                    "https://api.openai.com/v1",
 		AIEngineName:                 "default",
 	}
+}
+
+// CollectDevEnvVars scans the wizard config for all $HD_* env var references
+// used in dev mode and returns a deduplicated list of variable names (with HD_ prefix).
+func (c *WizardConfig) CollectDevEnvVars() []string {
+	if c == nil || c.SecretsBackend != "dev" {
+		return nil
+	}
+
+	seen := make(map[string]bool)
+	var vars []string
+
+	fields := []string{
+		c.GithubTokenPath,
+		c.GithubKeyPath,
+		c.GithubWebhookSecret,
+		c.SlackBotTokenPath,
+		c.SlackSigningSecretPath,
+		c.SlackInteractionToken,
+		c.SlackSlashCommandToken,
+	}
+
+	for _, v := range fields {
+		if len(v) > 4 && v[:4] == "$HD_" {
+			name := v[1:] // strip "$"
+			if !seen[name] {
+				seen[name] = true
+				vars = append(vars, name)
+			}
+		}
+	}
+
+	return vars
 }

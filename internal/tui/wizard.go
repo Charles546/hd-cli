@@ -435,18 +435,9 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 				if m.checkboxIndex > 0 {
 					m.checkboxIndex--
 				}
-			} else {
-				// Navigate within text fields
-				m.textInput.Blur()
-				m.textInputs[m.currentField-1] = m.textInput
-				m.currentField--
-				if m.currentField > 0 {
-					m.textInput = m.textInputs[m.currentField-1]
-					m.textInput.Focus()
-					m.textInputs[m.currentField-1] = m.textInput
-				}
+				return m, nil
 			}
-			return m, nil
+			// When in text fields, let the text input handle 'k' (fall through)
 		case "down", "j":
 			if m.currentField == 0 {
 				if m.checkboxIndex < len(stepInfo.checkboxes)-1 {
@@ -458,17 +449,9 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 					m.textInput.Focus()
 					m.textInputs[0] = m.textInput
 				}
-			} else if m.currentField < len(m.textInputs) {
-				m.textInput.Blur()
-				m.textInputs[m.currentField-1] = m.textInput
-				m.currentField++
-				if m.currentField <= len(m.textInputs) {
-					m.textInput = m.textInputs[m.currentField-1]
-					m.textInput.Focus()
-					m.textInputs[m.currentField-1] = m.textInput
-				}
+				return m, nil
 			}
-			return m, nil
+			// When in text fields, let the text input handle 'j' (fall through)
 		case " ":
 			// Toggle the current checkbox (only when on checkbox row)
 			if m.currentField == 0 && m.checkboxIndex < len(stepInfo.checkboxes) {
@@ -781,7 +764,18 @@ func (m *WizardModel) renderStepContent() string {
 				if field.condition != nil && !field.condition(m.config) {
 					continue
 				}
-				b.WriteString(LabelStyle.Render(field.label + ":"))
+				// Determine the label, placeholder, and help for this field
+				fieldLabel := field.label
+				fieldPlaceholder := field.placeholder
+				fieldHelp := field.help
+				// Override labels for Slack secret fields based on secrets backend
+				if m.step == 9 {
+					secretKey := slackSecretFieldKey(field.label)
+					if secretKey != "" {
+						fieldLabel, fieldPlaceholder, fieldHelp = slackSecretLabels(m.config, secretKey)
+					}
+				}
+				b.WriteString(LabelStyle.Render(fieldLabel + ":"))
 				b.WriteString("\n")
 				if visibleIdx < len(m.textInputs) {
 					ti := m.textInputs[visibleIdx]
@@ -796,13 +790,13 @@ func (m *WizardModel) renderStepContent() string {
 						if val != "" {
 							b.WriteString(InputStyle.Render(val))
 						} else {
-							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(field.placeholder))
+							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(fieldPlaceholder))
 						}
 					}
 				}
 				b.WriteString("\n")
-				if field.help != "" {
-					b.WriteString(HelpStyle.Render(field.help))
+				if fieldHelp != "" {
+					b.WriteString(HelpStyle.Render(fieldHelp))
 					b.WriteString("\n")
 				}
 				b.WriteString("\n")
@@ -902,7 +896,18 @@ func (m *WizardModel) renderStepContent() string {
 				if field.condition != nil && !field.condition(m.config) {
 					continue
 				}
-				b.WriteString(LabelStyle.Render("  " + field.label + ":"))
+				// Determine the label, placeholder, and help for this field
+				fieldLabel := field.label
+				fieldPlaceholder := field.placeholder
+				fieldHelp := field.help
+				// Override labels for GitHub secret fields based on secrets backend
+				if m.step == 8 {
+					secretKey := ghSecretFieldKey(field.label)
+					if secretKey != "" {
+						fieldLabel, fieldPlaceholder, fieldHelp = ghSecretLabels(m.config, secretKey)
+					}
+				}
+				b.WriteString(LabelStyle.Render("  " + fieldLabel + ":"))
 				b.WriteString("\n")
 				if visibleIdx < len(m.textInputs) {
 					ti := m.textInputs[visibleIdx]
@@ -914,13 +919,13 @@ func (m *WizardModel) renderStepContent() string {
 						if val != "" {
 							b.WriteString(InputStyle.Render(val))
 						} else {
-							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(field.placeholder))
+							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(fieldPlaceholder))
 						}
 					}
 				}
 				b.WriteString("\n")
-				if field.help != "" {
-					b.WriteString(HelpStyle.Render("  " + field.help))
+				if fieldHelp != "" {
+					b.WriteString(HelpStyle.Render("  " + fieldHelp))
 					b.WriteString("\n")
 				}
 				b.WriteString("\n")
@@ -1017,6 +1022,12 @@ func (m *WizardModel) renderSummary() string {
 	}
 	items = append(items, fmt.Sprintf("  GitHub integration: %s", ghIntegration))
 	items = append(items, "  Slack integration: enabled")
+	// Show secret format hint based on secrets backend
+	if isDevMode(m.config) {
+		items = append(items, "  Secret format: plain values / $HD_* refs")
+	} else {
+		items = append(items, "  Secret format: LOOKUP[vault,...] paths")
+	}
 	if cfg.AIEnabled {
 		items = append(items, fmt.Sprintf("  AI agent: enabled (%s, %s)", cfg.AIModel, cfg.AIBaseURL))
 	} else {
@@ -1056,15 +1067,43 @@ func (m *WizardModel) validateCurrentStep() error {
 				return fmt.Errorf("github App ID is required when GitHub App integration is enabled")
 			}
 			if strings.TrimSpace(m.config.GithubInstallationID) == "" {
-				return fmt.Errorf("github Installation ID is required when GitHub App integration is enabled")
+				return fmt.Errorf("GitHub Installation ID is required when GitHub App integration is enabled")
 			}
 			if strings.TrimSpace(m.config.GithubKeyPath) == "" {
-				return fmt.Errorf("private key secret path is required when GitHub App integration is enabled")
+				return fmt.Errorf("private key value is required when GitHub App integration is enabled")
 			}
 		}
 		if m.config.HasGithubPATIntegration {
 			if strings.TrimSpace(m.config.GithubTokenPath) == "" {
-				return fmt.Errorf("token secret path is required when PAT integration is enabled")
+				return fmt.Errorf("token value is required when PAT integration is enabled")
+			}
+		}
+		// Validate dev mode secret fields: reject non-HD_ env var references
+		if isDevMode(m.config) {
+			if err := validateDevSecretValue(m.config.GithubKeyPath); err != "" {
+				return fmt.Errorf("private key: %s", err)
+			}
+			if err := validateDevSecretValue(m.config.GithubTokenPath); err != "" {
+				return fmt.Errorf("token: %s", err)
+			}
+			if err := validateDevSecretValue(m.config.GithubWebhookSecret); err != "" {
+				return fmt.Errorf("webhook secret: %s", err)
+			}
+		}
+	case 9:
+		// Validate dev mode secret fields for Slack
+		if isDevMode(m.config) {
+			if err := validateDevSecretValue(m.config.SlackBotTokenPath); err != "" {
+				return fmt.Errorf("bot token: %s", err)
+			}
+			if err := validateDevSecretValue(m.config.SlackSigningSecretPath); err != "" {
+				return fmt.Errorf("signing secret: %s", err)
+			}
+			if err := validateDevSecretValue(m.config.SlackInteractionToken); err != "" {
+				return fmt.Errorf("interaction token: %s", err)
+			}
+			if err := validateDevSecretValue(m.config.SlackSlashCommandToken); err != "" {
+				return fmt.Errorf("slash command token: %s", err)
 			}
 		}
 	case 11:

@@ -31,6 +31,7 @@ func NewGenerator() *Generator {
 	funcMap := sprig.TxtFuncMap()
 	// Add custom template functions
 	funcMap["hasStr"] = func(s string) bool { return strings.TrimSpace(s) != "" }
+	funcMap["envRef"] = func(name string) string { return "{% .env." + name + " %}" }
 
 	g := &Generator{
 		funcMap: funcMap,
@@ -74,6 +75,11 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 
 	// Apply defaults for any missing values
 	applyDefaults(cfg)
+
+	// Populate DevEnvVars for dev mode docker-compose env passthrough
+	if cfg.SecretsBackend == "dev" {
+		cfg.DevEnvVars = cfg.CollectDevEnvVars()
+	}
 
 	// Ensure output directory exists (unless dry run)
 	if !dryRun {
