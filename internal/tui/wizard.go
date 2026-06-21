@@ -200,12 +200,18 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
-			if m.mode == modeTextInput {
-				// Let textinput handle q when typing
-				break
-			}
+		case "ctrl+c":
+			// Ctrl+C always quits, even in text input mode
 			return m, tea.Quit
+		case "q":
+			// q quits only when not in text input mode.
+			// modeCheckboxSelect with currentField > 0 means typing in a text field,
+			// so q should be treated as a regular character there too.
+			if m.mode == modeTextInput || (m.mode == modeCheckboxSelect && m.currentField > 0) {
+				// In text input mode (pure or within checkbox), let text input handle q
+			} else {
+				return m, tea.Quit
+			}
 		case "ctrl+s":
 			// Refinement 3: Save answers at any step (not when done or typing)
 			if !m.done && m.mode != modeTextInput {
@@ -242,6 +248,9 @@ func (m *WizardModel) handleDone(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.err = m.generateConfig()
+			return m, tea.Quit
+		case "q":
+			// Quit without generating config
 			return m, tea.Quit
 		case "esc", "backspace":
 			m.done = false

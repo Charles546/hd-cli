@@ -40,3 +40,4 @@ coverage.html
 
 # Generated config output from tests
 internal/tui/hd-config/
+*-answers.yaml
