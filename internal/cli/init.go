@@ -32,6 +32,9 @@ var initCmd = &cobra.Command{
 	Short: "Initialize a new Honeydipper project",
 	Long:  `Initialize a new Honeydipper project with an interactive bootstrap wizard or a config file.`,
 	RunE: runInit,
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	},
 }
 
 func init() {
