@@ -32,6 +32,11 @@ services:
       - GH_APP_INSTALLATION_ID=${GH_APP_INSTALLATION_ID}
       - GH_APP_KEY=${GH_APP_KEY}
 {{- end }}
+{{- if eq .SecretsBackend "dev" }}
+{{- range .DevEnvVars }}
+      - {{ . }}={{ "${" . "}" }}
+{{- end }}
+{{- end }}
 {{- if not .GithubCreateRepo }}
     volumes:
       - {{ .ConfigDirAbs }}:/etc/honeydipper/config
