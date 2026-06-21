@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"github.com/Charles546/hd-cli/internal/config"
 	"github.com/Charles546/hd-cli/internal/tui"
@@ -37,33 +38,64 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 
 	initCmd.Flags().BoolVar(&initDryRun, "dry-run", false, "Print generated config files without writing them")
-	initCmd.Flags().StringVar(&initConfigFile, "config", "", "Read wizard answers from a YAML file (non-interactive mode)")
+	initCmd.Flags().StringVar(&initConfigFile, "config", "", "Read wizard answers from a YAML file")
 	initCmd.Flags().BoolVar(&initNonInteractive, "non-interactive", false, "Run in non-interactive mode (requires --config)")
 	initCmd.Flags().StringVar(&initOutputDir, "output", "", "Override the output directory (default: from config or ./<project-name>)")
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
-	// Mode 1: Non-interactive with config file
-	if initConfigFile != "" {
+	// Mode 1: Config file + non-interactive → generate directly from file
+	if initConfigFile != "" && initNonInteractive {
 		return runNonInteractive()
 	}
 
-	// Mode 2: Non-interactive flag without config file — error
+	// Mode 2: Config file without non-interactive → load answers, pre-populate, show TUI
+	if initConfigFile != "" && !initNonInteractive {
+		return runInteractiveWithConfig(initConfigFile)
+	}
+
+	// Mode 3: Non-interactive flag without config file — error
 	if initNonInteractive {
 		return fmt.Errorf("--non-interactive requires --config <answers-file>")
 	}
 
-	// Mode 3: Interactive TUI wizard
+	// Mode 4: Interactive TUI wizard with defaults
 	return runInteractive()
 }
 
-// runInteractive starts the Bubble Tea TUI wizard.
+// runInteractive starts the Bubble Tea TUI wizard with default config.
 func runInteractive() error {
 	cfg, err := tui.RunWizard()
 	if err != nil {
 		return fmt.Errorf("wizard error: %w", err)
 	}
 
+	return generateAndPrintSummary(cfg)
+}
+
+// runInteractiveWithConfig loads answers from a YAML file, pre-populates the
+// wizard, and starts the TUI for review/modification.
+func runInteractiveWithConfig(configPath string) error {
+	// Load the answers file
+	cfg, err := loadAnswersFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load answers file: %w", err)
+	}
+
+	// Apply defaults for any missing values
+	config.ApplyDefaults(cfg)
+
+	// Start the TUI wizard with pre-populated config
+	updatedCfg, err := tui.RunWizardWithConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("wizard error: %w", err)
+	}
+
+	return generateAndPrintSummary(updatedCfg)
+}
+
+// generateAndPrintSummary generates config files and prints the post-generation summary.
+func generateAndPrintSummary(cfg *config.WizardConfig) error {
 	// Override output dir if flag is set
 	outputDir := cfg.ConfigDir
 	if initOutputDir != "" {
@@ -93,7 +125,7 @@ func runInteractive() error {
 	return nil
 }
 
-// runNonInteractive reads answers from a YAML file and generates config.
+// runNonInteractive reads answers from a YAML file and generates config without the TUI.
 func runNonInteractive() error {
 	// Validate the answers file first
 	if err := config.ValidateAnswersFile(initConfigFile); err != nil {
@@ -119,6 +151,21 @@ func runNonInteractive() error {
 	}
 
 	return nil
+}
+
+// loadAnswersFile reads a YAML file and unmarshals it into a WizardConfig.
+func loadAnswersFile(path string) (*config.WizardConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read answers file: %w", err)
+	}
+
+	cfg := &config.WizardConfig{}
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse answers file: %w", err)
+	}
+
+	return cfg, nil
 }
 
 // promptConfirmation asks the user to confirm an action.

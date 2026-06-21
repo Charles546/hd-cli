@@ -656,22 +656,48 @@ func TestViewContainsNavigationHints(t *testing.T) {
 }
 
 func TestViewSummaryScreen(t *testing.T) {
+	// With refinement 1, the summary is shown at step 15, not on the done screen.
+	// The done screen shows a confirmation prompt instead.
 	m := NewWizard(nil)
 	m.done = true
 
 	view := m.View()
+	// Done screen should show the confirmation prompt
+	if !strings.Contains(view, "Press Enter to confirm and generate configs") {
+		t.Errorf("View() should contain confirmation prompt, got: %s", view)
+	}
+	// Done screen should NOT contain the summary (it's shown at step 15)
+	if strings.Contains(view, "Configuration Summary") {
+		t.Errorf("Done screen should NOT contain 'Configuration Summary' (shown at step 15)")
+	}
+}
+
+func TestStep15ShowsSummary(t *testing.T) {
+	// Refinement 1: Step 15 should show the summary directly
+	m := NewWizard(nil)
+	m = runInitStep(m, 15)
+
+	view := m.View()
 	if !strings.Contains(view, "Configuration Summary") {
-		t.Errorf("View() should contain 'Configuration Summary', got: %s", view)
+		t.Errorf("Step 15 View() should contain 'Configuration Summary', got: %s", view)
 	}
 	if !strings.Contains(view, "Project:") {
-		t.Errorf("View() should contain 'Project:' in summary, got: %s", view)
+		t.Errorf("Step 15 View() should contain 'Project:' in summary, got: %s", view)
 	}
 	// Verify new order in summary
 	if !strings.Contains(view, "Secrets backend:") {
-		t.Errorf("View() should contain 'Secrets backend:' in summary, got: %s", view)
+		t.Errorf("Step 15 View() should contain 'Secrets backend:' in summary, got: %s", view)
 	}
 	if !strings.Contains(view, "Redis:") {
-		t.Errorf("View() should contain 'Redis:' in summary, got: %s", view)
+		t.Errorf("Step 15 View() should contain 'Redis:' in summary, got: %s", view)
+	}
+	// Step 15 should also show the generate prompt
+	if !strings.Contains(view, "Press Enter to generate configs") {
+		t.Errorf("Step 15 View() should contain 'Press Enter to generate configs', got: %s", view)
+	}
+	// Step 15 should show the save hint
+	if !strings.Contains(view, "s=save answers") {
+		t.Errorf("Step 15 View() should contain save hint, got: %s", view)
 	}
 }
 
@@ -833,6 +859,114 @@ func TestStepOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestRunWizardWithConfig(t *testing.T) {
+	cfg := &config.WizardConfig{
+		ProjectName:    "preloaded-project",
+		DeploymentMode: "kubernetes",
+		SecretsBackend: "dev",
+	}
+	// Just verify the wizard model is created correctly with pre-populated config
+	m := NewWizard(cfg)
+	if m.config.ProjectName != "preloaded-project" {
+		t.Errorf("ProjectName = %q, want preloaded-project", m.config.ProjectName)
+	}
+	if m.config.DeploymentMode != "kubernetes" {
+		t.Errorf("DeploymentMode = %q, want kubernetes", m.config.DeploymentMode)
+	}
+}
+
+func TestCtrlSSaveAtAnyStep(t *testing.T) {
+	// Refinement 3: Ctrl+S should save answers at any non-text-input step
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "save-test"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 1) // Welcome step (navigate mode)
+
+	// Press Ctrl+S
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	// Should show save confirmation message
+	view := m.View()
+	if !strings.Contains(view, "Answers saved to") {
+		t.Errorf("View() should contain save confirmation, got: %s", view)
+	}
+	// Should still be on the same step
+	if m.step != 1 {
+		t.Errorf("step = %d, want 1 (should not advance after save)", m.step)
+	}
+}
+
+func TestCtrlSSaveOnRadioStep(t *testing.T) {
+	// Refinement 3: Ctrl+S should save on radio select steps
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "radio-save-test"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 4) // Deployment Mode (radio)
+
+	// Press Ctrl+S
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	// Should show save confirmation
+	view := m.View()
+	if !strings.Contains(view, "Answers saved to") {
+		t.Errorf("View() should contain save confirmation, got: %s", view)
+	}
+	// Should still be on step 4
+	if m.step != 4 {
+		t.Errorf("step = %d, want 4", m.step)
+	}
+}
+
+func TestCtrlSNotHandledInTextInputMode(t *testing.T) {
+	// Ctrl+S should NOT trigger save when in text input mode (let text input handle it)
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = ""
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name (text input)
+
+	// Press Ctrl+S - should not show save message since we're in text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	view := m.View()
+	// The save message should NOT appear (ctrl+s is passed through to text input)
+	if strings.Contains(view, "Answers saved to") {
+		t.Errorf("Ctrl+S should not trigger save in text input mode")
+	}
+}
+
+func TestSaveMsgClearedOnStepAdvance(t *testing.T) {
+	// After saving with Ctrl+S and advancing, the save message should be cleared
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 1) // Welcome step
+
+	// Save
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if !strings.Contains(m.View(), "Answers saved to") {
+		t.Fatal("Expected save confirmation after Ctrl+S")
+	}
+
+	// Advance to next step
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Save message should be cleared
+	if m.saveMsg != "" {
+		t.Errorf("saveMsg should be cleared after advancing, got: %q", m.saveMsg)
+	}
+}
+
+func TestNavigationHintsIncludeCtrlS(t *testing.T) {
+	// Navigation hints should include ctrl+s=save for non-done, non-text-input steps
+	m := NewWizard(nil)
+	m = runInitStep(m, 1) // Welcome step
+
+	view := m.View()
+	if !strings.Contains(view, "ctrl+s=save") {
+		t.Errorf("View() should contain 'ctrl+s=save' hint, got: %s", view)
+	}
+}
+
 
 // runInitStep is a helper that calls initStep and returns the updated model.
 // Since initStep uses value receiver internally but modifies the model,

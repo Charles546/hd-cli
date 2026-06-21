@@ -57,6 +57,9 @@ type WizardModel struct {
 	// Error display
 	validationErr string
 
+	// saveMsg displays a temporary confirmation after saving answers.
+	saveMsg string
+
 	// pendingDefault tracks whether the current text input holds a default value
 	// that should be cleared on the next character or backspace keypress.
 	pendingDefault bool
@@ -87,6 +90,7 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 	m.step = s
 	m.currentField = 0
 	m.validationErr = ""
+	m.saveMsg = ""
 	m.mode = modeNavigate
 	m.textInputs = nil
 	m.textInput = textinput.Model{}
@@ -202,6 +206,17 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 			return m, tea.Quit
+		case "ctrl+s":
+			// Refinement 3: Save answers at any step (not when done or typing)
+			if !m.done && m.mode != modeTextInput {
+				if err := m.saveAnswersFile(); err != nil {
+					m.saveMsg = fmt.Sprintf("✗ Failed to save: %v", err)
+				} else {
+					m.saveMsg = fmt.Sprintf("✓ Answers saved to ./%s-answers.yaml", m.config.ProjectName)
+				}
+				return m, nil
+			}
+			// When in text input mode, let the text input handle ctrl+s
 		}
 	}
 
@@ -221,7 +236,7 @@ func (m *WizardModel) handleDone(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = m.generateConfig()
 			return m, tea.Quit
 		case "s":
-			// Save answers to YAML file, then generate config
+			// Refinement 2: Save answers to YAML file, then generate config (same as Enter)
 			if err := m.saveAnswersFile(); err != nil {
 				m.validationErr = fmt.Sprintf("failed to save answers: %v", err)
 				return m, nil
@@ -375,6 +390,7 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 			// Commit the selection
 			stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
 			m.validationErr = ""
+			m.saveMsg = ""
 			if m.step >= m.total {
 				m.done = true
 			} else {
@@ -673,8 +689,8 @@ func (m *WizardModel) View() string {
 	b.WriteString("\n\n")
 
 	if m.done {
-		b.WriteString(m.renderSummary())
-		b.WriteString(ConfirmStyle.Render("\n  Press Enter to confirm and generate configs."))
+		// Refinement 1: When done, show the confirmation prompt (summary already shown in step 15)
+		b.WriteString(ConfirmStyle.Render("  Press Enter to confirm and generate configs."))
 		b.WriteString("\n")
 		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • q=quit"))
 		b.WriteString("\n")
@@ -687,6 +703,12 @@ func (m *WizardModel) View() string {
 	// Validation error
 	if m.validationErr != "" {
 		b.WriteString(ErrorStyle.Render("  ✗ " + m.validationErr))
+		b.WriteString("\n")
+	}
+
+	// Save confirmation message
+	if m.saveMsg != "" {
+		b.WriteString(SuccessStyle.Render("  " + m.saveMsg))
 		b.WriteString("\n")
 	}
 
@@ -709,9 +731,13 @@ func (m *WizardModel) renderStepContent() string {
 		b.WriteString(renderWelcome(m))
 		return b.String()
 	case 15:
+		// Refinement 1: Show the summary directly when entering step 15
 		b.WriteString(renderStepTitle("Step 15: Summary & Confirm"))
-		b.WriteString(DescriptionStyle.Render("  Review your configuration before generating files.\n"))
-		b.WriteString(ConfirmStyle.Render("  Press Enter to review and confirm, or Esc to go back."))
+		b.WriteString(m.renderSummary())
+		b.WriteString("\n")
+		b.WriteString(ConfirmStyle.Render("  Press Enter to generate configs."))
+		b.WriteString("\n")
+		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • q=quit"))
 		return b.String()
 	}
 
@@ -912,6 +938,7 @@ func (m *WizardModel) renderNavigation() string {
 				hints = append(hints, "esc=back")
 			}
 		}
+		hints = append(hints, "ctrl+s=save")
 		hints = append(hints, "q=quit")
 	} else {
 		hints = append(hints, "enter=confirm")
@@ -1053,6 +1080,23 @@ func (m *WizardModel) saveAnswersFile() error {
 // It takes over the terminal and returns the completed WizardConfig or an error.
 func RunWizard() (*config.WizardConfig, error) {
 	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	result, err := p.Run()
+	if err != nil {
+		return nil, err
+	}
+	resultModel := result.(*WizardModel)
+	if resultModel.err != nil {
+		return nil, resultModel.err
+	}
+	return resultModel.config, nil
+}
+
+// RunWizardWithConfig starts the interactive wizard with a pre-populated config.
+// Used by hd init --config <file> (without --non-interactive) to let the user
+// review and modify the loaded answers before generating.
+func RunWizardWithConfig(cfg *config.WizardConfig) (*config.WizardConfig, error) {
 	m := NewWizard(cfg)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	result, err := p.Run()
