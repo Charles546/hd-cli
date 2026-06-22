@@ -146,7 +146,7 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 		case "config_repo_clone_auth":
 			cfg.ConfigRepoCloneAuth = value
 		case "config_repo_pat_env_var":
-			cfg.ConfigRepoPATEnvVar = value
+			cfg.ConfigRepoPATValue = value
 		case "config_repo_gh_app_id":
 			cfg.ConfigRepoGHAppID = value
 		case "config_repo_gh_installation_id":
@@ -305,8 +305,8 @@ func ValidateStepComplete(m *WizardModel) error {
 				switch auth {
 				case "none":
 				case "pat":
-					if strings.TrimSpace(cfg.ConfigRepoPATEnvVar) == "" {
-						return fmt.Errorf("PAT env var name is required when clone auth is 'pat'")
+					if strings.TrimSpace(cfg.ConfigRepoPATValue) == "" {
+						return fmt.Errorf("PAT is required when clone auth is 'pat'")
 					}
 				case "github_app":
 					if strings.TrimSpace(cfg.ConfigRepoGHAppID) == "" {

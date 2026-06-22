@@ -1743,13 +1743,26 @@ func TestBuildConfigRepoCloneEnvVars(t *testing.T) {
 		}
 	})
 
-	t.Run("pat auth returns DIPPER_PASS_ENV", func(t *testing.T) {
+	t.Run("pat auth with env var reference returns DIPPER_PASS_ENV", func(t *testing.T) {
 		cfg := NewDefaultWizardConfig()
 		cfg.ConfigRepoCloneAuth = "pat"
-		cfg.ConfigRepoPATEnvVar = "MY_PAT"
+		cfg.ConfigRepoPATValue = "$MY_PAT"
 		m := cfg.BuildConfigRepoCloneEnvVars()
 		if m == nil || m["DIPPER_PASS_ENV"] != "MY_PAT" {
 			t.Errorf("expected DIPPER_PASS_ENV=MY_PAT, got %v", m)
+		}
+	})
+
+	t.Run("pat auth with raw PAT returns DIPPER_PASS_ENV and DIPPER_GITHUB_PAT", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATValue = "ghp_xxxxx"
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if m == nil || m["DIPPER_PASS_ENV"] != "DIPPER_GITHUB_PAT" {
+			t.Errorf("expected DIPPER_PASS_ENV=DIPPER_GITHUB_PAT, got %v", m)
+		}
+		if m == nil || m["DIPPER_GITHUB_PAT"] != "ghp_xxxxx" {
+			t.Errorf("expected DIPPER_GITHUB_PAT=ghp_xxxxx, got %v", m)
 		}
 	})
 
@@ -1828,13 +1841,26 @@ func TestGenerateEnvFile(t *testing.T) {
 		}
 	})
 
-	t.Run("contains PAT env var", func(t *testing.T) {
+	t.Run("contains PAT env var reference", func(t *testing.T) {
 		cfg := NewDefaultWizardConfig()
 		cfg.ConfigRepoCloneAuth = "pat"
-		cfg.ConfigRepoPATEnvVar = "MY_PAT"
+		cfg.ConfigRepoPATValue = "$MY_PAT"
 		result := generateEnvFile(cfg)
 		if !strings.Contains(result, "DIPPER_PASS_ENV=MY_PAT") {
 			t.Errorf("expected DIPPER_PASS_ENV=MY_PAT in .env, got %q", result)
+		}
+	})
+
+	t.Run("contains raw PAT value", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATValue = "ghp_xxxxx"
+		result := generateEnvFile(cfg)
+		if !strings.Contains(result, "DIPPER_PASS_ENV=DIPPER_GITHUB_PAT") {
+			t.Errorf("expected DIPPER_PASS_ENV=DIPPER_GITHUB_PAT in .env, got %q", result)
+		}
+		if !strings.Contains(result, "DIPPER_GITHUB_PAT=ghp_xxxxx") {
+			t.Errorf("expected DIPPER_GITHUB_PAT=ghp_xxxxx in .env, got %q", result)
 		}
 	})
 
@@ -1856,7 +1882,7 @@ func TestGenerateEnvFile(t *testing.T) {
 
 // TestDockerComposeConfigRepoCloneAuth tests clone auth env vars in docker-compose.
 func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
-	t.Run("pat auth in docker-compose", func(t *testing.T) {
+	t.Run("pat auth with env var reference in docker-compose", func(t *testing.T) {
 		g := NewGenerator()
 		cfg := NewDefaultWizardConfig()
 		cfg.ProjectName = "test-dc-pat-auth"
@@ -1865,7 +1891,7 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		cfg.UseLocalCopy = false
 		cfg.GitRemoteURL = "https://github.com/user/repo.git"
 		cfg.ConfigRepoCloneAuth = "pat"
-		cfg.ConfigRepoPATEnvVar = "MY_PAT"
+		cfg.ConfigRepoPATValue = "$MY_PAT"
 
 		tmpDir := t.TempDir()
 		err := g.Generate(cfg, tmpDir, false)
@@ -1882,6 +1908,38 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 
 		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=MY_PAT") {
 			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV=MY_PAT, got:\n%s", yamlStr)
+		}
+	})
+
+	t.Run("pat auth with raw PAT in docker-compose", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-dc-pat-raw"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.UseLocalCopy = false
+		cfg.GitRemoteURL = "https://github.com/user/repo.git"
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATValue = "ghp_xxxxx"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=DIPPER_GITHUB_PAT") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV=DIPPER_GITHUB_PAT, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "DIPPER_GITHUB_PAT=ghp_xxxxx") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_GITHUB_PAT=ghp_xxxxx, got:\n%s", yamlStr)
 		}
 	})
 
@@ -2022,7 +2080,7 @@ func TestEnvFileGenerated(t *testing.T) {
 		cfg.UseLocalCopy = false
 		cfg.GitRemoteURL = "https://github.com/user/repo.git"
 		cfg.ConfigRepoCloneAuth = "pat"
-		cfg.ConfigRepoPATEnvVar = "MY_PAT"
+		cfg.ConfigRepoPATValue = "$MY_PAT"
 
 		tmpDir := t.TempDir()
 		err := g.Generate(cfg, tmpDir, false)
@@ -2071,7 +2129,7 @@ func TestEnvFileGenerated(t *testing.T) {
 		cfg.UseLocalCopy = false
 		cfg.GitRemoteURL = "https://github.com/user/repo.git"
 		cfg.ConfigRepoCloneAuth = "pat"
-		cfg.ConfigRepoPATEnvVar = "MY_PAT"
+		cfg.ConfigRepoPATValue = "MY_PAT"
 
 		tmpDir := t.TempDir()
 		err := g.Generate(cfg, tmpDir, false)

@@ -574,6 +574,19 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 			} else {
 				// In text fields: move to next or advance
 				m.saveCheckboxFieldValue(stepInfo)
+				// Rebuild text inputs in case the saved value changed conditional field visibility
+				oldLen := len(m.textInputs)
+				m.buildCheckboxTextInputs(stepInfo)
+				if len(m.textInputs) > oldLen {
+					// New fields appeared, move to the first new field
+					m.textInput.Blur()
+					m.textInputs[m.currentField-1] = m.textInput
+					m.currentField++
+					m.textInput = m.textInputs[m.currentField-1]
+					m.textInput.Focus()
+					m.textInputs[m.currentField-1] = m.textInput
+					return m, nil
+				}
 				if m.currentField < len(m.textInputs) {
 					m.textInput.Blur()
 					m.textInputs[m.currentField-1] = m.textInput
@@ -621,6 +634,19 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 			} else {
 				// In text fields: move to next field or advance step
 				m.saveCheckboxFieldValue(stepInfo)
+				// Rebuild text inputs in case the saved value changed conditional field visibility
+				oldLen := len(m.textInputs)
+				m.buildCheckboxTextInputs(stepInfo)
+				if len(m.textInputs) > oldLen {
+					// New fields appeared, move to the first new field
+					m.textInput.Blur()
+					m.textInputs[m.currentField-1] = m.textInput
+					m.currentField++
+					m.textInput = m.textInputs[m.currentField-1]
+					m.textInput.Focus()
+					m.textInputs[m.currentField-1] = m.textInput
+					return m, nil
+				}
 				if m.currentField < len(m.textInputs) {
 					m.textInput.Blur()
 					m.textInputs[m.currentField-1] = m.textInput
@@ -1363,8 +1389,8 @@ func (m *WizardModel) validateCurrentStep() error {
 				case "none":
 					// No additional auth needed
 				case "pat":
-					if strings.TrimSpace(m.config.ConfigRepoPATEnvVar) == "" {
-						return fmt.Errorf("PAT env var name is required when clone auth is 'pat'")
+					if strings.TrimSpace(m.config.ConfigRepoPATValue) == "" {
+						return fmt.Errorf("PAT is required when clone auth is 'pat'")
 					}
 				case "github_app":
 					if strings.TrimSpace(m.config.ConfigRepoGHAppID) == "" {

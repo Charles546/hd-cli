@@ -507,11 +507,11 @@ func getStepInfo(step int) *stepInfo {
 					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy },
 				},
 				{
-					label:       "PAT env var name",
-					placeholder: "e.g. MY_PAT",
-					help:        "Name of the environment variable holding the Personal Access Token",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoPATEnvVar },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoPATEnvVar = v },
+					label:       "PAT",
+					placeholder: "ghp_xxxxx or $MY_PAT",
+					help:        "Personal Access Token value, or $ENV_VAR reference to an environment variable holding the PAT",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoPATValue },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoPATValue = v },
 					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "pat" },
 				},
 				{

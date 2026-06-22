@@ -3165,7 +3165,7 @@ func TestStep14CloneAuthNone(t *testing.T) {
 }
 
 func TestStep14CloneAuthPAT(t *testing.T) {
-	// When clone auth is "pat", PAT env var name is required
+	// When clone auth is "pat", PAT value is required
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
@@ -3176,20 +3176,30 @@ func TestStep14CloneAuthPAT(t *testing.T) {
 
 	err := m.validateCurrentStep()
 	if err == nil {
-		t.Error("validateCurrentStep should fail without PAT env var")
+		t.Error("validateCurrentStep should fail without PAT value")
 	}
-	if err != nil && !strings.Contains(err.Error(), "PAT env var name is required") {
+	if err != nil && !strings.Contains(err.Error(), "PAT is required") {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	// Now set the PAT env var
-	cfg.ConfigRepoPATEnvVar = "MY_PAT"
+	// Now set the PAT value (env var reference)
+	cfg.ConfigRepoPATValue = "$MY_PAT"
 	m2 := NewWizard(cfg)
 	m2 = runInitStep(m2, 14)
 
 	err = m2.validateCurrentStep()
 	if err != nil {
-		t.Errorf("validateCurrentStep should pass with PAT env var set, got: %v", err)
+		t.Errorf("validateCurrentStep should pass with PAT value set, got: %v", err)
+	}
+
+	// Also test with raw PAT value
+	cfg.ConfigRepoPATValue = "ghp_xxxxx"
+	m3 := NewWizard(cfg)
+	m3 = runInitStep(m3, 14)
+
+	err = m3.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with raw PAT value, got: %v", err)
 	}
 }
 
@@ -3336,7 +3346,7 @@ func TestStep14CloneAuthNoneNoAdditionalFields(t *testing.T) {
 }
 
 func TestStep14CloneAuthConditionalFieldsVisible(t *testing.T) {
-	// When clone auth is "pat", the PAT env var field should be visible
+	// When clone auth is "pat", the PAT field should be visible
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
@@ -3345,7 +3355,7 @@ func TestStep14CloneAuthConditionalFieldsVisible(t *testing.T) {
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
 
-	// The clone auth field and PAT env var field should be visible
+	// The clone auth field and PAT field should be visible
 	stepInfo := getStepInfo(14)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
@@ -3354,7 +3364,7 @@ func TestStep14CloneAuthConditionalFieldsVisible(t *testing.T) {
 		}
 	}
 
-	// Should have: Git remote URL, Clone auth method, PAT env var name = 3
+	// Should have: Git remote URL, Clone auth method, PAT = 3
 	if visibleFields != 3 {
 		t.Errorf("expected 3 visible fields for pat auth, got %d", visibleFields)
 	}

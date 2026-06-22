@@ -6,6 +6,8 @@
 
 package config
 
+import "strings"
+
 // WizardConfig holds all the user's choices during the init wizard.
 // It is consumed by the config generator to render the Honeydipper config files.
 type WizardConfig struct {
@@ -84,7 +86,7 @@ type WizardConfig struct {
 
 	// Config repo clone authentication (used when GithubCreateRepo && !UseLocalCopy)
 	ConfigRepoCloneAuth     string            `yaml:"config_repo_clone_auth"`        // none, pat, github_app, ssh
-	ConfigRepoPATEnvVar     string            `yaml:"config_repo_pat_env_var"`       // Name of env var holding the PAT
+	ConfigRepoPATValue      string            `yaml:"config_repo_pat_value"`         // PAT value or $ENV_VAR reference
 	ConfigRepoGHAppID       string            `yaml:"config_repo_gh_app_id"`
 	ConfigRepoGHInstallID   string            `yaml:"config_repo_gh_installation_id"`
 	ConfigRepoGHAppKey      string            `yaml:"config_repo_gh_app_key"`
@@ -133,8 +135,18 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 	}
 	switch c.ConfigRepoCloneAuth {
 	case "pat":
+		patVal := strings.TrimSpace(c.ConfigRepoPATValue)
+		if strings.HasPrefix(patVal, "$") {
+			// Env var reference: $MY_PAT -> DIPPER_PASS_ENV=MY_PAT
+			envVarName := patVal[1:]
+			return map[string]string{
+				"DIPPER_PASS_ENV": envVarName,
+			}
+		}
+		// Raw PAT value: set DIPPER_PASS_ENV=DIPPER_GITHUB_PAT and DIPPER_GITHUB_PAT=<value>
 		return map[string]string{
-			"DIPPER_PASS_ENV": c.ConfigRepoPATEnvVar,
+			"DIPPER_PASS_ENV":   "DIPPER_GITHUB_PAT",
+			"DIPPER_GITHUB_PAT": patVal,
 		}
 	case "github_app":
 		return map[string]string{
