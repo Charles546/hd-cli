@@ -205,12 +205,28 @@ func runGitInit(dir string) error {
 	return nil
 }
 
-// runGitRemoteAdd runs git remote add origin <url> in the given directory.
+// runGitRemoteAdd adds or updates the "origin" remote in the given directory.
+// If the remote already exists, it updates the URL with `git remote set-url`;
+// otherwise it adds a new remote with `git remote add`.
 func runGitRemoteAdd(dir, url string) error {
-	cmd := exec.Command("git", "-C", dir, "remote", "add", "origin", url)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	// Check if the "origin" remote already exists
+	checkCmd := exec.Command("git", "-C", dir, "remote", "get-url", "origin")
+	if err := checkCmd.Run(); err == nil {
+		// Remote exists, update the URL
+		setCmd := exec.Command("git", "-C", dir, "remote", "set-url", "origin", url)
+		setCmd.Stdout = os.Stdout
+		setCmd.Stderr = os.Stderr
+		if err := setCmd.Run(); err != nil {
+			return fmt.Errorf("failed to run git remote set-url origin %s in %s: %w", url, dir, err)
+		}
+		return nil
+	}
+
+	// Remote does not exist, add it
+	addCmd := exec.Command("git", "-C", dir, "remote", "add", "origin", url)
+	addCmd.Stdout = os.Stdout
+	addCmd.Stderr = os.Stderr
+	if err := addCmd.Run(); err != nil {
 		return fmt.Errorf("failed to run git remote add origin %s in %s: %w", url, dir, err)
 	}
 	return nil

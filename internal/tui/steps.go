@@ -139,10 +139,8 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 		switch key {
 		case "github_create_repo":
 			cfg.GithubCreateRepo = value == "true" || value == "yes"
-		case "github_repo_name":
-			cfg.GithubRepoName = value
-		case "github_repo_visibility":
-			cfg.GithubRepoVis = value
+		case "git_remote_url":
+			cfg.GitRemoteURL = value
 		}
 	}
 
@@ -277,6 +275,12 @@ func ValidateStepComplete(m *WizardModel) error {
 		if cfg.DeploymentMode == "source" {
 			if strings.TrimSpace(cfg.SourceClonePath) == "" {
 				return fmt.Errorf("clone path is required")
+			}
+		}
+	case 14:
+		if cfg.GithubCreateRepo {
+			if strings.TrimSpace(cfg.GitRemoteURL) == "" {
+				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
 			}
 		}
 	}

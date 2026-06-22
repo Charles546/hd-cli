@@ -681,9 +681,9 @@ func TestStep14RadioSelectionVisibleAfterEnter(t *testing.T) {
 	if !strings.Contains(view, "● yes") {
 		t.Errorf("View after Enter should show '● yes', got:\n%s", view)
 	}
-	// Conditional fields should be visible
-	if !strings.Contains(view, "Repo name") {
-		t.Errorf("View after Enter should show conditional fields, got:\n%s", view)
+	// Git remote URL field should be visible
+	if !strings.Contains(view, "Git remote URL") {
+		t.Errorf("View after Enter should show 'Git remote URL' field, got:\n%s", view)
 	}
 }
 
@@ -807,27 +807,24 @@ func TestStep14AllConditionalFieldsRenderAsInputs(t *testing.T) {
 
 	view := m.View()
 
-	// All 3 conditional field labels should be present
-	if !strings.Contains(view, "Repo name") {
-		t.Errorf("View should contain 'Repo name' label")
-	}
-	if !strings.Contains(view, "Visibility") {
-		t.Errorf("View should contain 'Visibility' label")
-	}
+	// The git remote URL field label should be present
 	if !strings.Contains(view, "Git remote URL") {
 		t.Errorf("View should contain 'Git remote URL' label")
 	}
+	// Repo name and visibility should no longer be present
+	if strings.Contains(view, "Repo name") {
+		t.Errorf("View should NOT contain 'Repo name' (field removed)")
+	}
+	if strings.Contains(view, "Visibility") {
+		t.Errorf("View should NOT contain 'Visibility' (field removed)")
+	}
 
-	// All fields should render as text input boxes (with border characters).
+	// The field should render as a text input box (with border characters).
 	// The textinput component renders with lipgloss RoundedBorder which uses
-	// these Unicode box-drawing characters. We check that the view contains
-	// the border characters for all fields, not just the focused one.
-	//
-	// Count occurrences of the border top-left character. Each text input box
-	// should have one. We expect at least 3 (one per conditional field).
+	// these Unicode box-drawing characters.
 	borderCount := strings.Count(view, "╭")
-	if borderCount < 3 {
-		t.Errorf("Expected at least 3 text input boxes (border '╭' characters), got %d.\nUnfocused fields are rendering as plain text instead of input boxes.\nView:\n%s", borderCount, view)
+	if borderCount < 1 {
+		t.Errorf("Expected at least 1 text input box (border '╭' character), got %d.\nView:\n%s", borderCount, view)
 	}
 }
 
