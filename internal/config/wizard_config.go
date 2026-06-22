@@ -82,6 +82,17 @@ type WizardConfig struct {
 	UseLocalCopy     bool   `yaml:"use_local_copy,omitempty"`        // use local copy instead of cloning
 	GitInit          bool   `yaml:"git_init,omitempty"`               // whether to git init the config dir
 
+	// Config repo clone authentication (used when GithubCreateRepo && !UseLocalCopy)
+	ConfigRepoCloneAuth     string            `yaml:"config_repo_clone_auth"`        // none, pat, github_app, ssh
+	ConfigRepoPATEnvVar     string            `yaml:"config_repo_pat_env_var"`       // Name of env var holding the PAT
+	ConfigRepoGHAppID       string            `yaml:"config_repo_gh_app_id"`
+	ConfigRepoGHInstallID   string            `yaml:"config_repo_gh_installation_id"`
+	ConfigRepoGHAppKey      string            `yaml:"config_repo_gh_app_key"`
+	ConfigRepoSSHKey        string            `yaml:"config_repo_ssh_key"`           // inline SSH key content
+	ConfigRepoSSHFile       string            `yaml:"config_repo_ssh_file"`          // path to SSH key file
+	ConfigRepoSSHKeyPassEnv string            `yaml:"config_repo_ssh_key_pass_env"`  // env var name for key passphrase
+	ConfigRepoCloneEnvVars  map[string]string `yaml:"config_repo_clone_env_vars,omitempty"` // derived, for template
+
 	// Dev mode env vars tracks which HD_* variables are referenced during the wizard.
 	// Used by the docker-compose template to pass them into the container.
 	DevEnvVars []string `yaml:"dev_env_vars,omitempty"`
@@ -107,9 +118,48 @@ func NewDefaultWizardConfig() *WizardConfig {
 		K8sNamespace:                 "honeydipper",
 		K8sRepoStrategy:              "clone",
 		SourceBranch:                 "v4",
+		ConfigRepoCloneAuth:         "none",
 		AIModel:                      "gpt-4o",
 		AIBaseURL:                    "https://api.openai.com/v1",
 		AIEngineName:                 "default",
+	}
+}
+
+// BuildConfigRepoCloneEnvVars returns a map of env var names to their placeholder
+// values for the selected config repo clone authentication method.
+func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
+	if c == nil {
+		return nil
+	}
+	switch c.ConfigRepoCloneAuth {
+	case "pat":
+		return map[string]string{
+			"DIPPER_PASS_ENV": c.ConfigRepoPATEnvVar,
+		}
+	case "github_app":
+		return map[string]string{
+			"GH_APP_TOKEN_SOURCE": "github",
+			"GH_APP_ID":          c.ConfigRepoGHAppID,
+			"GH_INSTALLATION_ID":  c.ConfigRepoGHInstallID,
+			"GH_APP_KEY":         c.ConfigRepoGHAppKey,
+		}
+	case "ssh":
+		m := map[string]string{}
+		if c.ConfigRepoSSHKey != "" {
+			m["DIPPER_SSH_KEY"] = c.ConfigRepoSSHKey
+		}
+		if c.ConfigRepoSSHFile != "" {
+			m["DIPPER_SSH_FILE"] = c.ConfigRepoSSHFile
+		}
+		if c.ConfigRepoSSHKeyPassEnv != "" {
+			m["DIPPER_SSH_KEY_PASS_ENV"] = c.ConfigRepoSSHKeyPassEnv
+		}
+		if len(m) > 0 {
+			return m
+		}
+		return nil
+	default:
+		return nil
 	}
 }
 

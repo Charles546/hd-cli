@@ -25,6 +25,11 @@ services:
       - "{{ .DockerWebhookPort }}:8080"
     environment:
       - REPO={{ if .GithubCreateRepo }}{{ if .UseLocalCopy }}/etc/honeydipper/config{{ else }}{{ if .GitRemoteURL }}{{ .GitRemoteURL }}{{ else }}/etc/honeydipper/config{{ end }}{{ end }}{{ else }}/etc/honeydipper/config{{ end }}
+{{- if .ConfigRepoCloneEnvVars }}
+{{- range $key, $value := .ConfigRepoCloneEnvVars }}
+      - {{ $key }}={{ $value }}
+{{- end }}
+{{- end }}
 {{- if eq .BootstrapCloneCredentialType "pat" }}
       - DIPPER_GIT_PAT=${DIPPER_GIT_PAT}
 {{- else if eq .BootstrapCloneCredentialType "github_app" }}

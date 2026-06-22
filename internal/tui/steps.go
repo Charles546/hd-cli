@@ -143,6 +143,22 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.GitRemoteURL = value
 		case "use_local_copy":
 			cfg.UseLocalCopy = value == "true" || value == "yes"
+		case "config_repo_clone_auth":
+			cfg.ConfigRepoCloneAuth = value
+		case "config_repo_pat_env_var":
+			cfg.ConfigRepoPATEnvVar = value
+		case "config_repo_gh_app_id":
+			cfg.ConfigRepoGHAppID = value
+		case "config_repo_gh_installation_id":
+			cfg.ConfigRepoGHInstallID = value
+		case "config_repo_gh_app_key":
+			cfg.ConfigRepoGHAppKey = value
+		case "config_repo_ssh_key":
+			cfg.ConfigRepoSSHKey = value
+		case "config_repo_ssh_file":
+			cfg.ConfigRepoSSHFile = value
+		case "config_repo_ssh_key_pass_env":
+			cfg.ConfigRepoSSHKeyPassEnv = value
 		}
 	}
 
@@ -283,6 +299,35 @@ func ValidateStepComplete(m *WizardModel) error {
 		if cfg.GithubCreateRepo {
 			if strings.TrimSpace(cfg.GitRemoteURL) == "" {
 				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
+			}
+			if !cfg.UseLocalCopy {
+				auth := strings.TrimSpace(cfg.ConfigRepoCloneAuth)
+				switch auth {
+				case "none":
+				case "pat":
+					if strings.TrimSpace(cfg.ConfigRepoPATEnvVar) == "" {
+						return fmt.Errorf("PAT env var name is required when clone auth is 'pat'")
+					}
+				case "github_app":
+					if strings.TrimSpace(cfg.ConfigRepoGHAppID) == "" {
+						return fmt.Errorf("GitHub App ID is required when clone auth is 'github_app'")
+					}
+					if strings.TrimSpace(cfg.ConfigRepoGHInstallID) == "" {
+						return fmt.Errorf("installation ID is required when clone auth is 'github_app'")
+					}
+					if strings.TrimSpace(cfg.ConfigRepoGHAppKey) == "" {
+						return fmt.Errorf("private key is required when clone auth is 'github_app'")
+					}
+				case "ssh":
+					if !strings.HasPrefix(cfg.GitRemoteURL, "git@") {
+						return fmt.Errorf("SSH remote URL must start with 'git@'")
+					}
+					if strings.TrimSpace(cfg.ConfigRepoSSHKey) == "" && strings.TrimSpace(cfg.ConfigRepoSSHFile) == "" {
+						return fmt.Errorf("either SSH key content or SSH key file path is required when clone auth is 'ssh'")
+					}
+				default:
+					return fmt.Errorf("invalid clone auth method %q (must be one of: none, pat, github_app, ssh)", auth)
+				}
 			}
 		}
 	}
