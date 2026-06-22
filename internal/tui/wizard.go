@@ -777,6 +777,26 @@ func (m *WizardModel) View() string {
 	return b.String()
 }
 
+
+// renderRadioSelection renders the radio options with the selected marker.
+// Used by both modeRadioSelect and modeTextInput (for radio steps with conditional fields).
+func (m *WizardModel) renderRadioSelection(stepInfo *stepInfo) string {
+	var b strings.Builder
+	b.WriteString(LabelStyle.Render(stepInfo.radioLabel + ":"))
+	b.WriteString("\n")
+	for i, opt := range stepInfo.radioOptions {
+		if i == m.radioIndex {
+			b.WriteString(SelectedItemStyle.Render("  ● "))
+			b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)).Render(opt))
+		} else {
+			b.WriteString(UnselectedItemStyle.Render("  ○ "))
+			b.WriteString(UnselectedItemStyle.Render(opt))
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
 // renderStepContent renders the interactive content for the current step.
 func (m *WizardModel) renderStepContent() string {
 	stepInfo := getStepInfo(m.step)
@@ -805,8 +825,47 @@ func (m *WizardModel) renderStepContent() string {
 
 	switch m.mode {
 	case modeTextInput:
-		// For multi-field steps, render only visible fields
-		if stepInfo.stepType == stepTypeMultiField {
+		// For radio steps that have switched to text input mode, render the
+		// radio selection above the conditional text fields so the user can
+		// still see which option they selected.
+		if stepInfo.stepType == stepTypeRadio {
+			b.WriteString(m.renderRadioSelection(stepInfo))
+			b.WriteString("\n")
+			// Render visible conditional text fields
+			visibleIdx := 0
+			for _, field := range stepInfo.fields {
+				if field.condition != nil && !field.condition(m.config) {
+					continue
+				}
+				if visibleIdx < len(m.textInputs) {
+					b.WriteString(LabelStyle.Render(field.label + ":"))
+					b.WriteString("\n")
+					ti := m.textInputs[visibleIdx]
+					if visibleIdx == m.currentField {
+						if m.pendingDefault {
+							b.WriteString(SelectAllStyle.Render(ti.View()))
+						} else {
+							b.WriteString(FocusedInputStyle.Render(ti.View()))
+						}
+					} else {
+						val := ti.Value()
+						if val != "" {
+							b.WriteString(InputStyle.Render(val))
+						} else {
+							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(field.placeholder))
+						}
+					}
+					b.WriteString("\n")
+					if field.help != "" {
+						b.WriteString(HelpStyle.Render(field.help))
+						b.WriteString("\n")
+					}
+					b.WriteString("\n")
+				}
+				visibleIdx++
+			}
+		} else if stepInfo.stepType == stepTypeMultiField {
+			// For multi-field steps, render only visible fields
 			visibleIdx := 0
 			for _, field := range stepInfo.fields {
 				if field.condition != nil && !field.condition(m.config) {
@@ -881,18 +940,7 @@ func (m *WizardModel) renderStepContent() string {
 		}
 
 	case modeRadioSelect:
-		b.WriteString(LabelStyle.Render(stepInfo.radioLabel + ":"))
-		b.WriteString("\n")
-		for i, opt := range stepInfo.radioOptions {
-			if i == m.radioIndex {
-				b.WriteString(SelectedItemStyle.Render("  ● "))
-				b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)).Render(opt))
-			} else {
-				b.WriteString(UnselectedItemStyle.Render("  ○ "))
-				b.WriteString(UnselectedItemStyle.Render(opt))
-			}
-			b.WriteString("\n")
-		}
+		b.WriteString(m.renderRadioSelection(stepInfo))
 		b.WriteString("\n")
 		// Render conditional text fields that match current conditions
 		visibleIdx := 0

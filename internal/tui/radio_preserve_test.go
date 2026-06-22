@@ -579,3 +579,207 @@ func TestRadioMultipleArrowPressesThenEscRevert(t *testing.T) {
 		t.Errorf("DeploymentMode = %q, want %q", m.config.DeploymentMode, "docker")
 	}
 }
+
+// TestStep10RadioSelectionVisibleAfterEnter verifies that the radio selection
+// remains visible after pressing Enter to switch to text input mode.
+func TestStep10RadioSelectionVisibleAfterEnter(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 10)
+
+	// Default is "no" (index 1)
+	if m.radioIndex != 1 {
+		t.Fatalf("initial radioIndex = %d, want 1 (no)", m.radioIndex)
+	}
+
+	// Press Up to select "yes"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	if m.radioIndex != 0 {
+		t.Fatalf("after Up: radioIndex = %d, want 0 (yes)", m.radioIndex)
+	}
+
+	// Verify view shows "yes" selected before Enter
+	view0 := m.View()
+	if !strings.Contains(view0, "● yes") {
+		t.Errorf("View before Enter should contain '● yes', got:\n%s", view0)
+	}
+
+	// Press Enter to switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.mode != modeTextInput {
+		t.Fatalf("after Enter: mode = %d, want modeTextInput", m.mode)
+	}
+
+	// The radio selection should still be visible in the view
+	view1 := m.View()
+	if !strings.Contains(view1, "● yes") {
+		t.Errorf("View after Enter should still show '● yes' (radio selection preserved), got:\n%s", view1)
+	}
+	if !strings.Contains(view1, "○ no") {
+		t.Errorf("View after Enter should show '○ no' (unselected), got:\n%s", view1)
+	}
+	// Also verify conditional fields are shown
+	if !strings.Contains(view1, "API key secret path") {
+		t.Errorf("View after Enter should show conditional fields, got:\n%s", view1)
+	}
+}
+
+// TestStep6RadioSelectionVisibleAfterEnter verifies that on step 6 (vault),
+// pressing Enter to switch to text input mode preserves the radio display.
+func TestStep6RadioSelectionVisibleAfterEnter(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 6)
+
+	// Default is "vault" (index 0)
+	if m.radioIndex != 0 {
+		t.Fatalf("initial radioIndex = %d, want 0 (vault)", m.radioIndex)
+	}
+
+	// Press Enter on vault -> switches to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.mode != modeTextInput {
+		t.Fatalf("after Enter: mode = %d, want modeTextInput", m.mode)
+	}
+
+	// The radio selection should still be visible
+	view := m.View()
+	if !strings.Contains(view, "● vault") {
+		t.Errorf("View after Enter should still show '● vault', got:\n%s", view)
+	}
+	if !strings.Contains(view, "○ dev") {
+		t.Errorf("View after Enter should show '○ dev' (unselected), got:\n%s", view)
+	}
+}
+
+// TestStep14RadioSelectionVisibleAfterEnter verifies step 14 (GitHub Repo Creation)
+// radio selection remains visible after pressing Enter with "yes" selected.
+func TestStep14RadioSelectionVisibleAfterEnter(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Default is "no" (index 1)
+	if m.radioIndex != 1 {
+		t.Fatalf("initial radioIndex = %d, want 1 (no)", m.radioIndex)
+	}
+
+	// Press Up to select "yes"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	if m.radioIndex != 0 {
+		t.Fatalf("after Up: radioIndex = %d, want 0 (yes)", m.radioIndex)
+	}
+
+	// Press Enter to switch to text input mode (yes has conditional fields)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.mode != modeTextInput {
+		t.Fatalf("after Enter: mode = %d, want modeTextInput", m.mode)
+	}
+
+	// Radio selection should still be visible
+	view := m.View()
+	if !strings.Contains(view, "● yes") {
+		t.Errorf("View after Enter should show '● yes', got:\n%s", view)
+	}
+	// Conditional fields should be visible
+	if !strings.Contains(view, "Repo name") {
+		t.Errorf("View after Enter should show conditional fields, got:\n%s", view)
+	}
+}
+
+// TestStep10RadioSelectionPreservedAfterEnterAndReturn verifies that after
+// selecting "yes" on step 10, pressing Enter to switch to text input mode,
+// advancing to step 11, and pressing Esc to return, the radio selection is preserved.
+func TestStep10RadioSelectionPreservedAfterEnterAndReturn(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 10)
+
+	// Select "yes"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	if m.radioIndex != 0 {
+		t.Fatalf("radioIndex = %d, want 0 (yes)", m.radioIndex)
+	}
+
+	// Press Enter to switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.mode != modeTextInput {
+		t.Fatalf("expected modeTextInput, got %d", m.mode)
+	}
+
+	// Fill in the 4 conditional fields and advance to step 11
+	m.textInput.SetValue("/path/to/key")
+	m.textInputs[0] = m.textInput
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	m.textInput.SetValue("https://api.openai.com/v1")
+	m.textInputs[1] = m.textInput
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	m.textInput.SetValue("gpt-4o")
+	m.textInputs[2] = m.textInput
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	m.textInput.SetValue("default")
+	m.textInputs[3] = m.textInput
+
+	// Advance to step 11
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.step != 11 {
+		t.Fatalf("expected step 11, got %d", m.step)
+	}
+
+	// Go back to step 10
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.step != 10 {
+		t.Fatalf("expected step 10, got %d", m.step)
+	}
+
+	// Radio selection should be preserved
+	if m.radioIndex != 0 {
+		t.Errorf("radioIndex = %d, want 0 (yes)", m.radioIndex)
+	}
+	if !m.config.AIEnabled {
+		t.Errorf("AIEnabled = false, want true")
+	}
+
+	// View should show the selection
+	view := m.View()
+	if !strings.Contains(view, "● yes") {
+		t.Errorf("View should show '● yes', got:\n%s", view)
+	}
+}
+
+// TestStep7RadioSelectionVisibleAfterEnter verifies step 7 (Redis) radio
+// selection remains visible after pressing Enter with "external" selected.
+func TestStep7RadioSelectionVisibleAfterEnter(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 7)
+
+	// Default is "local" (index 0)
+	if m.radioIndex != 0 {
+		t.Fatalf("initial radioIndex = %d, want 0 (local)", m.radioIndex)
+	}
+
+	// Select "external"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	if m.radioIndex != 1 {
+		t.Fatalf("after Down: radioIndex = %d, want 1 (external)", m.radioIndex)
+	}
+
+	// Press Enter to switch to text input mode (external has conditional field)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.mode != modeTextInput {
+		t.Fatalf("after Enter: mode = %d, want modeTextInput", m.mode)
+	}
+
+	// Radio selection should still be visible
+	view := m.View()
+	if !strings.Contains(view, "● external") {
+		t.Errorf("View after Enter should show '● external', got:\n%s", view)
+	}
+	if !strings.Contains(view, "○ local") {
+		t.Errorf("View after Enter should show '○ local' (unselected), got:\n%s", view)
+	}
+}
