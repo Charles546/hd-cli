@@ -2062,21 +2062,22 @@ func TestStep14ConditionalFieldsVisibleWhenYes(t *testing.T) {
 		t.Error("GithubCreateRepo should be true after moving to 'yes'")
 	}
 
-	// Text inputs should now be built for the 3 conditional fields
-	if len(m.textInputs) != 3 {
-		t.Errorf("Step 14 'yes' textInputs count = %d, want 3", len(m.textInputs))
+	// Text inputs should now be built for the 1 conditional field (git remote URL only)
+	if len(m.textInputs) != 1 {
+		t.Errorf("Step 14 'yes' textInputs count = %d, want 1", len(m.textInputs))
 	}
 
-	// View should contain the conditional field labels
+	// View should contain the git remote URL field label
 	view := m.View()
-	if !strings.Contains(view, "Repo name") {
-		t.Errorf("Step 14 view should contain 'Repo name' when 'yes' is selected, got: %s", view)
-	}
-	if !strings.Contains(view, "Visibility") {
-		t.Errorf("Step 14 view should contain 'Visibility' when 'yes' is selected, got: %s", view)
-	}
 	if !strings.Contains(view, "Git remote URL") {
 		t.Errorf("Step 14 view should contain 'Git remote URL' when 'yes' is selected, got: %s", view)
+	}
+	// Repo name and visibility should no longer be present
+	if strings.Contains(view, "Repo name") {
+		t.Errorf("Step 14 view should NOT contain 'Repo name' (field removed)")
+	}
+	if strings.Contains(view, "Visibility") {
+		t.Errorf("Step 14 view should NOT contain 'Visibility' (field removed)")
 	}
 }
 
@@ -2102,6 +2103,9 @@ func TestStep14ConditionalFieldsHiddenWhenNo(t *testing.T) {
 
 	// View should NOT contain conditional field labels
 	view := m.View()
+	if strings.Contains(view, "Git remote URL") {
+		t.Errorf("Step 14 view should NOT contain 'Git remote URL' when 'no' is selected")
+	}
 	if strings.Contains(view, "Repo name") {
 		t.Errorf("Step 14 view should NOT contain 'Repo name' when 'no' is selected")
 	}
@@ -2150,7 +2154,7 @@ func TestStep14EnterOnNoAdvances(t *testing.T) {
 }
 
 func TestStep14ConditionalFieldTabNavigation(t *testing.T) {
-	// After selecting "yes" and pressing Enter, tab should navigate through conditional fields
+	// After selecting "yes" and pressing Enter, the single git remote URL field is shown
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
@@ -2163,49 +2167,24 @@ func TestStep14ConditionalFieldTabNavigation(t *testing.T) {
 		t.Fatalf("expected modeTextInput, got %d", m.mode)
 	}
 
-	// Type in first field (Repo name)
-	for _, ch := range "my-repo" {
-		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
-		m, _ = updateWizard(m, msg)
+	// There should be only 1 text input (git remote URL)
+	if len(m.textInputs) != 1 {
+		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
 	}
 
-	// Tab to second field (Visibility)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	if m.currentField != 1 {
-		t.Errorf("currentField = %d, want 1", m.currentField)
-	}
-
-	// Type in second field
-	for _, ch := range "private" {
-		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
-		m, _ = updateWizard(m, msg)
-	}
-
-	// Tab to third field (Git remote URL)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	if m.currentField != 2 {
-		t.Errorf("currentField = %d, want 2", m.currentField)
-	}
-
-	// Type in third field
+	// Type in the git remote URL field
 	for _, ch := range "git@github.com:user/repo.git" {
 		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
 		m, _ = updateWizard(m, msg)
 	}
 
-	// Press Enter on last field — should advance to next step
+	// Press Enter on the field — should advance to next step
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.step != 15 {
 		t.Errorf("step = %d, want 15", m.step)
 	}
 
-	// Verify all values were saved
-	if m.config.GithubRepoName != "my-repo" {
-		t.Errorf("GithubRepoName = %q, want %q", m.config.GithubRepoName, "my-repo")
-	}
-	if m.config.GithubRepoVis != "private" {
-		t.Errorf("GithubRepoVis = %q, want %q", m.config.GithubRepoVis, "private")
-	}
+	// Verify the value was saved
 	if m.config.GitRemoteURL != "git@github.com:user/repo.git" {
 		t.Errorf("GitRemoteURL = %q, want %q", m.config.GitRemoteURL, "git@github.com:user/repo.git")
 	}
@@ -2248,8 +2227,8 @@ func TestStep14RadioRebuildsOnArrowKey(t *testing.T) {
 
 	// Move up to "yes" (index 0)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
-	if len(m.textInputs) != 3 {
-		t.Errorf("after 'yes' textInputs count = %d, want 3", len(m.textInputs))
+	if len(m.textInputs) != 1 {
+		t.Errorf("after 'yes' textInputs count = %d, want 1", len(m.textInputs))
 	}
 
 	// Move back down to "no" (index 1)
@@ -2260,8 +2239,8 @@ func TestStep14RadioRebuildsOnArrowKey(t *testing.T) {
 
 	// Move up to "yes" again
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
-	if len(m.textInputs) != 3 {
-		t.Errorf("after 'yes' again textInputs count = %d, want 3", len(m.textInputs))
+	if len(m.textInputs) != 1 {
+		t.Errorf("after 'yes' again textInputs count = %d, want 1", len(m.textInputs))
 	}
 }
 
@@ -2689,5 +2668,63 @@ func TestStep10ConditionalFieldTabNavigation(t *testing.T) {
 	}
 	if m.config.AIEngineName != "ai-engine" {
 		t.Errorf("AIEngineName = %q, want %q", m.config.AIEngineName, "ai-engine")
+	}
+}
+
+func TestStep14GitRemoteURLRequired(t *testing.T) {
+	// When "yes" is selected, the git remote URL should be required
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to "yes" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+
+	// Press Enter to switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.mode != modeTextInput {
+		t.Fatalf("expected modeTextInput, got %d", m.mode)
+	}
+
+	// Try to press Enter without filling in the git remote URL
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Should NOT advance — should show validation error
+	if m.step != 14 {
+		t.Errorf("step = %d, want 14 (should not advance with empty git remote URL)", m.step)
+	}
+	if m.validationErr == "" {
+		t.Error("expected validation error for empty git remote URL")
+	}
+	if !strings.Contains(m.validationErr, "git remote URL is required") {
+		t.Errorf("validation error should mention git remote URL, got: %s", m.validationErr)
+	}
+}
+
+func TestStep14GitRemoteURLValidationPasses(t *testing.T) {
+	// When "yes" is selected and git remote URL is filled, should advance
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to "yes" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+
+	// Press Enter to switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Type in the git remote URL
+	for _, ch := range "git@github.com:user/repo.git" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Enter — should advance
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.step != 15 {
+		t.Errorf("step = %d, want 15 (should advance with git remote URL filled)", m.step)
+	}
+	if m.validationErr != "" {
+		t.Errorf("expected no validation error, got: %s", m.validationErr)
 	}
 }

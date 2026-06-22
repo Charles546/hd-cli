@@ -1208,6 +1208,32 @@ func (m *WizardModel) validateCurrentStep() error {
 		if strings.TrimSpace(m.config.DockerImageTag) == "" {
 			return fmt.Errorf("docker image tag is required")
 		}
+	case 12:
+		if m.config.DeploymentMode != "kubernetes" {
+			return nil
+		}
+		if strings.TrimSpace(m.config.K8sNamespace) == "" {
+			return fmt.Errorf("kubernetes namespace is required")
+		}
+		if strings.TrimSpace(m.config.K8sRepoStrategy) == "" {
+			return fmt.Errorf("config repo strategy is required")
+		}
+	case 13:
+		if m.config.DeploymentMode != "source" {
+			return nil
+		}
+		if strings.TrimSpace(m.config.SourceClonePath) == "" {
+			return fmt.Errorf("clone path is required")
+		}
+		if strings.TrimSpace(m.config.SourceBranch) == "" {
+			return fmt.Errorf("source branch is required")
+		}
+	case 14:
+		if m.config.GithubCreateRepo {
+			if strings.TrimSpace(m.config.GitRemoteURL) == "" {
+				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
+			}
+		}
 	}
 	return nil
 }

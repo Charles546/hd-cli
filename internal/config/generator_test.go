@@ -664,7 +664,7 @@ func TestDockerComposeRepoEnvVar(t *testing.T) {
 		cfg.ProjectName = "test-repo-gh"
 		cfg.DeploymentMode = "docker"
 		cfg.GithubCreateRepo = true
-		cfg.GithubRepoName = "myuser/hd-config"
+		cfg.GitRemoteURL = "git@github.com:myuser/hd-config.git"
 
 		tmpDir := t.TempDir()
 		err := g.Generate(cfg, tmpDir, false)
@@ -679,8 +679,8 @@ func TestDockerComposeRepoEnvVar(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "REPO=https://github.com/myuser/hd-config.git") {
-			t.Errorf("docker-compose.yaml should contain REPO with GitHub URL, got:\n%s", yamlStr)
+		if !strings.Contains(yamlStr, "REPO=git@github.com:myuser/hd-config.git") {
+			t.Errorf("docker-compose.yaml should contain REPO with git remote URL, got:\n%s", yamlStr)
 		}
 	})
 
@@ -760,8 +760,7 @@ func TestDockerComposeVolumeMount(t *testing.T) {
 		cfg.ProjectName = "test-vol-gh"
 		cfg.DeploymentMode = "docker"
 		cfg.GithubCreateRepo = true
-		cfg.GithubRepoName = "myuser/hd-config"
-
+		cfg.GitRemoteURL = "git@github.com:user/repo.git"
 		tmpDir := t.TempDir()
 		err := g.Generate(cfg, tmpDir, false)
 		if err != nil {
@@ -1338,7 +1337,6 @@ func TestGitInitWhenCreatingRepo(t *testing.T) {
 	cfg.ConfigDir = configDir
 	cfg.DeploymentMode = "docker"
 	cfg.GithubCreateRepo = true
-	cfg.GithubRepoName = "myuser/hd-config"
 	cfg.GitRemoteURL = "git@github.com:myuser/hd-config.git"
 
 	// Generate should run git init and git remote add
@@ -1407,7 +1405,6 @@ func TestGitInitWithoutRemoteURL(t *testing.T) {
 	cfg.ConfigDir = configDir
 	cfg.DeploymentMode = "docker"
 	cfg.GithubCreateRepo = true
-	cfg.GithubRepoName = "myuser/hd-config"
 	// No GitRemoteURL set
 
 	err := g.Generate(cfg, configDir, false)
@@ -1440,7 +1437,6 @@ func TestDockerComposeRemoteURL(t *testing.T) {
 	cfg.ProjectName = "test-remote-url"
 	cfg.DeploymentMode = "docker"
 	cfg.GithubCreateRepo = true
-	cfg.GithubRepoName = "myuser/hd-config"
 	cfg.GitRemoteURL = "git@github.com:myuser/hd-config.git"
 
 	tmpDir := t.TempDir()
@@ -1463,14 +1459,13 @@ func TestDockerComposeRemoteURL(t *testing.T) {
 }
 
 func TestDockerComposeFallbackREPO(t *testing.T) {
-	// Test that when GitRemoteURL is not set, REPO falls back to github URL or local path
+	// Test that when GitRemoteURL is not set, REPO falls back to local path
 	g := NewGenerator()
 	cfg := NewDefaultWizardConfig()
 	cfg.ProjectName = "test-fallback-repo"
 	cfg.DeploymentMode = "docker"
 	cfg.GithubCreateRepo = true
-	cfg.GithubRepoName = "myuser/hd-config"
-	// No GitRemoteURL
+	// No GitRemoteURL set
 
 	tmpDir := t.TempDir()
 	err := g.Generate(cfg, tmpDir, false)
@@ -1485,9 +1480,9 @@ func TestDockerComposeFallbackREPO(t *testing.T) {
 	}
 	yamlStr := string(content)
 
-	// Should use the GitHub URL as REPO
-	if !strings.Contains(yamlStr, "REPO=https://github.com/myuser/hd-config.git") {
-		t.Errorf("docker-compose.yaml should contain REPO with GitHub URL, got:\n%s", yamlStr)
+	// Should fall back to local path since no GitRemoteURL is set
+	if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+		t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
 	}
 }
 
