@@ -227,10 +227,10 @@ func TestValidateStepComplete(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "step 14 with yes and local copy (no git remote URL needed)",
+			name:    "step 14 with yes and local copy (git remote URL still required)",
 			step:    14,
 			setup:   func(c *config.WizardConfig) { c.GithubCreateRepo = true; c.UseLocalCopy = true; c.GitRemoteURL = "" },
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "step 14 with no",
@@ -2149,9 +2149,9 @@ func TestStep14SecondCheckboxVisibleWhenFirstChecked(t *testing.T) {
 		t.Error("UseLocalCopy should be true after toggling second checkbox")
 	}
 
-	// Git remote URL should now be hidden (condition: GithubCreateRepo && !UseLocalCopy)
-	if len(m.textInputs) != 0 {
-		t.Errorf("textInputs count = %d, want 0 (git remote URL hidden when using local copy)", len(m.textInputs))
+	// Git remote URL should still be visible (condition: GithubCreateRepo)
+	if len(m.textInputs) != 1 {
+		t.Errorf("textInputs count = %d, want 1 (git remote URL still visible when using local copy)", len(m.textInputs))
 	}
 }
 
@@ -2216,10 +2216,9 @@ func TestStep14EnterOnLastCheckboxWithTextInput(t *testing.T) {
 		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
 	}
 
-	// Press Enter on last checkbox: toggles UseLocalCopy on, then switches to text input mode
-	// (because there are text inputs — but wait, toggling UseLocalCopy on removes text inputs)
-	// So: toggles UseLocalCopy to true first, rebuilds textInputs (now 0), and since no text inputs,
-	// it advances to next step
+	// Press Enter on last checkbox: toggles UseLocalCopy on, textInputs still exist
+	// (git remote URL is always visible when GithubCreateRepo is true), so it
+	// switches to text input mode instead of advancing
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	// UseLocalCopy should be toggled on
@@ -2227,36 +2226,39 @@ func TestStep14EnterOnLastCheckboxWithTextInput(t *testing.T) {
 		t.Error("UseLocalCopy should be true after Enter on second checkbox")
 	}
 
-	// No text inputs (because UseLocalCopy hides git remote URL), so it should advance to step 15
-	if m.step != 15 {
-		t.Errorf("step = %d, want 15 (should advance when no text inputs)", m.step)
+	// Text inputs still exist (git remote URL always visible), so should switch to text input mode
+	if m.step != 14 {
+		t.Errorf("step = %d, want 14 (should stay on step 14 with text inputs)", m.step)
+	}
+	if m.currentField != 1 {
+		t.Errorf("currentField = %d, want 1 (should focus text input)", m.currentField)
 	}
 }
 
 func TestStep14EnterOnLastCheckboxAdvancesWhenNoTextInputs(t *testing.T) {
-	// When no text inputs exist, pressing Enter on last checkbox advances to next step
+	// When text inputs exist, pressing Enter on last checkbox switches to text input mode
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
 
-	// Don't toggle any checkboxes, press Enter on checkbox 0 (the only visible one)
-	// Enter toggles GithubCreateRepo on, moves to checkbox 1
-	// But checkbox 1 ("Use local copy") is not visible because... wait,
-	// after toggling GithubCreateRepo on, checkbox 1 becomes visible.
-	// So Enter on checkbox 0 toggles GithubCreateRepo on and moves to checkbox 1.
-	// Press Enter on checkbox 1: toggles UseLocalCopy on, no text inputs -> advances to step 15
-
-	// Simpler path: do nothing, just press Enter twice
+	// Press Enter twice: toggle GithubCreateRepo (move to cb1), toggle UseLocalCopy
+	// After both toggles, git remote URL text input still exists (always visible when
+	// GithubCreateRepo is true), so Enter switches to text input mode
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // toggle GithubCreateRepo, move to cb1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // toggle UseLocalCopy, advance
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // toggle UseLocalCopy, switch to text input
 
-	if m.step != 15 {
-		t.Errorf("step = %d, want 15 (should advance when no text inputs after toggling)", m.step)
+	if m.step != 14 {
+		t.Errorf("step = %d, want 14 (should stay on step 14 with text inputs)", m.step)
+	}
+	if m.currentField != 1 {
+		t.Errorf("currentField = %d, want 1 (should focus text input)", m.currentField)
 	}
 }
 
 func TestStep14EnterOnLastCheckboxNoAdvanceWhenTextInputRequired(t *testing.T) {
-	// When git remote URL is required but empty, should not advance
+	// When git remote URL is required but empty, pressing Enter on last checkbox
+	// switches to text input mode (not advancing), so validation happens when user
+	// tries to advance from text input mode
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
@@ -2272,12 +2274,15 @@ func TestStep14EnterOnLastCheckboxNoAdvanceWhenTextInputRequired(t *testing.T) {
 	// Move to last checkbox (index 1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 
-	// Press Enter on last checkbox: toggles UseLocalCopy, but now no text inputs
-	// So it should advance (no validation needed since UseLocalCopy skips git remote URL)
+	// Press Enter on last checkbox: toggles UseLocalCopy, text inputs still exist
+	// (git remote URL always visible), so switches to text input mode
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	if m.step != 15 {
-		t.Errorf("step = %d, want 15 (UseLocalCopy hides git remote URL, so no validation)", m.step)
+	if m.step != 14 {
+		t.Errorf("step = %d, want 14 (should stay on step 14 with text inputs)", m.step)
+	}
+	if m.currentField != 1 {
+		t.Errorf("currentField = %d, want 1 (should focus text input)", m.currentField)
 	}
 }
 
@@ -2445,27 +2450,26 @@ func TestStep14NoCheckboxesNoAdvance(t *testing.T) {
 }
 
 func TestStep14EnterOnNoCheckboxesAdvances(t *testing.T) {
-	// When no checkboxes are checked and it's the only visible checkbox,
-	// pressing Enter toggles it and the flow continues
+	// When no checkboxes are checked, pressing Enter toggles through both checkboxes
+	// and switches to text input mode (git remote URL always visible when GithubCreateRepo)
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
 
 	// Default: GithubCreateRepo=false, only 1 visible checkbox
-	// Press Enter on checkbox 0: toggles GithubCreateRepo on
-	// After toggle: visibleCount=2 (both checkboxes visible)
-	// checkboxIndex 0 < 1, so checkboxIndex becomes 1
-	// Does NOT advance to next step
-
-	// To advance from step 14 without filling git remote URL:
-	// Need to toggle UseLocalCopy on as well, which removes text inputs
+	// Press Enter on checkbox 0: toggles GithubCreateRepo on, moves to cb1
+	// Press Enter on checkbox 1: toggles UseLocalCopy on, textInputs still exist
+	// (git remote URL always visible), switches to text input mode
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // toggle GithubCreateRepo, move to cb1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // toggle UseLocalCopy, textInputs=0, advance
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // toggle UseLocalCopy, switch to text input
 
-	// Should advance past step 14
-	if m.step != 15 {
-		t.Errorf("step = %d, want 15 (should advance when UseLocalCopy hides text inputs)", m.step)
+	// Should stay on step 14 with text input focused
+	if m.step != 14 {
+		t.Errorf("step = %d, want 14 (should stay on step 14 with text inputs)", m.step)
+	}
+	if m.currentField != 1 {
+		t.Errorf("currentField = %d, want 1 (should focus text input)", m.currentField)
 	}
 }
 
@@ -2573,7 +2577,8 @@ func TestStep14UseLocalCopySpaceToggles(t *testing.T) {
 }
 
 func TestStep14UseLocalCopyHidesGitRemoteURL(t *testing.T) {
-	// When UseLocalCopy is checked, the git remote URL field should be hidden
+	// When UseLocalCopy is checked, the git remote URL field should still be visible
+	// (UseLocalCopy only affects the REPO env var in docker-compose, not the git remote URL field)
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
@@ -2590,36 +2595,38 @@ func TestStep14UseLocalCopyHidesGitRemoteURL(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// After checking local copy: textInputs should be empty
-	if len(m.textInputs) != 0 {
-		t.Errorf("expected 0 text inputs after local copy, got %d", len(m.textInputs))
+	// After checking local copy: textInputs should still have 1 field (git remote URL)
+	if len(m.textInputs) != 1 {
+		t.Errorf("expected 1 text input after local copy (git remote URL still visible), got %d", len(m.textInputs))
 	}
 }
 
 func TestStep14UseLocalCopyNoValidationRequired(t *testing.T) {
-	// When UseLocalCopy is pre-configured as true, git remote URL is not required
-	// and the step should have no text inputs
+	// When UseLocalCopy is pre-configured as true, git remote URL is still required
+	// (UseLocalCopy only affects the REPO env var in docker-compose)
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = true
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
 
-	// textInputs should be 0 since UseLocalCopy hides git remote URL
-	if len(m.textInputs) != 0 {
-		t.Fatalf("expected 0 text inputs when UseLocalCopy is true, got %d", len(m.textInputs))
+	// textInputs should have 1 field (git remote URL still visible)
+	if len(m.textInputs) != 1 {
+		t.Fatalf("expected 1 text input when UseLocalCopy is true, got %d", len(m.textInputs))
 	}
 
-	// ValidateStepComplete should pass without git remote URL
+	// ValidateStepComplete should fail without git remote URL
 	err := m.validateCurrentStep()
-	if err != nil {
-		t.Errorf("validateCurrentStep should pass when UseLocalCopy is true, got: %v", err)
+	if err == nil {
+		t.Error("validateCurrentStep should fail when git remote URL is empty, even with UseLocalCopy=true")
 	}
 }
 
 
 func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 	// Toggling checkboxes should rebuild text inputs correctly
+	// Note: UseLocalCopy no longer hides git remote URL, so textInputs=1 whenever
+	// GithubCreateRepo is true
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
@@ -2638,8 +2645,8 @@ func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 	// Move to second checkbox and toggle UseLocalCopy on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
-	if len(m.textInputs) != 0 {
-		t.Errorf("after UseLocalCopy=true, textInputs count = %d, want 0", len(m.textInputs))
+	if len(m.textInputs) != 1 {
+		t.Errorf("after UseLocalCopy=true, textInputs count = %d, want 1 (git remote URL still visible)", len(m.textInputs))
 	}
 
 	// Toggle UseLocalCopy off

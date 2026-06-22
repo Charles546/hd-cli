@@ -247,7 +247,15 @@ func TestStep14CheckboxStatePreservedOnReenter(t *testing.T) {
 		t.Fatal("UseLocalCopy should be true after space")
 	}
 
-	// Tab on last checkbox with no text inputs -> advance to next step
+	// Git remote URL is still visible (UseLocalCopy no longer hides it)
+	// Move to text input and fill in the git remote URL
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
+	for _, ch := range "git@github.com:user/repo.git" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Tab to advance to next step
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 	if m.step != 15 {
 		t.Fatalf("expected step 15, got %d", m.step)

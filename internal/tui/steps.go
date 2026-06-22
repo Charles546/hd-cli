@@ -280,7 +280,7 @@ func ValidateStepComplete(m *WizardModel) error {
 			}
 		}
 	case 14:
-		if cfg.GithubCreateRepo && !cfg.UseLocalCopy {
+		if cfg.GithubCreateRepo {
 			if strings.TrimSpace(cfg.GitRemoteURL) == "" {
 				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
 			}

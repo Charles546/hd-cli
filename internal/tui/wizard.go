@@ -1349,7 +1349,7 @@ func (m *WizardModel) validateCurrentStep() error {
 			return fmt.Errorf("source branch is required")
 		}
 	case 14:
-		if m.config.GithubCreateRepo && !m.config.UseLocalCopy {
+		if m.config.GithubCreateRepo {
 			if strings.TrimSpace(m.config.GitRemoteURL) == "" {
 				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
 			}

@@ -1607,8 +1607,9 @@ func TestDockerComposeLocalREPO(t *testing.T) {
 	}
 }
 
-func TestGithubCreateRepoWithLocalCopyNoGitInit(t *testing.T) {
-	// When UseLocalCopy is true, git init should NOT be run
+func TestGithubCreateRepoWithLocalCopyGitInit(t *testing.T) {
+	// When UseLocalCopy is true, git init SHOULD still run
+	// (UseLocalCopy only affects REPO env var in docker-compose)
 	tmpDir := t.TempDir()
 	configDir := filepath.Join(tmpDir, "my-config")
 
@@ -1619,22 +1620,22 @@ func TestGithubCreateRepoWithLocalCopyNoGitInit(t *testing.T) {
 	cfg.DeploymentMode = "docker"
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = true
-	// No GitRemoteURL needed
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 
 	err := g.Generate(cfg, configDir, false)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	// GitInit should be false (skipped)
-	if cfg.GitInit {
-		t.Error("GitInit should be false when UseLocalCopy is true")
+	// GitInit should be true (git init always runs when GithubCreateRepo is true)
+	if !cfg.GitInit {
+		t.Error("GitInit should be true when GithubCreateRepo is true, even with UseLocalCopy")
 	}
 
-	// No .git directory should be created
+	// .git directory should be created
 	gitDir := filepath.Join(configDir, ".git")
-	if _, err := os.Stat(gitDir); err == nil {
-		t.Error("git init should NOT be called when UseLocalCopy is true")
+	if _, err := os.Stat(gitDir); err != nil {
+		t.Error("git init should be called when GithubCreateRepo is true, even with UseLocalCopy")
 	}
 }
 

@@ -496,7 +496,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Git remote URL for the config repository (required, used as REPO env var in docker-compose)",
 					getValue:    func(c *config.WizardConfig) string { return c.GitRemoteURL },
 					setValue:    func(c *config.WizardConfig, v string) { c.GitRemoteURL = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
 				},
 			},
 		}
