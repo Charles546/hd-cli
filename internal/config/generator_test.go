@@ -1430,6 +1430,100 @@ func TestGitInitWithoutRemoteURL(t *testing.T) {
 	}
 }
 
+func TestGitRemoteAddIdempotent(t *testing.T) {
+	// First run: generate with git remote add
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, "my-config")
+
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-idempotent-1"
+	cfg.ConfigDir = configDir
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.GitRemoteURL = "git@github.com:myuser/hd-config.git"
+
+	err := g.Generate(cfg, configDir, false)
+	if err != nil {
+		t.Fatalf("first Generate failed: %v", err)
+	}
+
+	// Verify remote was added
+	remoteOutput, err := exec.Command("git", "-C", configDir, "remote", "get-url", "origin").Output()
+	if err != nil {
+		t.Fatalf("git remote get-url origin failed after first generate: %v", err)
+	}
+	firstURL := strings.TrimSpace(string(remoteOutput))
+	if firstURL != "git@github.com:myuser/hd-config.git" {
+		t.Errorf("expected remote URL 'git@github.com:myuser/hd-config.git', got %q", firstURL)
+	}
+
+	// Second run: generate again with a different remote URL
+	cfg2 := NewDefaultWizardConfig()
+	cfg2.ProjectName = "test-idempotent-2"
+	cfg2.ConfigDir = configDir
+	cfg2.DeploymentMode = "docker"
+	cfg2.GithubCreateRepo = true
+	cfg2.GitRemoteURL = "git@github.com:myuser/hd-config-updated.git"
+
+	err = g.Generate(cfg2, configDir, false)
+	if err != nil {
+		t.Fatalf("second Generate failed (idempotent test): %v", err)
+	}
+
+	// Verify remote was updated
+	remoteOutput, err = exec.Command("git", "-C", configDir, "remote", "get-url", "origin").Output()
+	if err != nil {
+		t.Fatalf("git remote get-url origin failed after second generate: %v", err)
+	}
+	secondURL := strings.TrimSpace(string(remoteOutput))
+	if secondURL != "git@github.com:myuser/hd-config-updated.git" {
+		t.Errorf("expected updated remote URL 'git@github.com:myuser/hd-config-updated.git', got %q", secondURL)
+	}
+}
+
+func TestGitRemoteAddWhenRemoteDoesNotExist(t *testing.T) {
+	// Ensure that when no origin remote exists, git remote add works
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, "my-config")
+
+	// First, create a git repo with no remote
+	err := exec.Command("git", "init", configDir).Run()
+	if err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+
+	// Verify no remote exists
+	_, err = exec.Command("git", "-C", configDir, "remote", "get-url", "origin").Output()
+	if err == nil {
+		t.Fatal("expected no origin remote to exist")
+	}
+
+	// Now generate with GithubCreateRepo
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-no-remote-exists"
+	cfg.ConfigDir = configDir
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.GitRemoteURL = "git@github.com:myuser/new-repo.git"
+
+	err = g.Generate(cfg, configDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Verify remote was added
+	remoteOutput, err := exec.Command("git", "-C", configDir, "remote", "get-url", "origin").Output()
+	if err != nil {
+		t.Fatalf("git remote get-url origin failed: %v", err)
+	}
+	remoteURL := strings.TrimSpace(string(remoteOutput))
+	if remoteURL != "git@github.com:myuser/new-repo.git" {
+		t.Errorf("expected remote URL 'git@github.com:myuser/new-repo.git', got %q", remoteURL)
+	}
+}
+
 func TestDockerComposeRemoteURL(t *testing.T) {
 	// Test that GitRemoteURL is used as REPO env var in docker-compose
 	g := NewGenerator()
