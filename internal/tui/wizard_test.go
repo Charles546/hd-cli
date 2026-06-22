@@ -3431,3 +3431,310 @@ func TestStep14SummaryShowsCloneAuth(t *testing.T) {
 	}
 }
 
+
+// ===== Space key in checkbox text fields =====
+
+func TestSpaceKeyInCheckboxTextField(t *testing.T) {
+	// When in text field mode within a checkbox step, Space should insert
+	// a space character instead of being captured by the checkbox handler.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true // Enable conditional text fields
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to text input: Down past checkboxes to textInputs[0] (Git remote URL)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
+
+	if m.currentField != 1 {
+		t.Fatalf("currentField = %d, want 1", m.currentField)
+	}
+
+	// Type "hello" then Space then "world"
+	for _, ch := range "hello" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	for _, ch := range "world" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// The text input should contain "hello world" with a space
+	if m.textInput.Value() != "hello world" {
+		t.Errorf("textInput.Value() = %q, want %q", m.textInput.Value(), "hello world")
+	}
+}
+
+func TestSpaceKeyStillTogglesCheckbox(t *testing.T) {
+	// When on checkbox row (currentField == 0), Space should still toggle checkboxes.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	if m.currentField != 0 {
+		t.Fatalf("currentField = %d, want 0", m.currentField)
+	}
+	if m.config.GithubCreateRepo {
+		t.Fatal("GithubCreateRepo should be false initially")
+	}
+
+	// Press Space to toggle
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+
+	if !m.config.GithubCreateRepo {
+		t.Error("GithubCreateRepo should be true after pressing space on checkbox")
+	}
+}
+
+// ===== Paste mode tests =====
+
+func TestPasteModeToggleWithCtrlE(t *testing.T) {
+	// Ctrl+E in text input mode should enter paste mode.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name step (text input)
+
+	// Type something first
+	for _, ch := range "test" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Ctrl+E to enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	if !m.pasteModeActive {
+		t.Error("pasteModeActive should be true after Ctrl+E")
+	}
+}
+
+func TestPasteModeShowsInView(t *testing.T) {
+	// When paste mode is active, the view should show the paste overlay.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	view := m.View()
+	if !strings.Contains(view, "Paste Mode") {
+		t.Errorf("View() should contain 'Paste Mode' header, got: %s", view)
+	}
+	if !strings.Contains(view, "Ctrl+D to save") {
+		t.Errorf("View() should contain 'Ctrl+D to save' hint, got: %s", view)
+	}
+}
+
+func TestPasteModeSavesOnCtrlD(t *testing.T) {
+	// Ctrl+D in paste mode should save the content and exit paste mode.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	// Type multi-line content into the textarea
+	m.pasteModeTextArea.SetValue("line1\nline2\nline3")
+
+	// Press Ctrl+D to save
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	if m.pasteModeActive {
+		t.Error("pasteModeActive should be false after Ctrl+D")
+	}
+	// The config should have the multi-line value preserved
+	if m.config.ProjectName != "line1\nline2\nline3" {
+		t.Errorf("ProjectName = %q, want multi-line content", m.config.ProjectName)
+	}
+}
+
+func TestPasteModeCancelsOnEsc(t *testing.T) {
+	// Escape in paste mode should cancel and restore the original value.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Type something first
+	for _, ch := range "original" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	// Change the content in the textarea
+	m.pasteModeTextArea.SetValue("changed content")
+
+	// Press Esc to cancel
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
+
+	if m.pasteModeActive {
+		t.Error("pasteModeActive should be false after Esc")
+	}
+	// The original value should be preserved
+	if m.textInput.Value() != "original" {
+		t.Errorf("textInput.Value() = %q, want %q (original value should be restored)", m.textInput.Value(), "original")
+	}
+}
+
+func TestPasteModeInCheckboxTextField(t *testing.T) {
+	// Ctrl+E should work in checkbox step text fields too.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to text input
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
+
+	if m.currentField != 1 {
+		t.Fatalf("currentField = %d, want 1", m.currentField)
+	}
+
+	// Press Ctrl+E to enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	if !m.pasteModeActive {
+		t.Error("pasteModeActive should be true after Ctrl+E in checkbox text field")
+	}
+
+	// Type multi-line content
+	m.pasteModeTextArea.SetValue("ssh-rsa AAAA...")
+
+	// Save with Ctrl+D
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	if m.pasteModeActive {
+		t.Error("pasteModeActive should be false after Ctrl+D")
+	}
+	if m.textInput.Value() != "ssh-rsa AAAA..." {
+		t.Errorf("textInput.Value() = %q, want %q", m.textInput.Value(), "ssh-rsa AAAA...")
+	}
+}
+
+func TestPasteModeMultiLineSSHKey(t *testing.T) {
+	// Simulate pasting a multi-line SSH private key.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Navigate to the SSH key content field
+	// Fields: Git remote URL (idx 0), Clone auth method (idx 1), SSH key content (idx 2), SSH key file (idx 3), SSH key passphrase (idx 4)
+	// First fill Git remote URL
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
+
+	// Tab through fields to get to SSH key content
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab}) // to Clone auth method
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab}) // to SSH key content
+
+	if m.currentField != 3 {
+		t.Fatalf("currentField = %d, want 3 (SSH key content)", m.currentField)
+	}
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	// Paste multi-line SSH key
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+
+	// Save with Ctrl+D
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	if m.pasteModeActive {
+		t.Error("pasteModeActive should be false after Ctrl+D")
+	}
+
+	// The config should have the multi-line SSH key preserved
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("ConfigRepoSSHKey not preserved correctly, got %q", m.config.ConfigRepoSSHKey)
+	}
+}
+
+func TestPasteModeHintShownInNavigation(t *testing.T) {
+	// Navigation hints should include ctrl+e=paste mode in text input mode.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name step (text input)
+
+	view := m.View()
+	if !strings.Contains(view, "ctrl+e=paste mode") {
+		t.Errorf("View() should contain 'ctrl+e=paste mode' hint in text input mode, got: %s", view)
+	}
+}
+
+func TestPasteModeHintShownInCheckboxTextField(t *testing.T) {
+	// Navigation hints should include ctrl+e=paste mode in checkbox text fields.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to text input
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
+
+	view := m.View()
+	if !strings.Contains(view, "ctrl+e=paste mode") {
+		t.Errorf("View() should contain 'ctrl+e=paste mode' hint in checkbox text field mode, got: %s", view)
+	}
+}
+
+func TestPasteModeCtrlCQuits(t *testing.T) {
+	// Ctrl+C should quit even in paste mode.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	if !m.pasteModeActive {
+		t.Fatal("should be in paste mode")
+	}
+
+	// Press Ctrl+C - should quit
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+
+	if cmd == nil {
+		t.Error("ctrl+c in paste mode should produce a quit command")
+	}
+	if !m.quit {
+		t.Error("quit flag should be true after ctrl+c in paste mode")
+	}
+}
+
+func TestPasteModeCtrlSSaves(t *testing.T) {
+	// Ctrl+S should save answers even in paste mode.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "paste-save-test"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	if !m.pasteModeActive {
+		t.Fatal("should be in paste mode")
+	}
+
+	// Press Ctrl+S - should save (and commit current text input value)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	// Should show save confirmation
+	view := m.View()
+	if !strings.Contains(view, "Answers saved to") {
+		t.Errorf("Ctrl+S in paste mode should trigger save, got: %s", view)
+	}
+}
