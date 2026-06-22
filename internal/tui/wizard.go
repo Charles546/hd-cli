@@ -848,12 +848,7 @@ func (m *WizardModel) renderStepContent() string {
 							b.WriteString(FocusedInputStyle.Render(ti.View()))
 						}
 					} else {
-						val := ti.Value()
-						if val != "" {
-							b.WriteString(InputStyle.Render(val))
-						} else {
-							b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(mutedColor)).Render(field.placeholder))
-						}
+						b.WriteString(InputStyle.Render(ti.View()))
 					}
 					b.WriteString("\n")
 					if field.help != "" {

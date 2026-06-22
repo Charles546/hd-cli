@@ -783,3 +783,123 @@ func TestStep7RadioSelectionVisibleAfterEnter(t *testing.T) {
 		t.Errorf("View after Enter should show '○ local' (unselected), got:\n%s", view)
 	}
 }
+
+// TestStep14AllConditionalFieldsRenderAsInputs verifies that on step 14,
+// when "yes" is selected and the mode is textInput, ALL conditional text
+// input fields are rendered as proper text input boxes (with borders),
+// not as plain text labels.
+func TestStep14AllConditionalFieldsRenderAsInputs(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Select "yes" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	if m.radioIndex != 0 {
+		t.Fatalf("radioIndex = %d, want 0 (yes)", m.radioIndex)
+	}
+
+	// Press Enter to switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.mode != modeTextInput {
+		t.Fatalf("after Enter: mode = %d, want modeTextInput", m.mode)
+	}
+
+	view := m.View()
+
+	// All 3 conditional field labels should be present
+	if !strings.Contains(view, "Repo name") {
+		t.Errorf("View should contain 'Repo name' label")
+	}
+	if !strings.Contains(view, "Visibility") {
+		t.Errorf("View should contain 'Visibility' label")
+	}
+	if !strings.Contains(view, "Git remote URL") {
+		t.Errorf("View should contain 'Git remote URL' label")
+	}
+
+	// All fields should render as text input boxes (with border characters).
+	// The textinput component renders with lipgloss RoundedBorder which uses
+	// these Unicode box-drawing characters. We check that the view contains
+	// the border characters for all fields, not just the focused one.
+	//
+	// Count occurrences of the border top-left character. Each text input box
+	// should have one. We expect at least 3 (one per conditional field).
+	borderCount := strings.Count(view, "╭")
+	if borderCount < 3 {
+		t.Errorf("Expected at least 3 text input boxes (border '╭' characters), got %d.\nUnfocused fields are rendering as plain text instead of input boxes.\nView:\n%s", borderCount, view)
+	}
+}
+
+// TestStep10AllConditionalFieldsRenderAsInputs verifies the same behavior
+// on step 10 (AI Agent) — all 4 conditional fields should render as input boxes.
+func TestStep10AllConditionalFieldsRenderAsInputs(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 10)
+
+	// Select "yes"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	if m.radioIndex != 0 {
+		t.Fatalf("radioIndex = %d, want 0 (yes)", m.radioIndex)
+	}
+
+	// Press Enter to switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.mode != modeTextInput {
+		t.Fatalf("after Enter: mode = %d, want modeTextInput", m.mode)
+	}
+
+	view := m.View()
+
+	// All 4 conditional field labels should be present
+	if !strings.Contains(view, "API key secret path") {
+		t.Errorf("View should contain 'API key secret path' label")
+	}
+	if !strings.Contains(view, "Base URL") {
+		t.Errorf("View should contain 'Base URL' label")
+	}
+	if !strings.Contains(view, "Model") {
+		t.Errorf("View should contain 'Model' label")
+	}
+	if !strings.Contains(view, "Engine name") {
+		t.Errorf("View should contain 'Engine name' label")
+	}
+
+	// Count border characters - should be at least 4 (one per conditional field)
+	borderCount := strings.Count(view, "╭")
+	if borderCount < 4 {
+		t.Errorf("Expected at least 4 text input boxes (border '╭' characters), got %d.\nView:\n%s", borderCount, view)
+	}
+}
+
+// TestStep6AllConditionalFieldsRenderAsInputs verifies the same behavior
+// on step 6 (Secrets Backend) — both conditional fields should render as input boxes.
+func TestStep6AllConditionalFieldsRenderAsInputs(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 6)
+
+	// Default is "vault" which has conditional fields
+	// Press Enter to switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.mode != modeTextInput {
+		t.Fatalf("after Enter: mode = %d, want modeTextInput", m.mode)
+	}
+
+	view := m.View()
+
+	// Both conditional field labels should be present
+	if !strings.Contains(view, "Vault address") {
+		t.Errorf("View should contain 'Vault address' label")
+	}
+	if !strings.Contains(view, "Auth method") {
+		t.Errorf("View should contain 'Auth method' label")
+	}
+
+	// Count border characters - should be at least 2 (one per conditional field)
+	borderCount := strings.Count(view, "╭")
+	if borderCount < 2 {
+		t.Errorf("Expected at least 2 text input boxes (border '╭' characters), got %d.\nView:\n%s", borderCount, view)
+	}
+}
