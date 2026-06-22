@@ -430,12 +430,33 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 				m.buildRadioTextInputs(stepInfo)
 			}
 			return m, nil
+		case "left":
+			// On step 14 with checkboxes, left arrow toggles the checkbox
+			if m.step == 14 && len(stepInfo.checkboxes) > 0 && m.config.GithubCreateRepo {
+				opt := stepInfo.checkboxes[0]
+				current := opt.getValue(m.config)
+				opt.setValue(m.config, !current)
+				// Rebuild text inputs since conditions may have changed
+				m.buildRadioTextInputs(stepInfo)
+				return m, nil
+			}
 		case "down", "j":
 			if m.radioIndex < len(stepInfo.radioOptions)-1 {
 				m.radioIndex++
 				// Tentatively apply the selection and rebuild text inputs
 				stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
 				m.buildRadioTextInputs(stepInfo)
+			}
+			return m, nil
+		case " ":
+			// Space toggles checkbox on step 14 when "yes" is selected
+			if m.step == 14 && len(stepInfo.checkboxes) > 0 && m.config.GithubCreateRepo {
+				opt := stepInfo.checkboxes[0]
+				current := opt.getValue(m.config)
+				opt.setValue(m.config, !current)
+				// Rebuild text inputs since conditions may have changed
+				m.buildRadioTextInputs(stepInfo)
+				return m, nil
 			}
 			return m, nil
 		case "enter", "tab":
@@ -757,6 +778,8 @@ func (m *WizardModel) View() string {
 		return b.String()
 	}
 
+	stepInfo := getStepInfo(m.step)
+
 	// Render step content
 	b.WriteString(m.renderStepContent())
 
@@ -773,7 +796,7 @@ func (m *WizardModel) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(m.renderNavigation())
+	b.WriteString(m.renderNavigation(stepInfo))
 	return b.String()
 }
 
@@ -937,6 +960,25 @@ func (m *WizardModel) renderStepContent() string {
 	case modeRadioSelect:
 		b.WriteString(m.renderRadioSelection(stepInfo))
 		b.WriteString("\n")
+		// Render checkboxes if this step has them (e.g. step 14 "Use local copy")
+		if m.step == 14 && m.config.GithubCreateRepo {
+			for i, cb := range stepInfo.checkboxes {
+				checked := cb.getValue(m.config)
+				checkboxChar := "☐"
+				if checked {
+					checkboxChar = "☑"
+				}
+				b.WriteString(UnselectedItemStyle.Render("  " + checkboxChar + " "))
+				b.WriteString(UnselectedItemStyle.Render(cb.label))
+				b.WriteString("\n")
+				if cb.help != "" {
+					b.WriteString(HelpStyle.Render("      " + cb.help))
+					b.WriteString("\n")
+				}
+				_ = i
+			}
+			b.WriteString("\n")
+		}
 		// Render conditional text fields that match current conditions
 		visibleIdx := 0
 		for _, field := range stepInfo.fields {
@@ -1032,7 +1074,7 @@ func (m *WizardModel) renderStepContent() string {
 	return b.String()
 }
 
-func (m *WizardModel) renderNavigation() string {
+func (m *WizardModel) renderNavigation(stepInfo *stepInfo) string {
 	var hints []string
 	if !m.done {
 		switch m.mode {
@@ -1050,6 +1092,9 @@ func (m *WizardModel) renderNavigation() string {
 			}
 		case modeRadioSelect:
 			hints = append(hints, "↑↓ select")
+			if m.step == 14 && len(stepInfo.checkboxes) > 0 && m.config.GithubCreateRepo {
+				hints = append(hints, "space=toggle")
+			}
 			hints = append(hints, "enter=confirm")
 			if m.step > 1 {
 				hints = append(hints, "esc=back")
@@ -1229,7 +1274,7 @@ func (m *WizardModel) validateCurrentStep() error {
 			return fmt.Errorf("source branch is required")
 		}
 	case 14:
-		if m.config.GithubCreateRepo {
+		if m.config.GithubCreateRepo && !m.config.UseLocalCopy {
 			if strings.TrimSpace(m.config.GitRemoteURL) == "" {
 				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
 			}

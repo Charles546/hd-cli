@@ -1606,3 +1606,127 @@ func TestDockerComposeLocalREPO(t *testing.T) {
 		t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
 	}
 }
+
+func TestGithubCreateRepoWithLocalCopyNoGitInit(t *testing.T) {
+	// When UseLocalCopy is true, git init should NOT be run
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, "my-config")
+
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-local-copy"
+	cfg.ConfigDir = configDir
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = true
+	// No GitRemoteURL needed
+
+	err := g.Generate(cfg, configDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// GitInit should be false (skipped)
+	if cfg.GitInit {
+		t.Error("GitInit should be false when UseLocalCopy is true")
+	}
+
+	// No .git directory should be created
+	gitDir := filepath.Join(configDir, ".git")
+	if _, err := os.Stat(gitDir); err == nil {
+		t.Error("git init should NOT be called when UseLocalCopy is true")
+	}
+}
+
+func TestGithubCreateRepoWithLocalCopyUsesLocalREPO(t *testing.T) {
+	// When UseLocalCopy is true, REPO should use local path
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-local-copy-repo"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = true
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should use local path as REPO, not a git URL
+	if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+		t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
+	}
+}
+
+func TestGithubCreateRepoWithLocalCopyHasVolumeMount(t *testing.T) {
+	// When UseLocalCopy is true, docker-compose should have a volume mount
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-local-copy-vol"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = true
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should have volume mount
+	if !strings.Contains(yamlStr, "volumes:") {
+		t.Errorf("docker-compose.yaml should contain volumes directive, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "/etc/honeydipper/config") {
+		t.Errorf("docker-compose.yaml should mount config to /etc/honeydipper/config, got:\n%s", yamlStr)
+	}
+}
+
+func TestGithubCreateRepoWithoutLocalCopyHasNoVolumeMount(t *testing.T) {
+	// When UseLocalCopy is false (default), docker-compose should NOT have a volume mount
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-no-local-copy-vol"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should NOT have volume mount to /etc/honeydipper/config
+	lines := strings.Split(yamlStr, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "-") && strings.Contains(trimmed, "/etc/honeydipper/config") {
+			t.Errorf("docker-compose.yaml should NOT have volume mount when not using local copy, line: %s", trimmed)
+		}
+	}
+}
+

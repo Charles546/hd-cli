@@ -141,6 +141,8 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.GithubCreateRepo = value == "true" || value == "yes"
 		case "git_remote_url":
 			cfg.GitRemoteURL = value
+		case "use_local_copy":
+			cfg.UseLocalCopy = value == "true" || value == "yes"
 		}
 	}
 
@@ -278,7 +280,7 @@ func ValidateStepComplete(m *WizardModel) error {
 			}
 		}
 	case 14:
-		if cfg.GithubCreateRepo {
+		if cfg.GithubCreateRepo && !cfg.UseLocalCopy {
 			if strings.TrimSpace(cfg.GitRemoteURL) == "" {
 				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
 			}

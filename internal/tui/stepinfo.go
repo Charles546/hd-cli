@@ -474,6 +474,14 @@ func getStepInfo(step int) *stepInfo {
 			radioOptions: []string{"yes", "no"},
 			radioGetter: func(c *config.WizardConfig) string { return boolToRadio(c.GithubCreateRepo) },
 			radioSetter: func(c *config.WizardConfig, v string) { c.GithubCreateRepo = radioToBool(v) },
+			checkboxes: []checkboxOption{
+				{
+					label:    "Use local copy instead of clone",
+					help:     "Skip git clone and use the local config directory as the REPO",
+					getValue: func(c *config.WizardConfig) bool { return c.UseLocalCopy },
+					setValue: func(c *config.WizardConfig, v bool) { c.UseLocalCopy = v },
+				},
+			},
 			fields: []fieldDescriptor{
 				{
 					label:       "Git remote URL",
@@ -481,7 +489,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "Git remote URL for the config repository (required, used as REPO env var in docker-compose)",
 					getValue:    func(c *config.WizardConfig) string { return c.GitRemoteURL },
 					setValue:    func(c *config.WizardConfig, v string) { c.GitRemoteURL = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy },
 				},
 			},
 		}

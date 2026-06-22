@@ -88,6 +88,15 @@ func TestUpdateStep(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			step: 14, key: "use_local_copy", value: "true",
+			check: func(c *config.WizardConfig) error {
+				if !c.UseLocalCopy {
+					return fmt.Errorf("UseLocalCopy = false")
+				}
+				return nil
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -204,6 +213,30 @@ func TestValidateStepComplete(t *testing.T) {
 			step:    6,
 			setup:   func(c *config.WizardConfig) { c.SecretsBackend = "" },
 			wantErr: true,
+		},
+		{
+			name:    "step 14 with yes and git remote URL",
+			step:    14,
+			setup:   func(c *config.WizardConfig) { c.GithubCreateRepo = true; c.GitRemoteURL = "git@github.com:user/repo.git" },
+			wantErr: false,
+		},
+		{
+			name:    "step 14 with yes but no git remote URL",
+			step:    14,
+			setup:   func(c *config.WizardConfig) { c.GithubCreateRepo = true; c.GitRemoteURL = "" },
+			wantErr: true,
+		},
+		{
+			name:    "step 14 with yes and local copy (no git remote URL needed)",
+			step:    14,
+			setup:   func(c *config.WizardConfig) { c.GithubCreateRepo = true; c.UseLocalCopy = true; c.GitRemoteURL = "" },
+			wantErr: false,
+		},
+		{
+			name:    "step 14 with no",
+			step:    14,
+			setup:   func(c *config.WizardConfig) { c.GithubCreateRepo = false },
+			wantErr: false,
 		},
 	}
 
@@ -2044,7 +2077,7 @@ func TestVaultModeSecretNoValidation(t *testing.T) {
 // ===== Step 14 conditional field tests =====
 
 func TestStep14ConditionalFieldsVisibleWhenYes(t *testing.T) {
-	// When "yes" is selected in step 14, conditional fields should appear
+	// When "yes" is selected in step 14, conditional fields and checkbox should appear
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
@@ -2067,8 +2100,13 @@ func TestStep14ConditionalFieldsVisibleWhenYes(t *testing.T) {
 		t.Errorf("Step 14 'yes' textInputs count = %d, want 1", len(m.textInputs))
 	}
 
-	// View should contain the git remote URL field label
+	// The checkbox should be visible in the view
 	view := m.View()
+	if !strings.Contains(view, "Use local copy instead of clone") {
+		t.Errorf("step 14 'yes' view should contain checkbox, got:\n%s", view)
+	}
+
+	// View should contain the git remote URL field label
 	if !strings.Contains(view, "Git remote URL") {
 		t.Errorf("Step 14 view should contain 'Git remote URL' when 'yes' is selected, got: %s", view)
 	}
@@ -2231,16 +2269,34 @@ func TestStep14RadioRebuildsOnArrowKey(t *testing.T) {
 		t.Errorf("after 'yes' textInputs count = %d, want 1", len(m.textInputs))
 	}
 
+	// Toggle local copy checkbox
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	if !m.config.UseLocalCopy {
+		t.Error("UseLocalCopy should be true after space")
+	}
+	if len(m.textInputs) != 0 {
+		t.Errorf("after local copy toggle textInputs count = %d, want 0", len(m.textInputs))
+	}
+
 	// Move back down to "no" (index 1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 	if len(m.textInputs) != 0 {
 		t.Errorf("after back to 'no' textInputs count = %d, want 0", len(m.textInputs))
 	}
 
-	// Move up to "yes" again
+	// Move up to "yes" again (UseLocalCopy is still true, so textInputs should be 0)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	if len(m.textInputs) != 0 {
+		t.Errorf("after 'yes' again with local copy enabled, textInputs count = %d, want 0", len(m.textInputs))
+	}
+
+	// Toggle local copy off
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	if m.config.UseLocalCopy {
+		t.Error("UseLocalCopy should be false after space toggle")
+	}
 	if len(m.textInputs) != 1 {
-		t.Errorf("after 'yes' again textInputs count = %d, want 1", len(m.textInputs))
+		t.Errorf("after toggling local copy off, textInputs count = %d, want 1", len(m.textInputs))
 	}
 }
 
@@ -2726,5 +2782,137 @@ func TestStep14GitRemoteURLValidationPasses(t *testing.T) {
 	}
 	if m.validationErr != "" {
 		t.Errorf("expected no validation error, got: %s", m.validationErr)
+	}
+}
+
+
+func TestStep14UseLocalCopyCheckboxVisibleWhenYes(t *testing.T) {
+	// When "yes" is selected in step 14, the "Use local copy" checkbox should be visible
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move up to "yes" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+
+	if !m.config.GithubCreateRepo {
+		t.Fatal("GithubCreateRepo should be true after moving to 'yes'")
+	}
+
+	// The view should contain the checkbox label
+	view := m.View()
+	if !strings.Contains(view, "Use local copy instead of clone") {
+		t.Errorf("step 14 view should contain 'Use local copy instead of clone' checkbox, got:\n%s", view)
+	}
+}
+
+func TestStep14UseLocalCopyCheckboxHiddenWhenNo(t *testing.T) {
+	// When "no" is selected in step 14, the checkbox should not be visible
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Default is "no" (index 1)
+	if m.config.GithubCreateRepo {
+		t.Fatal("GithubCreateRepo should be false by default")
+	}
+
+	// The view should NOT contain the checkbox label
+	view := m.View()
+	if strings.Contains(view, "Use local copy instead of clone") {
+		t.Errorf("step 14 'no' view should NOT contain 'Use local copy' checkbox, got:\n%s", view)
+	}
+}
+
+func TestStep14UseLocalCopySpaceToggles(t *testing.T) {
+	// Pressing space on step 14 with "yes" selected should toggle UseLocalCopy
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to "yes"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+
+	if m.config.UseLocalCopy {
+		t.Fatal("UseLocalCopy should be false initially")
+	}
+
+	// Press space to toggle
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+
+	if !m.config.UseLocalCopy {
+		t.Error("UseLocalCopy should be true after pressing space")
+	}
+
+	// Press space again to toggle back
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+
+	if m.config.UseLocalCopy {
+		t.Error("UseLocalCopy should be false after pressing space again")
+	}
+}
+
+func TestStep14UseLocalCopyHidesGitRemoteURL(t *testing.T) {
+	// When UseLocalCopy is checked, the git remote URL field should be hidden
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to "yes"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+
+	// Before checking local copy: textInputs should have 1 field (git remote URL)
+	if len(m.textInputs) != 1 {
+		t.Fatalf("expected 1 text input before local copy, got %d", len(m.textInputs))
+	}
+
+	// Toggle local copy
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+
+	// After checking local copy: textInputs should be empty (git remote URL hidden)
+	if len(m.textInputs) != 0 {
+		t.Errorf("expected 0 text inputs after local copy, got %d", len(m.textInputs))
+	}
+}
+
+func TestStep14UseLocalCopyNoValidationRequired(t *testing.T) {
+	// When UseLocalCopy is checked, git remote URL should NOT be required
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to "yes"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+
+	// Toggle local copy
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+
+	// Press Enter to commit radio selection
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Should advance to step 15 (no validation error for missing git remote URL)
+	if m.step != 15 {
+		t.Errorf("step = %d, want 15 (should advance without git remote URL when using local copy)", m.step)
+	}
+}
+
+func TestStep14UseLocalCopyLeftArrowToggles(t *testing.T) {
+	// On step 14 with "yes" selected, pressing left arrow should toggle the checkbox
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to "yes"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+
+	if m.config.UseLocalCopy {
+		t.Fatal("UseLocalCopy should be false initially")
+	}
+
+	// Press left arrow to toggle
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyLeft})
+
+	if !m.config.UseLocalCopy {
+		t.Error("UseLocalCopy should be true after pressing left arrow")
 	}
 }

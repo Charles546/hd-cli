@@ -79,6 +79,7 @@ type WizardConfig struct {
 	GithubRepoName   string `yaml:"github_repo_name,omitempty"`
 	GithubRepoVis    string `yaml:"github_repo_visibility,omitempty"` // private, public
 	GitRemoteURL     string `yaml:"git_remote_url,omitempty"`        // git remote URL for the config repo
+	UseLocalCopy     bool   `yaml:"use_local_copy,omitempty"`        // use local copy instead of cloning
 	GitInit          bool   `yaml:"git_init,omitempty"`               // whether to git init the config dir
 
 	// Dev mode env vars tracks which HD_* variables are referenced during the wizard.
