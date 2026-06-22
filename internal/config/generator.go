@@ -139,6 +139,7 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 	}
 
 	// Run git init and git remote add if user chose to create a repo
+	// Skip git operations when using local copy
 	if cfg.GithubCreateRepo {
 		if err := runGitInit(outputDir); err != nil {
 			return fmt.Errorf("failed to run git init: %w", err)

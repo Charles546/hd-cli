@@ -220,25 +220,129 @@ func TestStep10RadioSelectionPreservedOnReenter(t *testing.T) {
 	}
 }
 
-// TestStep14RadioSelectionPreservedOnReenter verifies step 14 (GitHub Repo
-// Creation) radio selection is preserved when navigating away and back.
-func TestStep14RadioSelectionPreservedOnReenter(t *testing.T) {
+// TestStep14CheckboxStatePreservedOnReenter verifies step 14 (GitHub Repo
+// Creation) checkbox state is preserved when navigating away and back.
+func TestStep14CheckboxStatePreservedOnReenter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
 
-	if m.radioIndex != 1 {
-		t.Fatalf("initial radioIndex = %d, want 1 (no)", m.radioIndex)
+	// Default: GithubCreateRepo=false, checkboxIndex=0, mode=modeCheckboxSelect
+	if m.config.GithubCreateRepo {
+		t.Fatal("initial GithubCreateRepo should be false")
 	}
 
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
+	// Toggle "Create GitHub repo" on
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	if !m.config.GithubCreateRepo {
+		t.Fatal("GithubCreateRepo should be true after space")
+	}
 
+	// Move to second checkbox
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+
+	// Toggle "Use local copy" on
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	if !m.config.UseLocalCopy {
+		t.Fatal("UseLocalCopy should be true after space")
+	}
+
+	// Git remote URL is still visible (UseLocalCopy no longer hides it)
+	// Move to text input and fill in the git remote URL
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
+	for _, ch := range "git@github.com:user/repo.git" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Tab to advance to next step
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	if m.step != 15 {
+		t.Fatalf("expected step 15, got %d", m.step)
+	}
+
+	// Go back to step 14
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 	if m.step != 14 {
 		t.Fatalf("expected step 14, got %d", m.step)
 	}
-	if m.radioIndex != 1 {
-		t.Errorf("radioIndex = %d, want 1 (no)", m.radioIndex)
+
+	// Checkbox state should be preserved
+	if !m.config.GithubCreateRepo {
+		t.Error("GithubCreateRepo should be preserved as true after re-enter")
+	}
+	if !m.config.UseLocalCopy {
+		t.Error("UseLocalCopy should be preserved as true after re-enter")
+	}
+}
+
+// TestStep14CheckboxVisibleInTextInputModeFromRadioPreserve verifies step 14 (GitHub Repo Creation)
+// checkboxes remain visible after pressing Enter to switch to text input mode.
+func TestStep14CheckboxVisibleInTextInputModeFromRadioPreserve(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Toggle "Create GitHub repo" on
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	if !m.config.GithubCreateRepo {
+		t.Fatal("GithubCreateRepo should be true after space")
+	}
+
+	// Move to text input mode: Down to checkbox 1, Down to text input
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (currentField=1)
+
+	// Checkboxes should still be visible in the view
+	view := m.View()
+	if !strings.Contains(view, "Create GitHub repo") {
+		t.Errorf("View should show 'Create GitHub repo' checkbox, got:\n%s", view)
+	}
+	if !strings.Contains(view, "Use local copy instead of clone") {
+		t.Errorf("View should show 'Use local copy' checkbox, got:\n%s", view)
+	}
+	// Git remote URL field should be visible
+	if !strings.Contains(view, "Git remote URL") {
+		t.Errorf("View should show 'Git remote URL' field, got:\n%s", view)
+	}
+}
+
+// TestStep14AllConditionalFieldsRenderAsInputs verifies that on step 14,
+// when "Create GitHub repo" is checked and the user navigates to text input,
+// ALL conditional text input fields are rendered as proper text input boxes
+// (with borders), not as plain text labels.
+func TestStep14AllConditionalFieldsRenderAsInputs(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Toggle "Create GitHub repo" on
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+
+	// Navigate to text input
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
+
+	view := m.View()
+
+	// The git remote URL field label should be present
+	if !strings.Contains(view, "Git remote URL") {
+		t.Errorf("View should contain 'Git remote URL' label")
+	}
+	// Repo name and visibility should no longer be present
+	if strings.Contains(view, "Repo name") {
+		t.Errorf("View should NOT contain 'Repo name' (field removed)")
+	}
+	if strings.Contains(view, "Visibility") {
+		t.Errorf("View should NOT contain 'Visibility' (field removed)")
+	}
+
+	// The field should render as a text input box (with border characters).
+	// The textinput component renders with lipgloss RoundedBorder which uses
+	// these Unicode box-drawing characters.
+	borderCount := strings.Count(view, "╭")
+	if borderCount < 1 {
+		t.Errorf("Expected at least 1 text input box (border '╭' character), got %d.\nView:\n%s", borderCount, view)
 	}
 }
 
@@ -652,40 +756,6 @@ func TestStep6RadioSelectionVisibleAfterEnter(t *testing.T) {
 	}
 }
 
-// TestStep14RadioSelectionVisibleAfterEnter verifies step 14 (GitHub Repo Creation)
-// radio selection remains visible after pressing Enter with "yes" selected.
-func TestStep14RadioSelectionVisibleAfterEnter(t *testing.T) {
-	cfg := config.NewDefaultWizardConfig()
-	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
-
-	// Default is "no" (index 1)
-	if m.radioIndex != 1 {
-		t.Fatalf("initial radioIndex = %d, want 1 (no)", m.radioIndex)
-	}
-
-	// Press Up to select "yes"
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
-	if m.radioIndex != 0 {
-		t.Fatalf("after Up: radioIndex = %d, want 0 (yes)", m.radioIndex)
-	}
-
-	// Press Enter to switch to text input mode (yes has conditional fields)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.mode != modeTextInput {
-		t.Fatalf("after Enter: mode = %d, want modeTextInput", m.mode)
-	}
-
-	// Radio selection should still be visible
-	view := m.View()
-	if !strings.Contains(view, "● yes") {
-		t.Errorf("View after Enter should show '● yes', got:\n%s", view)
-	}
-	// Git remote URL field should be visible
-	if !strings.Contains(view, "Git remote URL") {
-		t.Errorf("View after Enter should show 'Git remote URL' field, got:\n%s", view)
-	}
-}
 
 // TestStep10RadioSelectionPreservedAfterEnterAndReturn verifies that after
 // selecting "yes" on step 10, pressing Enter to switch to text input mode,
@@ -785,48 +855,6 @@ func TestStep7RadioSelectionVisibleAfterEnter(t *testing.T) {
 }
 
 // TestStep14AllConditionalFieldsRenderAsInputs verifies that on step 14,
-// when "yes" is selected and the mode is textInput, ALL conditional text
-// input fields are rendered as proper text input boxes (with borders),
-// not as plain text labels.
-func TestStep14AllConditionalFieldsRenderAsInputs(t *testing.T) {
-	cfg := config.NewDefaultWizardConfig()
-	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
-
-	// Select "yes" (index 0)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
-	if m.radioIndex != 0 {
-		t.Fatalf("radioIndex = %d, want 0 (yes)", m.radioIndex)
-	}
-
-	// Press Enter to switch to text input mode
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.mode != modeTextInput {
-		t.Fatalf("after Enter: mode = %d, want modeTextInput", m.mode)
-	}
-
-	view := m.View()
-
-	// The git remote URL field label should be present
-	if !strings.Contains(view, "Git remote URL") {
-		t.Errorf("View should contain 'Git remote URL' label")
-	}
-	// Repo name and visibility should no longer be present
-	if strings.Contains(view, "Repo name") {
-		t.Errorf("View should NOT contain 'Repo name' (field removed)")
-	}
-	if strings.Contains(view, "Visibility") {
-		t.Errorf("View should NOT contain 'Visibility' (field removed)")
-	}
-
-	// The field should render as a text input box (with border characters).
-	// The textinput component renders with lipgloss RoundedBorder which uses
-	// these Unicode box-drawing characters.
-	borderCount := strings.Count(view, "╭")
-	if borderCount < 1 {
-		t.Errorf("Expected at least 1 text input box (border '╭' character), got %d.\nView:\n%s", borderCount, view)
-	}
-}
 
 // TestStep10AllConditionalFieldsRenderAsInputs verifies the same behavior
 // on step 10 (AI Agent) — all 4 conditional fields should render as input boxes.
@@ -900,3 +928,4 @@ func TestStep6AllConditionalFieldsRenderAsInputs(t *testing.T) {
 		t.Errorf("Expected at least 2 text input boxes (border '╭' characters), got %d.\nView:\n%s", borderCount, view)
 	}
 }
+

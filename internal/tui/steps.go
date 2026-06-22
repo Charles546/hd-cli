@@ -141,6 +141,8 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.GithubCreateRepo = value == "true" || value == "yes"
 		case "git_remote_url":
 			cfg.GitRemoteURL = value
+		case "use_local_copy":
+			cfg.UseLocalCopy = value == "true" || value == "yes"
 		}
 	}
 
