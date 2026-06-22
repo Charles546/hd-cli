@@ -49,7 +49,8 @@ type WizardModel struct {
 	textInputs  []textinput.Model // all text inputs for the current step
 
 	// Radio selection state
-	radioIndex  int // currently highlighted radio option index
+	radioIndex    int    // currently highlighted radio option index
+	radioSavedVal string // saved config value when entering a radio step, restored on Esc
 
 	// Checkbox selection state
 	checkboxIndex int // currently highlighted checkbox option index
@@ -109,6 +110,8 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 	case stepTypeRadio:
 		m.mode = modeRadioSelect
 		m.radioIndex = m.findRadioIndex(stepInfo)
+		// Save the current config value so we can revert on Esc
+		m.radioSavedVal = stepInfo.radioGetter(m.config)
 		// Build text inputs for conditional fields based on current config
 		m.buildRadioTextInputs(stepInfo)
 	case stepTypeCheckbox:
@@ -458,6 +461,8 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 			}
 			return m, m.initStep(nextStep(m.step, m.config))
 		case "esc", "backspace":
+			// Revert the radio config value to what it was when we entered this step
+			stepInfo.radioSetter(m.config, m.radioSavedVal)
 			if m.step > 1 {
 				return m, m.initStep(prevStep(m.step, m.config))
 			}
