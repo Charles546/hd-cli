@@ -2039,3 +2039,655 @@ func TestVaultModeSecretNoValidation(t *testing.T) {
 		t.Errorf("GithubKeyPath = %q, want %q", m.config.GithubKeyPath, "secrets/github/key")
 	}
 }
+
+
+// ===== Step 14 conditional field tests =====
+
+func TestStep14ConditionalFieldsVisibleWhenYes(t *testing.T) {
+	// When "yes" is selected in step 14, conditional fields should appear
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Default is "no" (GithubCreateRepo = false, radio index 1), so no conditional fields
+	if len(m.textInputs) != 0 {
+		t.Errorf("Step 14 default textInputs count = %d, want 0", len(m.textInputs))
+	}
+
+	// Move up to "yes" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+
+	// Now GithubCreateRepo should be true
+	if !m.config.GithubCreateRepo {
+		t.Error("GithubCreateRepo should be true after moving to 'yes'")
+	}
+
+	// Text inputs should now be built for the 3 conditional fields
+	if len(m.textInputs) != 3 {
+		t.Errorf("Step 14 'yes' textInputs count = %d, want 3", len(m.textInputs))
+	}
+
+	// View should contain the conditional field labels
+	view := m.View()
+	if !strings.Contains(view, "Repo name") {
+		t.Errorf("Step 14 view should contain 'Repo name' when 'yes' is selected, got: %s", view)
+	}
+	if !strings.Contains(view, "Visibility") {
+		t.Errorf("Step 14 view should contain 'Visibility' when 'yes' is selected, got: %s", view)
+	}
+	if !strings.Contains(view, "Git remote URL") {
+		t.Errorf("Step 14 view should contain 'Git remote URL' when 'yes' is selected, got: %s", view)
+	}
+}
+
+func TestStep14ConditionalFieldsHiddenWhenNo(t *testing.T) {
+	// When "no" is selected in step 14, conditional fields should not appear
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Default is "no" (index 1), move up to "yes" then back down to "no"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})   // to "yes" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // back to "no" (index 1)
+
+	// GithubCreateRepo should be false
+	if m.config.GithubCreateRepo {
+		t.Error("GithubCreateRepo should be false after moving back to 'no'")
+	}
+
+	// No text inputs should be visible
+	if len(m.textInputs) != 0 {
+		t.Errorf("Step 14 'no' textInputs count = %d, want 0", len(m.textInputs))
+	}
+
+	// View should NOT contain conditional field labels
+	view := m.View()
+	if strings.Contains(view, "Repo name") {
+		t.Errorf("Step 14 view should NOT contain 'Repo name' when 'no' is selected")
+	}
+}
+
+func TestStep14EnterOnYesSwitchesToTextInput(t *testing.T) {
+	// Pressing Enter on "yes" should switch to text input mode (not advance)
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move up to "yes" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+
+	// Press Enter
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Should be in text input mode, not advanced
+	if m.mode != modeTextInput {
+		t.Errorf("mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
+	}
+	if m.step != 14 {
+		t.Errorf("step = %d, want 14 (should not advance)", m.step)
+	}
+	if m.currentField != 0 {
+		t.Errorf("currentField = %d, want 0", m.currentField)
+	}
+	if !m.textInput.Focused() {
+		t.Error("text input should be focused after switching to text input mode")
+	}
+}
+
+func TestStep14EnterOnNoAdvances(t *testing.T) {
+	// Pressing Enter on "no" should advance to next step
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Default is "no" (index 1), press Enter
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Should have advanced to step 15
+	if m.step != 15 {
+		t.Errorf("step = %d, want 15", m.step)
+	}
+}
+
+func TestStep14ConditionalFieldTabNavigation(t *testing.T) {
+	// After selecting "yes" and pressing Enter, tab should navigate through conditional fields
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to "yes" and press Enter to switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if m.mode != modeTextInput {
+		t.Fatalf("expected modeTextInput, got %d", m.mode)
+	}
+
+	// Type in first field (Repo name)
+	for _, ch := range "my-repo" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Tab to second field (Visibility)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	if m.currentField != 1 {
+		t.Errorf("currentField = %d, want 1", m.currentField)
+	}
+
+	// Type in second field
+	for _, ch := range "private" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Tab to third field (Git remote URL)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	if m.currentField != 2 {
+		t.Errorf("currentField = %d, want 2", m.currentField)
+	}
+
+	// Type in third field
+	for _, ch := range "git@github.com:user/repo.git" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Enter on last field — should advance to next step
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.step != 15 {
+		t.Errorf("step = %d, want 15", m.step)
+	}
+
+	// Verify all values were saved
+	if m.config.GithubRepoName != "my-repo" {
+		t.Errorf("GithubRepoName = %q, want %q", m.config.GithubRepoName, "my-repo")
+	}
+	if m.config.GithubRepoVis != "private" {
+		t.Errorf("GithubRepoVis = %q, want %q", m.config.GithubRepoVis, "private")
+	}
+	if m.config.GitRemoteURL != "git@github.com:user/repo.git" {
+		t.Errorf("GitRemoteURL = %q, want %q", m.config.GitRemoteURL, "git@github.com:user/repo.git")
+	}
+}
+
+func TestStep14ConditionalFieldEscBackToRadio(t *testing.T) {
+	// Pressing Esc on first conditional field should go back to previous step
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to "yes" and press Enter
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if m.mode != modeTextInput {
+		t.Fatalf("expected modeTextInput, got %d", m.mode)
+	}
+
+	// Press Esc on first field (currentField == 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
+
+	// Should go back to previous required step (step 11 for docker mode, since 12=k8s and 13=source are skipped)
+	// prevStep(14) with docker deployment mode: 13 is not required (source), 12 is not required (k8s), 11 is required (docker)
+	if m.step != 11 {
+		t.Errorf("step = %d, want 11 (should go back to previous required step)", m.step)
+	}
+}
+
+func TestStep14RadioRebuildsOnArrowKey(t *testing.T) {
+	// Moving the radio selection should rebuild text inputs immediately
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Default "no" (index 1) — no text inputs
+	if len(m.textInputs) != 0 {
+		t.Errorf("default textInputs count = %d, want 0", len(m.textInputs))
+	}
+
+	// Move up to "yes" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	if len(m.textInputs) != 3 {
+		t.Errorf("after 'yes' textInputs count = %d, want 3", len(m.textInputs))
+	}
+
+	// Move back down to "no" (index 1)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	if len(m.textInputs) != 0 {
+		t.Errorf("after back to 'no' textInputs count = %d, want 0", len(m.textInputs))
+	}
+
+	// Move up to "yes" again
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	if len(m.textInputs) != 3 {
+		t.Errorf("after 'yes' again textInputs count = %d, want 3", len(m.textInputs))
+	}
+}
+
+// ===== Step 6 conditional field tests (Secrets Backend) =====
+
+func TestStep6ConditionalFieldsHiddenWhenDev(t *testing.T) {
+	// When "dev" is selected, Vault address and auth method should be hidden
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 6)
+
+	// Default is "vault" (index 0), so conditional fields should be visible
+	if len(m.textInputs) != 2 {
+		t.Errorf("Step 6 default (vault) textInputs count = %d, want 2", len(m.textInputs))
+	}
+
+	// Move down to "dev" (index 1)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+
+	// Now SecretsBackend should be "dev"
+	if m.config.SecretsBackend != "dev" {
+		t.Errorf("SecretsBackend = %q, want %q", m.config.SecretsBackend, "dev")
+	}
+
+	// No text inputs should be visible for "dev" mode
+	if len(m.textInputs) != 0 {
+		t.Errorf("Step 6 'dev' textInputs count = %d, want 0", len(m.textInputs))
+	}
+
+	// View should NOT contain Vault fields
+	view := m.View()
+	if strings.Contains(view, "Vault address") {
+		t.Errorf("Step 6 view should NOT contain 'Vault address' when 'dev' is selected")
+	}
+	if strings.Contains(view, "Auth method") {
+		t.Errorf("Step 6 view should NOT contain 'Auth method' when 'dev' is selected")
+	}
+}
+
+func TestStep6ConditionalFieldsVisibleWhenVault(t *testing.T) {
+	// When "vault" is selected, Vault address and auth method should be visible
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 6)
+
+	// Default is "vault" (index 0)
+	if m.config.SecretsBackend != "vault" {
+		t.Fatalf("Default SecretsBackend = %q, want %q", m.config.SecretsBackend, "vault")
+	}
+
+	// Text inputs should be built for the 2 conditional fields
+	if len(m.textInputs) != 2 {
+		t.Errorf("Step 6 'vault' textInputs count = %d, want 2", len(m.textInputs))
+	}
+
+	// View should contain the conditional field labels
+	view := m.View()
+	if !strings.Contains(view, "Vault address") {
+		t.Errorf("Step 6 view should contain 'Vault address' when 'vault' is selected, got: %s", view)
+	}
+	if !strings.Contains(view, "Auth method") {
+		t.Errorf("Step 6 view should contain 'Auth method' when 'vault' is selected, got: %s", view)
+	}
+}
+
+func TestStep6EnterOnVaultSwitchesToTextInput(t *testing.T) {
+	// Pressing Enter on "vault" should switch to text input mode
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 6)
+
+	// Default is "vault" (index 0), press Enter
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Should be in text input mode
+	if m.mode != modeTextInput {
+		t.Errorf("mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
+	}
+	if m.step != 6 {
+		t.Errorf("step = %d, want 6 (should not advance)", m.step)
+	}
+	if !m.textInput.Focused() {
+		t.Error("text input should be focused after switching to text input mode")
+	}
+}
+
+func TestStep6EnterOnDevAdvances(t *testing.T) {
+	// Pressing Enter on "dev" should advance to next step
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 6)
+
+	// Move down to "dev" (index 1)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+
+	// Press Enter
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Should have advanced to step 7
+	if m.step != 7 {
+		t.Errorf("step = %d, want 7", m.step)
+	}
+}
+
+func TestStep6RadioRebuildsOnArrowKey(t *testing.T) {
+	// Moving the radio selection should rebuild text inputs immediately
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 6)
+
+	// Default "vault" (index 0) — 2 text inputs
+	if len(m.textInputs) != 2 {
+		t.Errorf("default textInputs count = %d, want 2", len(m.textInputs))
+	}
+
+	// Move down to "dev" (index 1)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	if len(m.textInputs) != 0 {
+		t.Errorf("after 'dev' textInputs count = %d, want 0", len(m.textInputs))
+	}
+
+	// Move back up to "vault" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	if len(m.textInputs) != 2 {
+		t.Errorf("after back to 'vault' textInputs count = %d, want 2", len(m.textInputs))
+	}
+}
+
+// ===== Step 7 conditional field tests (Redis) =====
+
+func TestStep7ConditionalFieldHiddenWhenLocal(t *testing.T) {
+	// When "local" is selected, Redis connection string should be hidden
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 7)
+
+	// Default is "local" (index 0)
+	if m.config.RedisMode != "local" {
+		t.Fatalf("Default RedisMode = %q, want %q", m.config.RedisMode, "local")
+	}
+
+	// No text inputs should be visible for "local" mode
+	if len(m.textInputs) != 0 {
+		t.Errorf("Step 7 'local' textInputs count = %d, want 0", len(m.textInputs))
+	}
+
+	// View should NOT contain connection string field
+	view := m.View()
+	if strings.Contains(view, "Connection string") {
+		t.Errorf("Step 7 view should NOT contain 'Connection string' when 'local' is selected")
+	}
+}
+
+func TestStep7ConditionalFieldVisibleWhenExternal(t *testing.T) {
+	// When "external" is selected, Redis connection string should be visible
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 7)
+
+	// Move down to "external" (index 1)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+
+	// Now RedisMode should be "external"
+	if m.config.RedisMode != "external" {
+		t.Errorf("RedisMode = %q, want %q", m.config.RedisMode, "external")
+	}
+
+	// Text input should be built for the connection string field
+	if len(m.textInputs) != 1 {
+		t.Errorf("Step 7 'external' textInputs count = %d, want 1", len(m.textInputs))
+	}
+
+	// View should contain the connection string field
+	view := m.View()
+	if !strings.Contains(view, "Connection string") {
+		t.Errorf("Step 7 view should contain 'Connection string' when 'external' is selected, got: %s", view)
+	}
+}
+
+func TestStep7EnterOnLocalAdvances(t *testing.T) {
+	// Pressing Enter on "local" should advance to next step
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 7)
+
+	// Default is "local" (index 0), press Enter
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Should have advanced to next required step (step 8 for default config)
+	if m.step != 8 {
+		t.Errorf("step = %d, want 8", m.step)
+	}
+}
+
+func TestStep7EnterOnExternalSwitchesToTextInput(t *testing.T) {
+	// Pressing Enter on "external" should switch to text input mode
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 7)
+
+	// Move down to "external" (index 1)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+
+	// Press Enter
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Should be in text input mode
+	if m.mode != modeTextInput {
+		t.Errorf("mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
+	}
+	if m.step != 7 {
+		t.Errorf("step = %d, want 7 (should not advance)", m.step)
+	}
+}
+
+// ===== Step 10 conditional field tests (AI Agent) =====
+
+func TestStep10ConditionalFieldsHiddenWhenNo(t *testing.T) {
+	// When "no" is selected, AI agent fields should be hidden
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 10)
+
+	// Default is "no" (AIEnabled = false, radio index 1)
+	if m.config.AIEnabled {
+		t.Fatal("Default AIEnabled should be false")
+	}
+
+	// No text inputs should be visible for "no" selection
+	if len(m.textInputs) != 0 {
+		t.Errorf("Step 10 'no' textInputs count = %d, want 0", len(m.textInputs))
+	}
+
+	// View should NOT contain AI agent fields
+	view := m.View()
+	if strings.Contains(view, "API key secret path") {
+		t.Errorf("Step 10 view should NOT contain 'API key secret path' when 'no' is selected")
+	}
+	if strings.Contains(view, "Base URL") {
+		t.Errorf("Step 10 view should NOT contain 'Base URL' when 'no' is selected")
+	}
+	if strings.Contains(view, "Model") {
+		t.Errorf("Step 10 view should NOT contain 'Model' when 'no' is selected")
+	}
+	if strings.Contains(view, "Engine name") {
+		t.Errorf("Step 10 view should NOT contain 'Engine name' when 'no' is selected")
+	}
+}
+
+func TestStep10ConditionalFieldsVisibleWhenYes(t *testing.T) {
+	// When "yes" is selected, AI agent fields should be visible
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 10)
+
+	// Move up to "yes" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+
+	// Now AIEnabled should be true
+	if !m.config.AIEnabled {
+		t.Error("AIEnabled should be true after moving to 'yes'")
+	}
+
+	// Text inputs should be built for the 4 conditional fields
+	if len(m.textInputs) != 4 {
+		t.Errorf("Step 10 'yes' textInputs count = %d, want 4", len(m.textInputs))
+	}
+
+	// View should contain the conditional field labels
+	view := m.View()
+	if !strings.Contains(view, "API key secret path") {
+		t.Errorf("Step 10 view should contain 'API key secret path' when 'yes' is selected, got: %s", view)
+	}
+	if !strings.Contains(view, "Base URL") {
+		t.Errorf("Step 10 view should contain 'Base URL' when 'yes' is selected, got: %s", view)
+	}
+	if !strings.Contains(view, "Model") {
+		t.Errorf("Step 10 view should contain 'Model' when 'yes' is selected, got: %s", view)
+	}
+	if !strings.Contains(view, "Engine name") {
+		t.Errorf("Step 10 view should contain 'Engine name' when 'yes' is selected, got: %s", view)
+	}
+}
+
+func TestStep10EnterOnYesSwitchesToTextInput(t *testing.T) {
+	// Pressing Enter on "yes" should switch to text input mode
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 10)
+
+	// Move up to "yes" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+
+	// Press Enter
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Should be in text input mode
+	if m.mode != modeTextInput {
+		t.Errorf("mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
+	}
+	if m.step != 10 {
+		t.Errorf("step = %d, want 10 (should not advance)", m.step)
+	}
+	if !m.textInput.Focused() {
+		t.Error("text input should be focused after switching to text input mode")
+	}
+}
+
+func TestStep10EnterOnNoAdvances(t *testing.T) {
+	// Pressing Enter on "no" should advance to next step
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 10)
+
+	// Default is "no" (index 1), press Enter
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Should have advanced to next required step (step 11 for docker mode)
+	if m.step != 11 {
+		t.Errorf("step = %d, want 11", m.step)
+	}
+}
+
+func TestStep10RadioRebuildsOnArrowKey(t *testing.T) {
+	// Moving the radio selection should rebuild text inputs immediately
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 10)
+
+	// Default "no" (index 1) — no text inputs
+	if len(m.textInputs) != 0 {
+		t.Errorf("default textInputs count = %d, want 0", len(m.textInputs))
+	}
+
+	// Move up to "yes" (index 0)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	if len(m.textInputs) != 4 {
+		t.Errorf("after 'yes' textInputs count = %d, want 4", len(m.textInputs))
+	}
+
+	// Move back down to "no" (index 1)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	if len(m.textInputs) != 0 {
+		t.Errorf("after back to 'no' textInputs count = %d, want 0", len(m.textInputs))
+	}
+}
+
+
+func TestStep10ConditionalFieldTabNavigation(t *testing.T) {
+	// After selecting "yes" and pressing Enter, tab should navigate through all 4 conditional fields
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 10)
+
+	// Move to "yes" and press Enter to switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if m.mode != modeTextInput {
+		t.Fatalf("expected modeTextInput, got %d", m.mode)
+	}
+
+	// The AI fields have default values (AIModel: "gpt-4o", AIBaseURL: "https://api.openai.com/v1", AIEngineName: "default")
+	// We need to clear them before typing new values. Use Ctrl+A then type, or just clear.
+	// For the first field (API key secret path), no default value so just type
+	for _, ch := range "secret/path" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Tab to second field (Base URL) — has default "https://api.openai.com/v1"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	if m.currentField != 1 {
+		t.Errorf("currentField = %d, want 1", m.currentField)
+	}
+
+	// Clear the default value and type new value
+	m.textInput.SetValue("")
+	for _, ch := range "https://api.example.com" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Tab to third field (Model) — has default "gpt-4o"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	if m.currentField != 2 {
+		t.Errorf("currentField = %d, want 2", m.currentField)
+	}
+
+	// Clear the default value and type new value
+	m.textInput.SetValue("")
+	for _, ch := range "gpt-4o" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Tab to fourth field (Engine name) — has default "default"
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	if m.currentField != 3 {
+		t.Errorf("currentField = %d, want 3", m.currentField)
+	}
+
+	// Clear the default value and type new value
+	m.textInput.SetValue("")
+	for _, ch := range "ai-engine" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Enter on last field — should advance to next step
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.step != 11 {
+		t.Errorf("step = %d, want 11", m.step)
+	}
+
+	// Verify all values were saved
+	if m.config.AIAPIKeyPath != "secret/path" {
+		t.Errorf("AIAPIKeyPath = %q, want %q", m.config.AIAPIKeyPath, "secret/path")
+	}
+	if m.config.AIBaseURL != "https://api.example.com" {
+		t.Errorf("AIBaseURL = %q, want %q", m.config.AIBaseURL, "https://api.example.com")
+	}
+	if m.config.AIModel != "gpt-4o" {
+		t.Errorf("AIModel = %q, want %q", m.config.AIModel, "gpt-4o")
+	}
+	if m.config.AIEngineName != "ai-engine" {
+		t.Errorf("AIEngineName = %q, want %q", m.config.AIEngineName, "ai-engine")
+	}
+}

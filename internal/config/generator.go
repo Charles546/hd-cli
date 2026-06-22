@@ -9,6 +9,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"os/exec"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,6 +138,20 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 		}
 	}
 
+	// Run git init and git remote add if user chose to create a repo
+	if cfg.GithubCreateRepo {
+		if err := runGitInit(outputDir); err != nil {
+			return fmt.Errorf("failed to run git init: %w", err)
+		}
+		cfg.GitInit = true
+
+		if cfg.GitRemoteURL != "" {
+			if err := runGitRemoteAdd(outputDir, cfg.GitRemoteURL); err != nil {
+				return fmt.Errorf("failed to run git remote add: %w", err)
+			}
+		}
+	}
+
 	// Generate docker-compose.yaml for Docker mode
 	if cfg.DeploymentMode == "docker" {
 		tmpl := g.templates.Lookup("docker-compose.yaml.tmpl")
@@ -176,6 +191,29 @@ func (g *Generator) GenerateFromAnswersFile(answersPath, outputDir string, dryRu
 	applyDefaults(cfg)
 
 	return g.Generate(cfg, outputDir, dryRun)
+}
+
+
+// runGitInit runs git init in the given directory.
+func runGitInit(dir string) error {
+	cmd := exec.Command("git", "init", dir)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run git init in %s: %w", dir, err)
+	}
+	return nil
+}
+
+// runGitRemoteAdd runs git remote add origin <url> in the given directory.
+func runGitRemoteAdd(dir, url string) error {
+	cmd := exec.Command("git", "-C", dir, "remote", "add", "origin", url)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run git remote add origin %s in %s: %w", url, dir, err)
+	}
+	return nil
 }
 
 // applyDefaults fills in default values for fields that are empty.

@@ -49,7 +49,8 @@ type WizardModel struct {
 	textInputs  []textinput.Model // all text inputs for the current step
 
 	// Radio selection state
-	radioIndex  int // currently highlighted radio option index
+	radioIndex    int    // currently highlighted radio option index
+	radioSavedVal string // saved config value when entering a radio step, restored on Esc
 
 	// Checkbox selection state
 	checkboxIndex int // currently highlighted checkbox option index
@@ -109,6 +110,10 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 	case stepTypeRadio:
 		m.mode = modeRadioSelect
 		m.radioIndex = m.findRadioIndex(stepInfo)
+		// Save the current config value so we can revert on Esc
+		m.radioSavedVal = stepInfo.radioGetter(m.config)
+		// Build text inputs for conditional fields based on current config
+		m.buildRadioTextInputs(stepInfo)
 	case stepTypeCheckbox:
 		m.mode = modeCheckboxSelect
 		m.checkboxIndex = 0
@@ -185,6 +190,29 @@ func (m *WizardModel) buildCheckboxTextInputs(stepInfo *stepInfo) {
 		ti.Prompt = ""
 		ti.SetValue(field.getValue(m.config))
 		m.textInputs[i] = ti
+	}
+}
+
+// buildRadioTextInputs creates text inputs for conditional fields
+// in a radio step, based on current config values.
+func (m *WizardModel) buildRadioTextInputs(stepInfo *stepInfo) {
+	var visibleFields []fieldDescriptor
+	for _, f := range stepInfo.fields {
+		if f.condition == nil || f.condition(m.config) {
+			visibleFields = append(visibleFields, f)
+		}
+	}
+	m.textInputs = make([]textinput.Model, len(visibleFields))
+	for i, field := range visibleFields {
+		ti := textinput.New()
+		ti.Placeholder = field.placeholder
+		ti.Width = 60
+		ti.Prompt = ""
+		ti.SetValue(field.getValue(m.config))
+		m.textInputs[i] = ti
+	}
+	if len(m.textInputs) > 0 {
+		m.textInput = m.textInputs[0]
 	}
 }
 
@@ -397,24 +425,44 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 		case "up", "k":
 			if m.radioIndex > 0 {
 				m.radioIndex--
+				// Tentatively apply the selection and rebuild text inputs
+				stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
+				m.buildRadioTextInputs(stepInfo)
 			}
 			return m, nil
 		case "down", "j":
 			if m.radioIndex < len(stepInfo.radioOptions)-1 {
 				m.radioIndex++
+				// Tentatively apply the selection and rebuild text inputs
+				stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
+				m.buildRadioTextInputs(stepInfo)
 			}
 			return m, nil
 		case "enter", "tab":
 			// Commit the selection
 			stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
+			// Rebuild text inputs to reflect the committed selection
+			m.buildRadioTextInputs(stepInfo)
 			m.validationErr = ""
 			m.saveMsg = ""
+			// If there are visible conditional fields, switch to text input mode
+			if len(m.textInputs) > 0 {
+				m.mode = modeTextInput
+				m.currentField = 0
+				m.textInput = m.textInputs[0]
+				m.textInput.Focus()
+				m.textInputs[0] = m.textInput
+				return m, nil
+			}
+			// No conditional fields, advance to next step
 			if m.step >= m.total {
 				m.err = m.generateConfig()
 				return m, tea.Quit
 			}
 			return m, m.initStep(nextStep(m.step, m.config))
 		case "esc", "backspace":
+			// Revert the radio config value to what it was when we entered this step
+			stepInfo.radioSetter(m.config, m.radioSavedVal)
 			if m.step > 1 {
 				return m, m.initStep(prevStep(m.step, m.config))
 			}
@@ -650,8 +698,8 @@ func (m *WizardModel) handleNavigate(msg tea.Msg, stepInfo *stepInfo) (tea.Model
 
 // saveCurrentFieldValue saves the current text input's value to the config.
 func (m *WizardModel) saveCurrentFieldValue(stepInfo *stepInfo) {
-	// For multi-field steps, we need to map the visible field index back to the original field
-	if stepInfo.stepType == stepTypeMultiField {
+	// For multi-field and radio steps, we need to map the visible field index back to the original field
+	if stepInfo.stepType == stepTypeMultiField || stepInfo.stepType == stepTypeRadio {
 		visibleIdx := 0
 		for _, f := range stepInfo.fields {
 			if f.condition == nil || f.condition(m.config) {
@@ -729,6 +777,26 @@ func (m *WizardModel) View() string {
 	return b.String()
 }
 
+
+// renderRadioSelection renders the radio options with the selected marker.
+// Used by both modeRadioSelect and modeTextInput (for radio steps with conditional fields).
+func (m *WizardModel) renderRadioSelection(stepInfo *stepInfo) string {
+	var b strings.Builder
+	b.WriteString(LabelStyle.Render(stepInfo.radioLabel + ":"))
+	b.WriteString("\n")
+	for i, opt := range stepInfo.radioOptions {
+		if i == m.radioIndex {
+			b.WriteString(SelectedItemStyle.Render("  ● "))
+			b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)).Render(opt))
+		} else {
+			b.WriteString(UnselectedItemStyle.Render("  ○ "))
+			b.WriteString(UnselectedItemStyle.Render(opt))
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
 // renderStepContent renders the interactive content for the current step.
 func (m *WizardModel) renderStepContent() string {
 	stepInfo := getStepInfo(m.step)
@@ -757,8 +825,42 @@ func (m *WizardModel) renderStepContent() string {
 
 	switch m.mode {
 	case modeTextInput:
-		// For multi-field steps, render only visible fields
-		if stepInfo.stepType == stepTypeMultiField {
+		// For radio steps that have switched to text input mode, render the
+		// radio selection above the conditional text fields so the user can
+		// still see which option they selected.
+		if stepInfo.stepType == stepTypeRadio {
+			b.WriteString(m.renderRadioSelection(stepInfo))
+			b.WriteString("\n")
+			// Render visible conditional text fields
+			visibleIdx := 0
+			for _, field := range stepInfo.fields {
+				if field.condition != nil && !field.condition(m.config) {
+					continue
+				}
+				if visibleIdx < len(m.textInputs) {
+					b.WriteString(LabelStyle.Render(field.label + ":"))
+					b.WriteString("\n")
+					ti := m.textInputs[visibleIdx]
+					if visibleIdx == m.currentField {
+						if m.pendingDefault {
+							b.WriteString(SelectAllStyle.Render(ti.View()))
+						} else {
+							b.WriteString(FocusedInputStyle.Render(ti.View()))
+						}
+					} else {
+						b.WriteString(InputStyle.Render(ti.View()))
+					}
+					b.WriteString("\n")
+					if field.help != "" {
+						b.WriteString(HelpStyle.Render(field.help))
+						b.WriteString("\n")
+					}
+					b.WriteString("\n")
+				}
+				visibleIdx++
+			}
+		} else if stepInfo.stepType == stepTypeMultiField {
+			// For multi-field steps, render only visible fields
 			visibleIdx := 0
 			for _, field := range stepInfo.fields {
 				if field.condition != nil && !field.condition(m.config) {
@@ -833,34 +935,27 @@ func (m *WizardModel) renderStepContent() string {
 		}
 
 	case modeRadioSelect:
-		b.WriteString(LabelStyle.Render(stepInfo.radioLabel + ":"))
+		b.WriteString(m.renderRadioSelection(stepInfo))
 		b.WriteString("\n")
-		for i, opt := range stepInfo.radioOptions {
-			if i == m.radioIndex {
-				b.WriteString(SelectedItemStyle.Render("  ● "))
-				b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)).Render(opt))
-			} else {
-				b.WriteString(UnselectedItemStyle.Render("  ○ "))
-				b.WriteString(UnselectedItemStyle.Render(opt))
+		// Render conditional text fields that match current conditions
+		visibleIdx := 0
+		for _, field := range stepInfo.fields {
+			if field.condition != nil && !field.condition(m.config) {
+				continue
 			}
-			b.WriteString("\n")
-		}
-		b.WriteString("\n")
-		if stepInfo.fields != nil {
-			for i, field := range stepInfo.fields {
-				if i < len(m.textInputs) {
-					b.WriteString(LabelStyle.Render(field.label + ":"))
-					b.WriteString("\n")
-					ti := m.textInputs[i]
-					b.WriteString(FocusedInputStyle.Render(ti.View()))
-					b.WriteString("\n")
-					if field.help != "" {
-						b.WriteString(HelpStyle.Render(field.help))
-						b.WriteString("\n")
-					}
+			if visibleIdx < len(m.textInputs) {
+				b.WriteString(LabelStyle.Render(field.label + ":"))
+				b.WriteString("\n")
+				ti := m.textInputs[visibleIdx]
+				b.WriteString(FocusedInputStyle.Render(ti.View()))
+				b.WriteString("\n")
+				if field.help != "" {
+					b.WriteString(HelpStyle.Render(field.help))
 					b.WriteString("\n")
 				}
+				b.WriteString("\n")
 			}
+			visibleIdx++
 		}
 
 	case modeCheckboxSelect:
