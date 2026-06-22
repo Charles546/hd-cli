@@ -42,6 +42,9 @@ type checkboxOption struct {
 	help     string
 	getValue func(*config.WizardConfig) bool
 	setValue func(*config.WizardConfig, bool)
+	// condition, if set, determines whether this checkbox is shown.
+	// When nil, the checkbox is always shown.
+	condition func(*config.WizardConfig) bool
 }
 
 // stepInfo describes the structure and behavior of a wizard step.
@@ -469,17 +472,21 @@ func getStepInfo(step int) *stepInfo {
 	case 14:
 		return &stepInfo{
 			title:    "Step 14: GitHub Repo Creation",
-			stepType: stepTypeRadio,
-			radioLabel: "Create GitHub repo",
-			radioOptions: []string{"yes", "no"},
-			radioGetter: func(c *config.WizardConfig) string { return boolToRadio(c.GithubCreateRepo) },
-			radioSetter: func(c *config.WizardConfig, v string) { c.GithubCreateRepo = radioToBool(v) },
+			stepType: stepTypeCheckbox,
+			checkboxLabel: "Create GitHub repo",
 			checkboxes: []checkboxOption{
 				{
+					label:    "Create GitHub repo",
+					help:     "Create a new GitHub repository for the generated config",
+					getValue: func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
+					setValue: func(c *config.WizardConfig, v bool) { c.GithubCreateRepo = v },
+				},
+				{
 					label:    "Use local copy instead of clone",
-					help:     "Skip git clone and use the local config directory as the REPO",
+					help:     "Skip git clone and use the local config directory as the REPO (only when creating repo)",
 					getValue: func(c *config.WizardConfig) bool { return c.UseLocalCopy },
 					setValue: func(c *config.WizardConfig, v bool) { c.UseLocalCopy = v },
+					condition: func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
 				},
 			},
 			fields: []fieldDescriptor{

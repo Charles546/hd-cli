@@ -430,17 +430,7 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 				m.buildRadioTextInputs(stepInfo)
 			}
 			return m, nil
-		case "left":
-			// On step 14 with checkboxes, left arrow toggles the checkbox
-			if m.step == 14 && len(stepInfo.checkboxes) > 0 && m.config.GithubCreateRepo {
-				opt := stepInfo.checkboxes[0]
-				current := opt.getValue(m.config)
-				opt.setValue(m.config, !current)
-				// Rebuild text inputs since conditions may have changed
-				m.buildRadioTextInputs(stepInfo)
-				return m, nil
-			}
-		case "down", "j":
+			case "down", "j":
 			if m.radioIndex < len(stepInfo.radioOptions)-1 {
 				m.radioIndex++
 				// Tentatively apply the selection and rebuild text inputs
@@ -448,18 +438,7 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 				m.buildRadioTextInputs(stepInfo)
 			}
 			return m, nil
-		case " ":
-			// Space toggles checkbox on step 14 when "yes" is selected
-			if m.step == 14 && len(stepInfo.checkboxes) > 0 && m.config.GithubCreateRepo {
-				opt := stepInfo.checkboxes[0]
-				current := opt.getValue(m.config)
-				opt.setValue(m.config, !current)
-				// Rebuild text inputs since conditions may have changed
-				m.buildRadioTextInputs(stepInfo)
-				return m, nil
-			}
-			return m, nil
-		case "enter", "tab":
+			case "enter", "tab":
 			// Commit the selection
 			stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
 			// Rebuild text inputs to reflect the committed selection
@@ -493,6 +472,17 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 	return m, nil
 }
 
+// visibleCheckboxCount returns the number of checkboxes that meet their conditions.
+func (m *WizardModel) visibleCheckboxCount(stepInfo *stepInfo) int {
+	count := 0
+	for _, cb := range stepInfo.checkboxes {
+		if cb.condition == nil || cb.condition(m.config) {
+			count++
+		}
+	}
+	return count
+}
+
 // handleCheckboxSelect handles checkbox toggle navigation and text input for conditional fields.
 func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -507,9 +497,11 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 				return m, nil
 			}
 			// When in text fields, let the text input handle 'k' (fall through)
+			// When in text fields, let the text input handle 'k' (fall through)
 		case "down", "j":
 			if m.currentField == 0 {
-				if m.checkboxIndex < len(stepInfo.checkboxes)-1 {
+				visibleCount := m.visibleCheckboxCount(stepInfo)
+				if m.checkboxIndex < visibleCount-1 {
 					m.checkboxIndex++
 				} else if len(m.textInputs) > 0 {
 					// Move from last checkbox to first text field
@@ -523,26 +515,44 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 			// When in text fields, let the text input handle 'j' (fall through)
 		case " ":
 			// Toggle the current checkbox (only when on checkbox row)
-			if m.currentField == 0 && m.checkboxIndex < len(stepInfo.checkboxes) {
-				opt := stepInfo.checkboxes[m.checkboxIndex]
-				current := opt.getValue(m.config)
-				opt.setValue(m.config, !current)
-				// Rebuild text inputs since conditions may have changed
-				m.buildCheckboxTextInputs(stepInfo)
+			if m.currentField == 0 {
+				// Find the visible checkbox at checkboxIndex
+				visibleIdx := 0
+				for _, cb := range stepInfo.checkboxes {
+					if cb.condition != nil && !cb.condition(m.config) {
+						continue
+					}
+					if visibleIdx == m.checkboxIndex {
+						current := cb.getValue(m.config)
+						cb.setValue(m.config, !current)
+						// Rebuild text inputs since conditions may have changed
+						m.buildCheckboxTextInputs(stepInfo)
+						break
+					}
+					visibleIdx++
+				}
 			}
 			return m, nil
 		case "enter":
 			if m.currentField == 0 {
 				// On checkboxes: toggle current, then move to next checkbox or text fields
-				if m.checkboxIndex < len(stepInfo.checkboxes) {
-					opt := stepInfo.checkboxes[m.checkboxIndex]
-					current := opt.getValue(m.config)
-					opt.setValue(m.config, !current)
-					// Rebuild text inputs since conditions may have changed
-					m.buildCheckboxTextInputs(stepInfo)
+				visibleIdx := 0
+				for _, cb := range stepInfo.checkboxes {
+					if cb.condition != nil && !cb.condition(m.config) {
+						continue
+					}
+					if visibleIdx == m.checkboxIndex {
+						current := cb.getValue(m.config)
+						cb.setValue(m.config, !current)
+						// Rebuild text inputs since conditions may have changed
+						m.buildCheckboxTextInputs(stepInfo)
+						break
+					}
+					visibleIdx++
 				}
 				// Move to next checkbox or to text fields
-				if m.checkboxIndex < len(stepInfo.checkboxes)-1 {
+				visibleCount := m.visibleCheckboxCount(stepInfo)
+				if m.checkboxIndex < visibleCount-1 {
 					m.checkboxIndex++
 				} else if len(m.textInputs) > 0 {
 					m.currentField = 1
@@ -588,7 +598,8 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 		case "tab":
 			if m.currentField == 0 {
 				// On checkboxes: move to next checkbox or to text fields (no toggle)
-				if m.checkboxIndex < len(stepInfo.checkboxes)-1 {
+				visibleCount := m.visibleCheckboxCount(stepInfo)
+				if m.checkboxIndex < visibleCount-1 {
 					m.checkboxIndex++
 				} else if len(m.textInputs) > 0 {
 					m.currentField = 1
@@ -820,6 +831,46 @@ func (m *WizardModel) renderRadioSelection(stepInfo *stepInfo) string {
 	return b.String()
 }
 
+// renderCheckboxSelection renders the checkbox options.
+// Used by both modeCheckboxSelect and modeTextInput (for checkbox steps with conditional fields).
+func (m *WizardModel) renderCheckboxSelection(stepInfo *stepInfo, dimmed bool) string {
+	var b strings.Builder
+	b.WriteString(LabelStyle.Render(stepInfo.checkboxLabel + ":"))
+	b.WriteString("\n")
+	visibleIdx := 0
+	for _, cb := range stepInfo.checkboxes {
+		// Skip checkboxes that don't meet their condition
+		if cb.condition != nil && !cb.condition(m.config) {
+			continue
+		}
+		checked := cb.getValue(m.config)
+		checkboxChar := "☐"
+		if checked {
+			checkboxChar = "☑"
+		}
+		if !dimmed {
+			if visibleIdx == m.checkboxIndex && m.currentField == 0 {
+				b.WriteString(SelectedItemStyle.Render("  " + checkboxChar + " "))
+				b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)).Render(cb.label))
+			} else {
+				b.WriteString(UnselectedItemStyle.Render("  " + checkboxChar + " "))
+				b.WriteString(UnselectedItemStyle.Render(cb.label))
+			}
+		} else {
+			// Dimmed: checkboxes are visible but not interactive (text input mode)
+			b.WriteString(UnselectedItemStyle.Render("  " + checkboxChar + " "))
+			b.WriteString(UnselectedItemStyle.Render(cb.label))
+		}
+		b.WriteString("\n")
+		if cb.help != "" {
+			b.WriteString(HelpStyle.Render("      " + cb.help))
+			b.WriteString("\n")
+		}
+		visibleIdx++
+	}
+	return b.String()
+}
+
 // renderStepContent renders the interactive content for the current step.
 func (m *WizardModel) renderStepContent() string {
 	stepInfo := getStepInfo(m.step)
@@ -865,6 +916,41 @@ func (m *WizardModel) renderStepContent() string {
 					b.WriteString("\n")
 					ti := m.textInputs[visibleIdx]
 					if visibleIdx == m.currentField {
+						if m.pendingDefault {
+							b.WriteString(SelectAllStyle.Render(ti.View()))
+						} else {
+							b.WriteString(FocusedInputStyle.Render(ti.View()))
+						}
+					} else {
+						b.WriteString(InputStyle.Render(ti.View()))
+					}
+					b.WriteString("\n")
+					if field.help != "" {
+						b.WriteString(HelpStyle.Render(field.help))
+						b.WriteString("\n")
+					}
+					b.WriteString("\n")
+				}
+				visibleIdx++
+			}
+		} else if stepInfo.stepType == stepTypeCheckbox {
+			// For checkbox steps that have switched to text input mode, render the
+			// checkboxes above the conditional text fields so the user can
+			// still see which options they selected.
+			b.WriteString(m.renderCheckboxSelection(stepInfo, true))
+			b.WriteString("\n")
+			// Render visible conditional text fields
+			visibleIdx := 0
+			for _, field := range stepInfo.fields {
+				if field.condition != nil && !field.condition(m.config) {
+					continue
+				}
+				if visibleIdx < len(m.textInputs) {
+					b.WriteString(LabelStyle.Render(field.label + ":"))
+					b.WriteString("\n")
+					ti := m.textInputs[visibleIdx]
+					fieldInputIdx := visibleIdx + 1 // +1 because 0 is checkboxes
+					if fieldInputIdx == m.currentField {
 						if m.pendingDefault {
 							b.WriteString(SelectAllStyle.Render(ti.View()))
 						} else {
@@ -960,25 +1046,6 @@ func (m *WizardModel) renderStepContent() string {
 	case modeRadioSelect:
 		b.WriteString(m.renderRadioSelection(stepInfo))
 		b.WriteString("\n")
-		// Render checkboxes if this step has them (e.g. step 14 "Use local copy")
-		if m.step == 14 && m.config.GithubCreateRepo {
-			for i, cb := range stepInfo.checkboxes {
-				checked := cb.getValue(m.config)
-				checkboxChar := "☐"
-				if checked {
-					checkboxChar = "☑"
-				}
-				b.WriteString(UnselectedItemStyle.Render("  " + checkboxChar + " "))
-				b.WriteString(UnselectedItemStyle.Render(cb.label))
-				b.WriteString("\n")
-				if cb.help != "" {
-					b.WriteString(HelpStyle.Render("      " + cb.help))
-					b.WriteString("\n")
-				}
-				_ = i
-			}
-			b.WriteString("\n")
-		}
 		// Render conditional text fields that match current conditions
 		visibleIdx := 0
 		for _, field := range stepInfo.fields {
@@ -1003,13 +1070,18 @@ func (m *WizardModel) renderStepContent() string {
 	case modeCheckboxSelect:
 		b.WriteString(LabelStyle.Render(stepInfo.checkboxLabel + ":"))
 		b.WriteString("\n")
-		for i, cb := range stepInfo.checkboxes {
+		visibleIdx := 0
+		for _, cb := range stepInfo.checkboxes {
+			// Skip checkboxes that don't meet their condition
+			if cb.condition != nil && !cb.condition(m.config) {
+				continue
+			}
 			checked := cb.getValue(m.config)
 			checkboxChar := "☐"
 			if checked {
 				checkboxChar = "☑"
 			}
-			if i == m.checkboxIndex && m.currentField == 0 {
+			if visibleIdx == m.checkboxIndex && m.currentField == 0 {
 				b.WriteString(SelectedItemStyle.Render("  " + checkboxChar + " "))
 				b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)).Render(cb.label))
 			} else {
@@ -1021,11 +1093,17 @@ func (m *WizardModel) renderStepContent() string {
 				b.WriteString(HelpStyle.Render("      " + cb.help))
 				b.WriteString("\n")
 			}
+			visibleIdx++
 		}
 		b.WriteString("\n")
 		// Render conditional text fields
 		if len(m.textInputs) > 0 {
-			b.WriteString(LabelStyle.Render("Secret paths:"))
+			// Use "Secret paths:" for step 8 (GitHub integration), generic label otherwise
+			if m.step == 8 {
+				b.WriteString(LabelStyle.Render("Secret paths:"))
+			} else {
+				b.WriteString(LabelStyle.Render("Configuration:"))
+			}
 			b.WriteString("\n")
 			// Map visible fields to labels
 			visibleIdx := 0
@@ -1092,9 +1170,6 @@ func (m *WizardModel) renderNavigation(stepInfo *stepInfo) string {
 			}
 		case modeRadioSelect:
 			hints = append(hints, "↑↓ select")
-			if m.step == 14 && len(stepInfo.checkboxes) > 0 && m.config.GithubCreateRepo {
-				hints = append(hints, "space=toggle")
-			}
 			hints = append(hints, "enter=confirm")
 			if m.step > 1 {
 				hints = append(hints, "esc=back")
