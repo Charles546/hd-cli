@@ -1743,13 +1743,19 @@ func TestBuildConfigRepoCloneEnvVars(t *testing.T) {
 		}
 	})
 
-	t.Run("pat auth with env var reference returns DIPPER_PASS_ENV", func(t *testing.T) {
+	t.Run("pat auth with env var reference returns DIPPER_PASS_ENV and pass-through", func(t *testing.T) {
 		cfg := NewDefaultWizardConfig()
 		cfg.ConfigRepoCloneAuth = "pat"
 		cfg.ConfigRepoPATValue = "$MY_PAT"
 		m := cfg.BuildConfigRepoCloneEnvVars()
-		if m == nil || m["DIPPER_PASS_ENV"] != "MY_PAT" {
-			t.Errorf("expected DIPPER_PASS_ENV=MY_PAT, got %v", m)
+		if len(m) != 2 {
+			t.Fatalf("expected 2 env vars (DIPPER_PASS_ENV + pass-through), got %d: %v", len(m), m)
+		}
+		if m["DIPPER_PASS_ENV"] != "MY_PAT" {
+			t.Errorf("expected DIPPER_PASS_ENV=MY_PAT, got %v", m["DIPPER_PASS_ENV"])
+		}
+		if m["MY_PAT"] != "${MY_PAT}" {
+			t.Errorf("expected MY_PAT=${MY_PAT} pass-through, got %v", m["MY_PAT"])
 		}
 	})
 
@@ -1849,6 +1855,9 @@ func TestGenerateEnvFile(t *testing.T) {
 		if !strings.Contains(result, "DIPPER_PASS_ENV=MY_PAT") {
 			t.Errorf("expected DIPPER_PASS_ENV=MY_PAT in .env, got %q", result)
 		}
+		if !strings.Contains(result, "MY_PAT=${MY_PAT}") {
+			t.Errorf("expected MY_PAT=${MY_PAT} pass-through in .env, got %q", result)
+		}
 	})
 
 	t.Run("contains raw PAT value", func(t *testing.T) {
@@ -1908,6 +1917,9 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 
 		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=MY_PAT") {
 			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV=MY_PAT, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "MY_PAT=${MY_PAT}") {
+			t.Errorf("docker-compose.yaml should contain MY_PAT=${MY_PAT} pass-through, got:\n%s", yamlStr)
 		}
 	})
 
@@ -2095,6 +2107,9 @@ func TestEnvFileGenerated(t *testing.T) {
 		}
 		if !strings.Contains(string(content), "DIPPER_PASS_ENV=MY_PAT") {
 			t.Errorf(".env should contain DIPPER_PASS_ENV=MY_PAT, got: %s", string(content))
+		}
+		if !strings.Contains(string(content), "MY_PAT=${MY_PAT}") {
+			t.Errorf(".env should contain MY_PAT=${MY_PAT} pass-through, got: %s", string(content))
 		}
 	})
 
