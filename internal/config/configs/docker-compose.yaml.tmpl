@@ -27,7 +27,7 @@ services:
       - REPO={{ if .GithubCreateRepo }}{{ if .UseLocalCopy }}/etc/honeydipper/config{{ else }}{{ if .GitRemoteURL }}{{ .GitRemoteURL }}{{ else }}/etc/honeydipper/config{{ end }}{{ end }}{{ else }}/etc/honeydipper/config{{ end }}
 {{- if .ConfigRepoCloneEnvVars }}
 {{- range $key, $value := .ConfigRepoCloneEnvVars }}
-      - {{ $key }}={{ $value }}
+      - {{ $key }}={{ printf "${%s}" $key }}
 {{- end }}
 {{- end }}
 {{- if eq .BootstrapCloneCredentialType "pat" }}
@@ -46,9 +46,7 @@ services:
     volumes:
       - {{ .ConfigDirAbs }}:/etc/honeydipper/config
 {{- end }}
-{{- if .ConfigRepoSSHKeyFile }}
-      - {{ .ConfigRepoSSHKeyFile }}:{{ .ConfigRepoSSHKeyFile }}:ro
-{{- end }}
+
 {{- if eq .RedisMode "local" }}
     depends_on:
       - redis

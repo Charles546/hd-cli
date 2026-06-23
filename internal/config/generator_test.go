@@ -1915,11 +1915,12 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=MY_PAT") {
-			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV=MY_PAT, got:\n%s", yamlStr)
+		// docker-compose references .env file for all clone auth env vars
+		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=${DIPPER_PASS_ENV}") {
+			t.Errorf("docker-compose.yaml should reference DIPPER_PASS_ENV from .env, got:\n%s", yamlStr)
 		}
 		if !strings.Contains(yamlStr, "MY_PAT=${MY_PAT}") {
-			t.Errorf("docker-compose.yaml should contain MY_PAT=${MY_PAT} pass-through, got:\n%s", yamlStr)
+			t.Errorf("docker-compose.yaml should reference MY_PAT from .env, got:\n%s", yamlStr)
 		}
 	})
 
@@ -1947,11 +1948,12 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=DIPPER_GITHUB_PAT") {
-			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV=DIPPER_GITHUB_PAT, got:\n%s", yamlStr)
+		// docker-compose references .env file for all clone auth env vars
+		if !strings.Contains(yamlStr, "DIPPER_GITHUB_PAT=${DIPPER_GITHUB_PAT}") {
+			t.Errorf("docker-compose.yaml should reference DIPPER_GITHUB_PAT from .env, got:\n%s", yamlStr)
 		}
-		if !strings.Contains(yamlStr, "DIPPER_GITHUB_PAT=ghp_xxxxx") {
-			t.Errorf("docker-compose.yaml should contain DIPPER_GITHUB_PAT=ghp_xxxxx, got:\n%s", yamlStr)
+		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=${DIPPER_PASS_ENV}") {
+			t.Errorf("docker-compose.yaml should reference DIPPER_PASS_ENV from .env, got:\n%s", yamlStr)
 		}
 	})
 
@@ -1981,11 +1983,12 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "GH_APP_ID=12345") {
-			t.Errorf("docker-compose.yaml should contain GH_APP_ID=12345, got:\n%s", yamlStr)
+		// docker-compose references .env file for all clone auth env vars
+		if !strings.Contains(yamlStr, "GH_APP_ID=${GH_APP_ID}") {
+			t.Errorf("docker-compose.yaml should reference GH_APP_ID from .env, got:\n%s", yamlStr)
 		}
-		if !strings.Contains(yamlStr, "GH_INSTALLATION_ID=67890") {
-			t.Errorf("docker-compose.yaml should contain GH_INSTALLATION_ID=67890, got:\n%s", yamlStr)
+		if !strings.Contains(yamlStr, "GH_INSTALLATION_ID=${GH_INSTALLATION_ID}") {
+			t.Errorf("docker-compose.yaml should reference GH_INSTALLATION_ID from .env, got:\n%s", yamlStr)
 		}
 	})
 
@@ -2013,8 +2016,9 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "DIPPER_SSH_FILE=/home/user/.ssh/id_rsa") {
-			t.Errorf("docker-compose.yaml should contain DIPPER_SSH_FILE, got:\n%s", yamlStr)
+		// docker-compose references .env file for all clone auth env vars
+		if !strings.Contains(yamlStr, "DIPPER_SSH_FILE=${DIPPER_SSH_FILE}") {
+			t.Errorf("docker-compose.yaml should reference DIPPER_SSH_FILE from .env, got:\n%s", yamlStr)
 		}
 	})
 
@@ -2163,26 +2167,22 @@ func TestEnvFileGenerated(t *testing.T) {
 
 func TestBuildConfigRepoCloneEnvVars_SSHMultiLine(t *testing.T) {
 	// When SSH key contains newlines, BuildConfigRepoCloneEnvVars should
-	// return DIPPER_SSH_FILE instead of DIPPER_SSH_KEY.
+	// still return DIPPER_SSH_KEY with the full multi-line value.
+	// The .env file generator will handle quoting.
 	cfg := NewDefaultWizardConfig()
 	cfg.ConfigRepoCloneAuth = "ssh"
 	cfg.ConfigRepoSSHKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
 
 	m := cfg.BuildConfigRepoCloneEnvVars()
 
-	// Should NOT contain DIPPER_SSH_KEY
-	if _, ok := m["DIPPER_SSH_KEY"]; ok {
-		t.Error("multi-line SSH key should not produce DIPPER_SSH_KEY in env vars")
+	// Should contain DIPPER_SSH_KEY with the full multi-line value
+	if m["DIPPER_SSH_KEY"] != cfg.ConfigRepoSSHKey {
+		t.Errorf("expected DIPPER_SSH_KEY with full key, got %q", m["DIPPER_SSH_KEY"])
 	}
 
-	// Should contain DIPPER_SSH_FILE
-	if m["DIPPER_SSH_FILE"] != ".ssh_key" {
-		t.Errorf("expected DIPPER_SSH_FILE=.ssh_key, got %q", m["DIPPER_SSH_FILE"])
-	}
-
-	// ConfigRepoSSHKeyFile should be set
-	if cfg.ConfigRepoSSHKeyFile != ".ssh_key" {
-		t.Errorf("ConfigRepoSSHKeyFile = %q, want %q", cfg.ConfigRepoSSHKeyFile, ".ssh_key")
+	// Should NOT contain DIPPER_SSH_FILE
+	if _, ok := m["DIPPER_SSH_FILE"]; ok {
+		t.Error("multi-line SSH key should not produce DIPPER_SSH_FILE in env vars")
 	}
 }
 
@@ -2203,112 +2203,12 @@ func TestBuildConfigRepoCloneEnvVars_SSHSingleLine(t *testing.T) {
 	}
 }
 
-func TestSSHKeyFilePath(t *testing.T) {
-	cfg := NewDefaultWizardConfig()
 
-	// Default path
-	if cfg.sshKeyFilePath() != ".ssh_key" {
-		t.Errorf("sshKeyFilePath() = %q, want %q", cfg.sshKeyFilePath(), ".ssh_key")
-	}
 
-	// Custom path
-	cfg.ConfigRepoSSHKeyFile = "custom/key/file"
-	if cfg.sshKeyFilePath() != "custom/key/file" {
-		t.Errorf("sshKeyFilePath() = %q, want %q", cfg.sshKeyFilePath(), "custom/key/file")
-	}
-}
-
-func TestWriteSSHKeyFile(t *testing.T) {
-	t.Run("writes multi-line key to file", func(t *testing.T) {
-		cfg := NewDefaultWizardConfig()
-		cfg.ConfigRepoCloneAuth = "ssh"
-		cfg.ConfigRepoSSHKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
-		cfg.ConfigRepoSSHKeyFile = ".ssh_key"
-
-		tmpDir := t.TempDir()
-		err := writeSSHKeyFile(cfg, tmpDir, false)
-		if err != nil {
-			t.Fatalf("writeSSHKeyFile failed: %v", err)
-		}
-
-		// Check file was created
-		keyPath := filepath.Join(tmpDir, ".ssh_key")
-		content, err := os.ReadFile(keyPath)
-		if err != nil {
-			t.Fatalf("failed to read SSH key file: %v", err)
-		}
-		if string(content) != cfg.ConfigRepoSSHKey {
-			t.Errorf("SSH key file content mismatch, got %q", string(content))
-		}
-
-		// Check permissions (0600)
-		info, err := os.Stat(keyPath)
-		if err != nil {
-			t.Fatalf("failed to stat SSH key file: %v", err)
-		}
-		perm := info.Mode().Perm()
-		if perm != 0600 {
-			t.Errorf("SSH key file permissions = %o, want %o", perm, 0600)
-		}
-	})
-
-	t.Run("skips single-line key", func(t *testing.T) {
-		cfg := NewDefaultWizardConfig()
-		cfg.ConfigRepoCloneAuth = "ssh"
-		cfg.ConfigRepoSSHKey = "single-line-key"
-
-		tmpDir := t.TempDir()
-		err := writeSSHKeyFile(cfg, tmpDir, false)
-		if err != nil {
-			t.Fatalf("writeSSHKeyFile failed: %v", err)
-		}
-
-		// File should NOT be created
-		keyPath := filepath.Join(tmpDir, ".ssh_key")
-		if _, err := os.Stat(keyPath); err == nil {
-			t.Error("SSH key file should not be created for single-line key")
-		}
-	})
-
-	t.Run("skips non-ssh auth", func(t *testing.T) {
-		cfg := NewDefaultWizardConfig()
-		cfg.ConfigRepoCloneAuth = "pat"
-
-		tmpDir := t.TempDir()
-		err := writeSSHKeyFile(cfg, tmpDir, false)
-		if err != nil {
-			t.Fatalf("writeSSHKeyFile failed: %v", err)
-		}
-
-		// No file should be created
-		entries, _ := os.ReadDir(tmpDir)
-		if len(entries) > 0 {
-			t.Error("no files should be created for non-ssh auth")
-		}
-	})
-
-	t.Run("dry run does not write", func(t *testing.T) {
-		cfg := NewDefaultWizardConfig()
-		cfg.ConfigRepoCloneAuth = "ssh"
-		cfg.ConfigRepoSSHKey = "multi\nline\nkey"
-		cfg.ConfigRepoSSHKeyFile = ".ssh_key"
-
-		tmpDir := t.TempDir()
-		err := writeSSHKeyFile(cfg, tmpDir, true)
-		if err != nil {
-			t.Fatalf("writeSSHKeyFile failed: %v", err)
-		}
-
-		keyPath := filepath.Join(tmpDir, ".ssh_key")
-		if _, err := os.Stat(keyPath); err == nil {
-			t.Error("SSH key file should not be created in dry run")
-		}
-	})
-}
 
 func TestDockerComposeSSHKeyFile(t *testing.T) {
-	// When SSH key is multi-line, docker-compose should use DIPPER_SSH_FILE
-	// and mount the key file as a volume.
+	// When SSH key is multi-line, docker-compose should reference
+	// DIPPER_SSH_KEY via ${DIPPER_SSH_KEY} (value comes from .env file).
 	g := NewGenerator()
 	cfg := NewDefaultWizardConfig()
 	cfg.ProjectName = "test-ssh-file"
@@ -2332,32 +2232,31 @@ func TestDockerComposeSSHKeyFile(t *testing.T) {
 	}
 	yamlStr := string(content)
 
-	// Should contain DIPPER_SSH_FILE, NOT DIPPER_SSH_KEY
-	if strings.Contains(yamlStr, "DIPPER_SSH_KEY=") {
-		t.Errorf("docker-compose.yaml should NOT contain DIPPER_SSH_KEY for multi-line key, got:\n%s", yamlStr)
-	}
-	if !strings.Contains(yamlStr, "DIPPER_SSH_FILE=.ssh_key") {
-		t.Errorf("docker-compose.yaml should contain DIPPER_SSH_FILE=.ssh_key, got:\n%s", yamlStr)
+	// Should reference DIPPER_SSH_KEY from .env
+	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY=${DIPPER_SSH_KEY}") {
+		t.Errorf("docker-compose.yaml should reference DIPPER_SSH_KEY from .env, got:\n%s", yamlStr)
 	}
 
-	// Should have volume mount for the SSH key file
-	if !strings.Contains(yamlStr, ".ssh_key:.ssh_key:ro") {
-		t.Errorf("docker-compose.yaml should mount SSH key file, got:\n%s", yamlStr)
+	// Should NOT contain DIPPER_SSH_FILE
+	if strings.Contains(yamlStr, "DIPPER_SSH_FILE") {
+		t.Errorf("docker-compose.yaml should NOT contain DIPPER_SSH_FILE, got:\n%s", yamlStr)
 	}
 
-	// SSH key file should exist on disk
+	// Should NOT have volume mount for SSH key file
+	if strings.Contains(yamlStr, ".ssh_key:.ssh_key:ro") {
+		t.Errorf("docker-compose.yaml should NOT mount SSH key file, got:\n%s", yamlStr)
+	}
+
+	// .ssh_key file should NOT exist on disk
 	keyPath := filepath.Join(tmpDir, ".ssh_key")
-	keyContent, err := os.ReadFile(keyPath)
-	if err != nil {
-		t.Fatalf("failed to read SSH key file: %v", err)
-	}
-	if string(keyContent) != cfg.ConfigRepoSSHKey {
-		t.Errorf("SSH key file content mismatch")
+	if _, err := os.Stat(keyPath); err == nil {
+		t.Error("SSH key file should NOT be created")
 	}
 }
 
 func TestDockerComposeSSHKeySingleLine(t *testing.T) {
-	// When SSH key is single-line, docker-compose should inline it as DIPPER_SSH_KEY.
+	// When SSH key is single-line, docker-compose should reference
+	// DIPPER_SSH_KEY via ${DIPPER_SSH_KEY} (value comes from .env file).
 	g := NewGenerator()
 	cfg := NewDefaultWizardConfig()
 	cfg.ProjectName = "test-ssh-single"
@@ -2381,9 +2280,9 @@ func TestDockerComposeSSHKeySingleLine(t *testing.T) {
 	}
 	yamlStr := string(content)
 
-	// Should contain DIPPER_SSH_KEY with the single-line value
-	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY=single-line-key") {
-		t.Errorf("docker-compose.yaml should contain DIPPER_SSH_KEY for single-line key, got:\n%s", yamlStr)
+	// Should reference DIPPER_SSH_KEY from .env
+	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY=${DIPPER_SSH_KEY}") {
+		t.Errorf("docker-compose.yaml should reference DIPPER_SSH_KEY from .env, got:\n%s", yamlStr)
 	}
 
 	// Should NOT have DIPPER_SSH_FILE
@@ -2399,8 +2298,8 @@ func TestDockerComposeSSHKeySingleLine(t *testing.T) {
 }
 
 func TestEnvFileGenerated_SSHMultiLine(t *testing.T) {
-	// When SSH key is multi-line, the .env file should contain DIPPER_SSH_FILE
-	// (not the multi-line key itself).
+	// When SSH key is multi-line, the .env file should contain DIPPER_SSH_KEY
+	// with the value properly quoted using double quotes (via strconv.Quote).
 	g := NewGenerator()
 	cfg := NewDefaultWizardConfig()
 	cfg.ProjectName = "test-env-ssh"
@@ -2424,13 +2323,18 @@ func TestEnvFileGenerated_SSHMultiLine(t *testing.T) {
 	}
 	envStr := string(content)
 
-	// Should contain DIPPER_SSH_FILE
-	if !strings.Contains(envStr, "DIPPER_SSH_FILE=.ssh_key") {
-		t.Errorf(".env should contain DIPPER_SSH_FILE=.ssh_key, got:\n%s", envStr)
+	// Should contain DIPPER_SSH_KEY with quoted value
+	if !strings.Contains(envStr, "DIPPER_SSH_KEY=") {
+		t.Errorf(".env should contain DIPPER_SSH_KEY, got:\n%s", envStr)
 	}
 
-	// Should NOT contain the multi-line key
-	if strings.Contains(envStr, "BEGIN OPENSSH PRIVATE KEY") {
-		t.Errorf(".env should NOT contain multi-line SSH key, got:\n%s", envStr)
+	// Should contain the key markers (inside the quoted value)
+	if !strings.Contains(envStr, "BEGIN OPENSSH PRIVATE KEY") {
+		t.Errorf(".env should contain the SSH key content, got:\n%s", envStr)
+	}
+
+	// Should NOT contain DIPPER_SSH_FILE
+	if strings.Contains(envStr, "DIPPER_SSH_FILE") {
+		t.Errorf(".env should NOT contain DIPPER_SSH_FILE, got:\n%s", envStr)
 	}
 }
