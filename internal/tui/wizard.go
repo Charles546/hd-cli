@@ -76,6 +76,7 @@ type WizardModel struct {
 	pasteModeTextArea textarea.Model
 	pasteModeFieldIdx int // which textInputs index is being edited in paste mode
 	pasteModeOldValue string // original value before paste mode, restored on cancel
+	rawFieldValues map[string]string // stores multi-line values that textinput cannot display
 }
 
 // stepCount is the total number of wizard steps (used for progress).
@@ -110,6 +111,7 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 	m.pendingDefault = false
 	m.pasteModeActive = false
 	m.pasteModeTextArea = textarea.Model{}
+	m.rawFieldValues = nil
 
 	stepInfo := getStepInfo(s)
 	if stepInfo == nil {
@@ -352,20 +354,49 @@ func (m *WizardModel) handlePasteMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 // value is restored.
 // Note: textinput.Model.SetValue() sanitizes newlines to spaces (it is
 // single-line by design). To preserve multi-line content, we save the raw
-// value directly to the config field here, and update the textinput with
-// the display value separately.
+// value directly to the config field and in rawFieldValues, and update
+// the textinput with a display-friendly single-line representation.
 func (m *WizardModel) exitPasteMode(save bool) {
 	if save {
 		rawValue := m.pasteModeTextArea.Value()
 		// Save the raw multi-line value directly to the config.
 		m.setFieldValueFromPaste(m.pasteModeFieldIdx, rawValue)
-		// Update the textinput display (may be single-line due to textinput sanitization).
-		m.textInputs[m.pasteModeFieldIdx].SetValue(rawValue)
+		// Store the raw value for later retrieval (e.g., re-entering paste mode).
+		if m.rawFieldValues == nil {
+			m.rawFieldValues = make(map[string]string)
+		}
+		fieldKey := m.pasteModeFieldKey()
+		if strings.Contains(rawValue, "\n") {
+			m.rawFieldValues[fieldKey] = rawValue
+			// Update the textinput with a display-friendly single-line value.
+			m.textInputs[m.pasteModeFieldIdx].SetValue(collapseForDisplay(rawValue))
+		} else {
+			// Single-line value: store directly in textinput, clean up rawFieldValues.
+			m.textInputs[m.pasteModeFieldIdx].SetValue(rawValue)
+			delete(m.rawFieldValues, fieldKey)
+		}
 	}
 	m.textInput = m.textInputs[m.pasteModeFieldIdx]
 	m.textInput.Focus()
 	m.pasteModeActive = false
 	m.pasteModeTextArea = textarea.Model{}
+}
+
+// pasteModeFieldKey returns a unique key for the current paste mode field,
+// used to store/retrieve raw multi-line values in rawFieldValues.
+func (m *WizardModel) pasteModeFieldKey() string {
+	return fmt.Sprintf("%d:%d", m.step, m.pasteModeFieldIdx)
+}
+
+// collapseForDisplay returns a single-line representation of a multi-line
+// value suitable for display in a textinput field. The first line is shown
+// followed by "..." if there are additional lines.
+func collapseForDisplay(value string) string {
+	lines := strings.SplitN(value, "\n", 2)
+	if len(lines) <= 1 {
+		return value
+	}
+	return lines[0] + "..."
 }
 
 // setFieldValueFromPaste saves the paste mode value directly to the
@@ -419,7 +450,13 @@ func (m *WizardModel) enterPasteMode() {
 		fieldIdx = m.currentField - 1
 	}
 	m.pasteModeFieldIdx = fieldIdx
+	// Use the raw multi-line value if available, otherwise fall back to
+	// the textinput display value (which may be collapsed).
+	fieldKey := m.pasteModeFieldKey()
 	m.pasteModeOldValue = m.textInput.Value()
+	if raw, ok := m.rawFieldValues[fieldKey]; ok {
+		m.pasteModeOldValue = raw
+	}
 
 	ta := textarea.New()
 	ta.Placeholder = "Paste multi-line content here, Ctrl+D to save, Esc to cancel"
@@ -944,6 +981,35 @@ func (m *WizardModel) handleNavigate(msg tea.Msg, stepInfo *stepInfo) (tea.Model
 	return m, nil
 }
 
+// fieldValue returns the value for the current text input field.
+// If a raw multi-line value was stored via paste mode, it is returned;
+// otherwise the textinput's display value is used.
+func (m *WizardModel) fieldValue() string {
+	if m.rawFieldValues != nil {
+		key := fmt.Sprintf("%d:%d", m.step, m.currentField)
+		if raw, ok := m.rawFieldValues[key]; ok {
+			return raw
+		}
+	}
+	return m.textInput.Value()
+}
+
+// fieldValueForIdx returns the value for a specific text input field index.
+// If a raw multi-line value was stored via paste mode, it is returned;
+// otherwise the textinput's display value is used.
+func (m *WizardModel) fieldValueForIdx(step, idx int) string {
+	if m.rawFieldValues != nil {
+		key := fmt.Sprintf("%d:%d", step, idx)
+		if raw, ok := m.rawFieldValues[key]; ok {
+			return raw
+		}
+	}
+	if idx < len(m.textInputs) {
+		return m.textInputs[idx].Value()
+	}
+	return ""
+}
+
 // saveCurrentFieldValue saves the current text input's value to the config.
 func (m *WizardModel) saveCurrentFieldValue(stepInfo *stepInfo) {
 	// For multi-field and radio steps, we need to map the visible field index back to the original field
@@ -952,7 +1018,7 @@ func (m *WizardModel) saveCurrentFieldValue(stepInfo *stepInfo) {
 		for _, f := range stepInfo.fields {
 			if f.condition == nil || f.condition(m.config) {
 				if visibleIdx == m.currentField {
-					val := m.textInput.Value()
+					val := m.fieldValue()
 					f.setValue(m.config, val)
 					return
 				}
@@ -960,7 +1026,7 @@ func (m *WizardModel) saveCurrentFieldValue(stepInfo *stepInfo) {
 			}
 		}
 	} else if m.currentField < len(stepInfo.fields) {
-		val := m.textInput.Value()
+		val := m.fieldValue()
 		stepInfo.fields[m.currentField].setValue(m.config, val)
 	}
 }
@@ -977,7 +1043,7 @@ func (m *WizardModel) saveCheckboxFieldValue(stepInfo *stepInfo) {
 	for _, f := range stepInfo.fields {
 		if f.condition == nil || f.condition(m.config) {
 			if visibleIdx == fieldIdx {
-				val := m.textInput.Value()
+				val := m.fieldValueForIdx(m.step, fieldIdx)
 				f.setValue(m.config, val)
 				return
 			}

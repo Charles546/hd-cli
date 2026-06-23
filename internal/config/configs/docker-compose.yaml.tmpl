@@ -46,6 +46,9 @@ services:
     volumes:
       - {{ .ConfigDirAbs }}:/etc/honeydipper/config
 {{- end }}
+{{- if .ConfigRepoSSHKeyFile }}
+      - {{ .ConfigRepoSSHKeyFile }}:{{ .ConfigRepoSSHKeyFile }}:ro
+{{- end }}
 {{- if eq .RedisMode "local" }}
     depends_on:
       - redis

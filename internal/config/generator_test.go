@@ -2158,3 +2158,279 @@ func TestEnvFileGenerated(t *testing.T) {
 		}
 	})
 }
+
+// ===== Multi-line SSH key tests =====
+
+func TestBuildConfigRepoCloneEnvVars_SSHMultiLine(t *testing.T) {
+	// When SSH key contains newlines, BuildConfigRepoCloneEnvVars should
+	// return DIPPER_SSH_FILE instead of DIPPER_SSH_KEY.
+	cfg := NewDefaultWizardConfig()
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.ConfigRepoSSHKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+
+	m := cfg.BuildConfigRepoCloneEnvVars()
+
+	// Should NOT contain DIPPER_SSH_KEY
+	if _, ok := m["DIPPER_SSH_KEY"]; ok {
+		t.Error("multi-line SSH key should not produce DIPPER_SSH_KEY in env vars")
+	}
+
+	// Should contain DIPPER_SSH_FILE
+	if m["DIPPER_SSH_FILE"] != ".ssh_key" {
+		t.Errorf("expected DIPPER_SSH_FILE=.ssh_key, got %q", m["DIPPER_SSH_FILE"])
+	}
+
+	// ConfigRepoSSHKeyFile should be set
+	if cfg.ConfigRepoSSHKeyFile != ".ssh_key" {
+		t.Errorf("ConfigRepoSSHKeyFile = %q, want %q", cfg.ConfigRepoSSHKeyFile, ".ssh_key")
+	}
+}
+
+func TestBuildConfigRepoCloneEnvVars_SSHSingleLine(t *testing.T) {
+	// When SSH key is single-line, it should be inlined as before.
+	cfg := NewDefaultWizardConfig()
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.ConfigRepoSSHKey = "single-line-key"
+
+	m := cfg.BuildConfigRepoCloneEnvVars()
+
+	if m["DIPPER_SSH_KEY"] != "single-line-key" {
+		t.Errorf("expected DIPPER_SSH_KEY=single-line-key, got %q", m["DIPPER_SSH_KEY"])
+	}
+
+	if _, ok := m["DIPPER_SSH_FILE"]; ok {
+		t.Error("single-line SSH key should not produce DIPPER_SSH_FILE")
+	}
+}
+
+func TestSSHKeyFilePath(t *testing.T) {
+	cfg := NewDefaultWizardConfig()
+
+	// Default path
+	if cfg.sshKeyFilePath() != ".ssh_key" {
+		t.Errorf("sshKeyFilePath() = %q, want %q", cfg.sshKeyFilePath(), ".ssh_key")
+	}
+
+	// Custom path
+	cfg.ConfigRepoSSHKeyFile = "custom/key/file"
+	if cfg.sshKeyFilePath() != "custom/key/file" {
+		t.Errorf("sshKeyFilePath() = %q, want %q", cfg.sshKeyFilePath(), "custom/key/file")
+	}
+}
+
+func TestWriteSSHKeyFile(t *testing.T) {
+	t.Run("writes multi-line key to file", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "ssh"
+		cfg.ConfigRepoSSHKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+		cfg.ConfigRepoSSHKeyFile = ".ssh_key"
+
+		tmpDir := t.TempDir()
+		err := writeSSHKeyFile(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("writeSSHKeyFile failed: %v", err)
+		}
+
+		// Check file was created
+		keyPath := filepath.Join(tmpDir, ".ssh_key")
+		content, err := os.ReadFile(keyPath)
+		if err != nil {
+			t.Fatalf("failed to read SSH key file: %v", err)
+		}
+		if string(content) != cfg.ConfigRepoSSHKey {
+			t.Errorf("SSH key file content mismatch, got %q", string(content))
+		}
+
+		// Check permissions (0600)
+		info, err := os.Stat(keyPath)
+		if err != nil {
+			t.Fatalf("failed to stat SSH key file: %v", err)
+		}
+		perm := info.Mode().Perm()
+		if perm != 0600 {
+			t.Errorf("SSH key file permissions = %o, want %o", perm, 0600)
+		}
+	})
+
+	t.Run("skips single-line key", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "ssh"
+		cfg.ConfigRepoSSHKey = "single-line-key"
+
+		tmpDir := t.TempDir()
+		err := writeSSHKeyFile(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("writeSSHKeyFile failed: %v", err)
+		}
+
+		// File should NOT be created
+		keyPath := filepath.Join(tmpDir, ".ssh_key")
+		if _, err := os.Stat(keyPath); err == nil {
+			t.Error("SSH key file should not be created for single-line key")
+		}
+	})
+
+	t.Run("skips non-ssh auth", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "pat"
+
+		tmpDir := t.TempDir()
+		err := writeSSHKeyFile(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("writeSSHKeyFile failed: %v", err)
+		}
+
+		// No file should be created
+		entries, _ := os.ReadDir(tmpDir)
+		if len(entries) > 0 {
+			t.Error("no files should be created for non-ssh auth")
+		}
+	})
+
+	t.Run("dry run does not write", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "ssh"
+		cfg.ConfigRepoSSHKey = "multi\nline\nkey"
+		cfg.ConfigRepoSSHKeyFile = ".ssh_key"
+
+		tmpDir := t.TempDir()
+		err := writeSSHKeyFile(cfg, tmpDir, true)
+		if err != nil {
+			t.Fatalf("writeSSHKeyFile failed: %v", err)
+		}
+
+		keyPath := filepath.Join(tmpDir, ".ssh_key")
+		if _, err := os.Stat(keyPath); err == nil {
+			t.Error("SSH key file should not be created in dry run")
+		}
+	})
+}
+
+func TestDockerComposeSSHKeyFile(t *testing.T) {
+	// When SSH key is multi-line, docker-compose should use DIPPER_SSH_FILE
+	// and mount the key file as a volume.
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-ssh-file"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.ConfigRepoSSHKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should contain DIPPER_SSH_FILE, NOT DIPPER_SSH_KEY
+	if strings.Contains(yamlStr, "DIPPER_SSH_KEY=") {
+		t.Errorf("docker-compose.yaml should NOT contain DIPPER_SSH_KEY for multi-line key, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "DIPPER_SSH_FILE=.ssh_key") {
+		t.Errorf("docker-compose.yaml should contain DIPPER_SSH_FILE=.ssh_key, got:\n%s", yamlStr)
+	}
+
+	// Should have volume mount for the SSH key file
+	if !strings.Contains(yamlStr, ".ssh_key:.ssh_key:ro") {
+		t.Errorf("docker-compose.yaml should mount SSH key file, got:\n%s", yamlStr)
+	}
+
+	// SSH key file should exist on disk
+	keyPath := filepath.Join(tmpDir, ".ssh_key")
+	keyContent, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatalf("failed to read SSH key file: %v", err)
+	}
+	if string(keyContent) != cfg.ConfigRepoSSHKey {
+		t.Errorf("SSH key file content mismatch")
+	}
+}
+
+func TestDockerComposeSSHKeySingleLine(t *testing.T) {
+	// When SSH key is single-line, docker-compose should inline it as DIPPER_SSH_KEY.
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-ssh-single"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.ConfigRepoSSHKey = "single-line-key"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should contain DIPPER_SSH_KEY with the single-line value
+	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY=single-line-key") {
+		t.Errorf("docker-compose.yaml should contain DIPPER_SSH_KEY for single-line key, got:\n%s", yamlStr)
+	}
+
+	// Should NOT have DIPPER_SSH_FILE
+	if strings.Contains(yamlStr, "DIPPER_SSH_FILE") {
+		t.Errorf("docker-compose.yaml should NOT contain DIPPER_SSH_FILE for single-line key, got:\n%s", yamlStr)
+	}
+
+	// SSH key file should NOT exist on disk
+	keyPath := filepath.Join(tmpDir, ".ssh_key")
+	if _, err := os.Stat(keyPath); err == nil {
+		t.Error("SSH key file should not be created for single-line key")
+	}
+}
+
+func TestEnvFileGenerated_SSHMultiLine(t *testing.T) {
+	// When SSH key is multi-line, the .env file should contain DIPPER_SSH_FILE
+	// (not the multi-line key itself).
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-env-ssh"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.ConfigRepoSSHKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	envPath := filepath.Join(tmpDir, ".env")
+	content, err := os.ReadFile(envPath)
+	if err != nil {
+		t.Fatalf("failed to read .env file: %v", err)
+	}
+	envStr := string(content)
+
+	// Should contain DIPPER_SSH_FILE
+	if !strings.Contains(envStr, "DIPPER_SSH_FILE=.ssh_key") {
+		t.Errorf(".env should contain DIPPER_SSH_FILE=.ssh_key, got:\n%s", envStr)
+	}
+
+	// Should NOT contain the multi-line key
+	if strings.Contains(envStr, "BEGIN OPENSSH PRIVATE KEY") {
+		t.Errorf(".env should NOT contain multi-line SSH key, got:\n%s", envStr)
+	}
+}

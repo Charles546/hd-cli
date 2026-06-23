@@ -167,6 +167,14 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 		}
 	}
 
+	// Write multi-line SSH key to a file if needed.
+	// Docker Compose cannot inline multi-line values in the environment section,
+	// so when the SSH key contains newlines, we write it to a file and use
+	// DIPPER_SSH_FILE to reference it in docker-compose.
+	if err := writeSSHKeyFile(cfg, outputDir, dryRun); err != nil {
+		return err
+	}
+
 	// Generate docker-compose.yaml for Docker mode
 	if cfg.DeploymentMode == "docker" {
 		tmpl := g.templates.Lookup("docker-compose.yaml.tmpl")
@@ -341,4 +349,30 @@ func applyDefaults(cfg *WizardConfig) {
 // This is the exported version of applyDefaults for use by the CLI layer.
 func ApplyDefaults(cfg *WizardConfig) {
 	applyDefaults(cfg)
+}
+
+// writeSSHKeyFile writes a multi-line SSH private key to a file in the
+// output directory when the key cannot be inlined in docker-compose.yaml.
+// The file path is relative to the output directory and is referenced
+// via DIPPER_SSH_FILE in the docker-compose environment.
+func writeSSHKeyFile(cfg *WizardConfig, outputDir string, dryRun bool) error {
+	if cfg == nil || cfg.ConfigRepoCloneAuth != "ssh" {
+		return nil
+	}
+	if !strings.Contains(cfg.ConfigRepoSSHKey, "\n") {
+		return nil
+	}
+	if dryRun {
+		return nil
+	}
+	keyFile := cfg.sshKeyFilePath()
+	if keyFile == "" {
+		return nil
+	}
+	keyPath := filepath.Join(outputDir, keyFile)
+	// Write with restrictive permissions (owner read/write only).
+	if err := util.WriteFile(keyPath, []byte(cfg.ConfigRepoSSHKey), 0600); err != nil {
+		return fmt.Errorf("failed to write SSH key file %s: %w", keyFile, err)
+	}
+	return nil
 }

@@ -96,6 +96,7 @@ type WizardConfig struct {
 	ConfigRepoSSHKey        string            `yaml:"config_repo_ssh_key"`                   // inline SSH key content
 	ConfigRepoSSHFile       string            `yaml:"config_repo_ssh_file"`                  // path to SSH key file
 	ConfigRepoSSHKeyPassEnv string            `yaml:"config_repo_ssh_key_pass_env"`          // env var name for key passphrase
+	ConfigRepoSSHKeyFile   string            `yaml:"config_repo_ssh_key_file,omitempty"`    // path to file containing SSH key (for multi-line keys)
 	ConfigRepoCloneEnvVars  map[string]string `yaml:"config_repo_clone_env_vars,omitempty"`  // derived, for template
 
 	// Dev mode env vars tracks which HD_* variables are referenced during the wizard.
@@ -163,7 +164,15 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 	case "ssh":
 		m := map[string]string{}
 		if c.ConfigRepoSSHKey != "" {
-			m["DIPPER_SSH_KEY"] = c.ConfigRepoSSHKey
+			if strings.Contains(c.ConfigRepoSSHKey, "\n") {
+				// Multi-line SSH key: cannot be inlined in docker-compose
+				// environment (invalid YAML). Write to a file and use
+				// DIPPER_SSH_FILE instead.
+				c.ConfigRepoSSHKeyFile = c.sshKeyFilePath()
+				m["DIPPER_SSH_FILE"] = c.ConfigRepoSSHKeyFile
+			} else {
+				m["DIPPER_SSH_KEY"] = c.ConfigRepoSSHKey
+			}
 		}
 		if c.ConfigRepoSSHFile != "" {
 			m["DIPPER_SSH_FILE"] = c.ConfigRepoSSHFile
@@ -178,6 +187,15 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 	default:
 		return nil
 	}
+}
+
+// sshKeyFilePath returns the relative path for the SSH key file
+// when the key is multi-line and needs to be stored on disk.
+func (c *WizardConfig) sshKeyFilePath() string {
+	if c.ConfigRepoSSHKeyFile != "" {
+		return c.ConfigRepoSSHKeyFile
+	}
+	return ".ssh_key"
 }
 
 // CollectDevEnvVars scans the wizard config for all $HD_* env var references

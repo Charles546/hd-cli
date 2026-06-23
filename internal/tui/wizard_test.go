@@ -3738,3 +3738,113 @@ func TestPasteModeCtrlSSaves(t *testing.T) {
 		t.Errorf("Ctrl+S in paste mode should trigger save, got: %s", view)
 	}
 }
+
+// ===== Multi-line paste mode: raw value preservation tests =====
+
+func TestPasteModeRawValuePreservedInConfig(t *testing.T) {
+	// After paste mode saves multi-line content, the config should have
+	// the raw multi-line value even though the textinput displays a
+	// collapsed single-line version.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name step (text input)
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	// Paste multi-line content
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+
+	// Save with Ctrl+D
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	if m.pasteModeActive {
+		t.Fatal("pasteModeActive should be false after Ctrl+D")
+	}
+
+	// The config should have the raw multi-line value
+	if m.config.ProjectName != sshKey {
+		t.Errorf("config.ProjectName should have raw multi-line value, got %q", m.config.ProjectName)
+	}
+
+	// The textinput should show a collapsed display value
+	if !strings.Contains(m.textInput.Value(), "...") {
+		t.Errorf("textinput should show collapsed value with '...', got %q", m.textInput.Value())
+	}
+	if strings.Contains(m.textInput.Value(), "\n") {
+		t.Errorf("textinput should NOT contain newlines, got %q", m.textInput.Value())
+	}
+}
+
+func TestPasteModeRawValueReopened(t *testing.T) {
+	// When re-entering paste mode on a field with a raw multi-line value,
+	// the textarea should show the raw value, not the collapsed display.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode and save multi-line content
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	m.pasteModeTextArea.SetValue("line1\nline2\nline3")
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Re-enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	if !m.pasteModeActive {
+		t.Fatal("should be in paste mode")
+	}
+
+	// The textarea should have the raw multi-line value
+	if m.pasteModeTextArea.Value() != "line1\nline2\nline3" {
+		t.Errorf("textarea should have raw multi-line value, got %q", m.pasteModeTextArea.Value())
+	}
+}
+
+func TestPasteModeSingleLineNoRawValue(t *testing.T) {
+	// When pasting single-line content, rawFieldValues should not be set.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode and save single-line content
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	m.pasteModeTextArea.SetValue("single-line-value")
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// rawFieldValues should not contain this field
+	if m.rawFieldValues != nil {
+		key := m.pasteModeFieldKey()
+		if _, ok := m.rawFieldValues[key]; ok {
+			t.Error("rawFieldValues should not contain single-line value")
+		}
+	}
+
+	// The textinput should show the exact value
+	if m.textInput.Value() != "single-line-value" {
+		t.Errorf("textInput.Value() = %q, want %q", m.textInput.Value(), "single-line-value")
+	}
+}
+
+func TestCollapseForDisplay(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"single line", "hello world", "hello world"},
+		{"multi-line", "line1\nline2\nline3", "line1..."},
+		{"empty", "", ""},
+		{"single newline", "hello\n", "hello..."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := collapseForDisplay(tt.input)
+			if got != tt.expected {
+				t.Errorf("collapseForDisplay(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
