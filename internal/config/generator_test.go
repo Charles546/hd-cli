@@ -1915,12 +1915,12 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		// docker-compose references .env file for all clone auth env vars
-		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=${DIPPER_PASS_ENV}") {
-			t.Errorf("docker-compose.yaml should reference DIPPER_PASS_ENV from .env, got:\n%s", yamlStr)
+		// Single-line values are inlined directly
+		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=MY_PAT") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV=MY_PAT, got:\n%s", yamlStr)
 		}
 		if !strings.Contains(yamlStr, "MY_PAT=${MY_PAT}") {
-			t.Errorf("docker-compose.yaml should reference MY_PAT from .env, got:\n%s", yamlStr)
+			t.Errorf("docker-compose.yaml should contain MY_PAT=${MY_PAT}, got:\n%s", yamlStr)
 		}
 	})
 
@@ -1948,12 +1948,12 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		// docker-compose references .env file for all clone auth env vars
-		if !strings.Contains(yamlStr, "DIPPER_GITHUB_PAT=${DIPPER_GITHUB_PAT}") {
-			t.Errorf("docker-compose.yaml should reference DIPPER_GITHUB_PAT from .env, got:\n%s", yamlStr)
+		// Single-line values are inlined directly
+		if !strings.Contains(yamlStr, "DIPPER_GITHUB_PAT=ghp_xxxxx") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_GITHUB_PAT=ghp_xxxxx, got:\n%s", yamlStr)
 		}
-		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=${DIPPER_PASS_ENV}") {
-			t.Errorf("docker-compose.yaml should reference DIPPER_PASS_ENV from .env, got:\n%s", yamlStr)
+		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=DIPPER_GITHUB_PAT") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV=DIPPER_GITHUB_PAT, got:\n%s", yamlStr)
 		}
 	})
 
@@ -1983,12 +1983,12 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		// docker-compose references .env file for all clone auth env vars
-		if !strings.Contains(yamlStr, "GH_APP_ID=${GH_APP_ID}") {
-			t.Errorf("docker-compose.yaml should reference GH_APP_ID from .env, got:\n%s", yamlStr)
+		// Single-line values are inlined directly
+		if !strings.Contains(yamlStr, "GH_APP_ID=12345") {
+			t.Errorf("docker-compose.yaml should contain GH_APP_ID=12345, got:\n%s", yamlStr)
 		}
-		if !strings.Contains(yamlStr, "GH_INSTALLATION_ID=${GH_INSTALLATION_ID}") {
-			t.Errorf("docker-compose.yaml should reference GH_INSTALLATION_ID from .env, got:\n%s", yamlStr)
+		if !strings.Contains(yamlStr, "GH_INSTALLATION_ID=67890") {
+			t.Errorf("docker-compose.yaml should contain GH_INSTALLATION_ID=67890, got:\n%s", yamlStr)
 		}
 	})
 
@@ -2016,9 +2016,9 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		// docker-compose references .env file for all clone auth env vars
-		if !strings.Contains(yamlStr, "DIPPER_SSH_FILE=${DIPPER_SSH_FILE}") {
-			t.Errorf("docker-compose.yaml should reference DIPPER_SSH_FILE from .env, got:\n%s", yamlStr)
+		// Single-line value inlined directly
+		if !strings.Contains(yamlStr, "DIPPER_SSH_FILE=/home/user/.ssh/id_rsa") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_SSH_FILE=/home/user/.ssh/id_rsa, got:\n%s", yamlStr)
 		}
 	})
 
@@ -2207,8 +2207,8 @@ func TestBuildConfigRepoCloneEnvVars_SSHSingleLine(t *testing.T) {
 
 
 func TestDockerComposeSSHKeyFile(t *testing.T) {
-	// When SSH key is multi-line, docker-compose should reference
-	// DIPPER_SSH_KEY via ${DIPPER_SSH_KEY} (value comes from .env file).
+	// When SSH key is multi-line, docker-compose should inline it
+	// as a double-quoted string with \n escape sequences.
 	g := NewGenerator()
 	cfg := NewDefaultWizardConfig()
 	cfg.ProjectName = "test-ssh-file"
@@ -2232,9 +2232,12 @@ func TestDockerComposeSSHKeyFile(t *testing.T) {
 	}
 	yamlStr := string(content)
 
-	// Should reference DIPPER_SSH_KEY from .env
-	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY=${DIPPER_SSH_KEY}") {
-		t.Errorf("docker-compose.yaml should reference DIPPER_SSH_KEY from .env, got:\n%s", yamlStr)
+	// Should contain the multi-line SSH key inline as a double-quoted escaped string
+	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY=-----BEGIN OPENSSH PRIVATE KEY-----") {
+		t.Errorf("docker-compose.yaml should contain inline SSH key, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "-----END OPENSSH PRIVATE KEY-----") {
+		t.Errorf("docker-compose.yaml should contain end of inline SSH key, got:\n%s", yamlStr)
 	}
 
 	// Should NOT contain DIPPER_SSH_FILE
@@ -2255,8 +2258,7 @@ func TestDockerComposeSSHKeyFile(t *testing.T) {
 }
 
 func TestDockerComposeSSHKeySingleLine(t *testing.T) {
-	// When SSH key is single-line, docker-compose should reference
-	// DIPPER_SSH_KEY via ${DIPPER_SSH_KEY} (value comes from .env file).
+	// When SSH key is single-line, docker-compose should inline it directly.
 	g := NewGenerator()
 	cfg := NewDefaultWizardConfig()
 	cfg.ProjectName = "test-ssh-single"
@@ -2280,9 +2282,9 @@ func TestDockerComposeSSHKeySingleLine(t *testing.T) {
 	}
 	yamlStr := string(content)
 
-	// Should reference DIPPER_SSH_KEY from .env
-	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY=${DIPPER_SSH_KEY}") {
-		t.Errorf("docker-compose.yaml should reference DIPPER_SSH_KEY from .env, got:\n%s", yamlStr)
+	// Should contain DIPPER_SSH_KEY with the single-line value inlined
+	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY=single-line-key") {
+		t.Errorf("docker-compose.yaml should contain DIPPER_SSH_KEY=single-line-key, got:\n%s", yamlStr)
 	}
 
 	// Should NOT have DIPPER_SSH_FILE
@@ -2299,7 +2301,8 @@ func TestDockerComposeSSHKeySingleLine(t *testing.T) {
 
 func TestEnvFileGenerated_SSHMultiLine(t *testing.T) {
 	// When SSH key is multi-line, the .env file should contain DIPPER_SSH_KEY
-	// with the value properly quoted using double quotes (via strconv.Quote).
+	// with the raw multi-line value (the .env file is still generated for
+	// other purposes, but the SSH key is now inlined in docker-compose.yaml).
 	g := NewGenerator()
 	cfg := NewDefaultWizardConfig()
 	cfg.ProjectName = "test-env-ssh"
@@ -2323,12 +2326,12 @@ func TestEnvFileGenerated_SSHMultiLine(t *testing.T) {
 	}
 	envStr := string(content)
 
-	// Should contain DIPPER_SSH_KEY with quoted value
+	// Should contain DIPPER_SSH_KEY
 	if !strings.Contains(envStr, "DIPPER_SSH_KEY=") {
 		t.Errorf(".env should contain DIPPER_SSH_KEY, got:\n%s", envStr)
 	}
 
-	// Should contain the key markers (inside the quoted value)
+	// Should contain the key markers
 	if !strings.Contains(envStr, "BEGIN OPENSSH PRIVATE KEY") {
 		t.Errorf(".env should contain the SSH key content, got:\n%s", envStr)
 	}

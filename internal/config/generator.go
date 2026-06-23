@@ -12,8 +12,7 @@ import (
 	"os/exec"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
+		"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
@@ -34,6 +33,13 @@ func NewGenerator() *Generator {
 	// Add custom template functions
 	funcMap["hasStr"] = func(s string) bool { return strings.TrimSpace(s) != "" }
 	funcMap["envRef"] = func(name string) string { return "{% .env." + name + " %}" }
+	funcMap["hasNewline"] = func(s string) bool { return strings.Contains(s, "\n") }
+	funcMap["yamlEscape"] = func(s string) string {
+		s = strings.ReplaceAll(s, "\\", "\\\\")
+		s = strings.ReplaceAll(s, "\n", "\\n")
+		s = strings.ReplaceAll(s, "\"", "\\\"")
+		return s
+	}
 
 	g := &Generator{
 		funcMap: funcMap,
@@ -266,13 +272,7 @@ func generateEnvFile(cfg *WizardConfig) string {
 	lines = append(lines, "# NOTE: Replace the placeholder values with actual secrets before deploying.")
 	lines = append(lines, "")
 	for k, v := range envVars {
-		if strings.Contains(v, "\n") {
-			// Multi-line value: use double-quoted format which Docker Compose
-			// supports natively in .env files.
-			lines = append(lines, fmt.Sprintf("%s=%s", k, strconv.Quote(v)))
-		} else {
-			lines = append(lines, fmt.Sprintf("%s=%s", k, v))
-		}
+		lines = append(lines, fmt.Sprintf("%s=%s", k, v))
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
