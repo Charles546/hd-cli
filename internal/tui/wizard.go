@@ -1370,34 +1370,9 @@ func (m *WizardModel) renderStepContent() string {
 		}
 
 	case modeCheckboxSelect:
-		b.WriteString(LabelStyle.Render(stepInfo.checkboxLabel + ":"))
-		b.WriteString("\n")
-		visibleIdx := 0
-		for _, cb := range stepInfo.checkboxes {
-			// Skip checkboxes that don't meet their condition
-			if cb.condition != nil && !cb.condition(m.config) {
-				continue
-			}
-			checked := cb.getValue(m.config)
-			checkboxChar := "☐"
-			if checked {
-				checkboxChar = "☑"
-			}
-			if visibleIdx == m.checkboxIndex && m.currentField == 0 {
-				b.WriteString(SelectedItemStyle.Render("  " + checkboxChar + " "))
-				b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)).Render(cb.label))
-			} else {
-				b.WriteString(UnselectedItemStyle.Render("  " + checkboxChar + " "))
-				b.WriteString(UnselectedItemStyle.Render(cb.label))
-			}
-			b.WriteString("\n")
-			if cb.help != "" {
-				b.WriteString(HelpStyle.Render("      " + cb.help))
-				b.WriteString("\n")
-			}
-			visibleIdx++
-		}
-		b.WriteString("\n")
+		// Render checkboxes using the shared renderCheckboxSelection method
+		// with dimmed=false since checkboxes are interactive in this mode
+		b.WriteString(m.renderCheckboxSelection(stepInfo, false))
 		// Render conditional text fields
 		if len(m.textInputs) > 0 {
 			// Use "Secret paths:" for step 8 (GitHub integration), generic label otherwise

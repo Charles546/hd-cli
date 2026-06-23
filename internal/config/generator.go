@@ -34,11 +34,13 @@ func NewGenerator() *Generator {
 	funcMap["hasStr"] = func(s string) bool { return strings.TrimSpace(s) != "" }
 	funcMap["envRef"] = func(name string) string { return "{% .env." + name + " %}" }
 	funcMap["hasNewline"] = func(s string) bool { return strings.Contains(s, "\n") }
-	funcMap["yamlEscape"] = func(s string) string {
-		s = strings.ReplaceAll(s, "\\", "\\\\")
-		s = strings.ReplaceAll(s, "\n", "\\n")
-		s = strings.ReplaceAll(s, "\"", "\\\"")
-		return s
+	funcMap["yamlBlock"] = func(s string) string {
+		lines := strings.Split(s, "\n")
+		var result []string
+		for _, line := range lines {
+			result = append(result, "        "+line)
+		}
+		return strings.Join(result, "\n")
 	}
 
 	g := &Generator{

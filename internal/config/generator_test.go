@@ -458,7 +458,7 @@ func TestBootstrapCloneCredentialsInDockerCompose(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "DIPPER_GIT_PAT=${DIPPER_GIT_PAT}") {
+		if !strings.Contains(yamlStr, "DIPPER_GIT_PAT: ${DIPPER_GIT_PAT}") {
 			t.Error("docker-compose.yaml should pass through DIPPER_GIT_PAT env var")
 		}
 	})
@@ -486,13 +486,13 @@ func TestBootstrapCloneCredentialsInDockerCompose(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "GH_APP_ID=${GH_APP_ID}") {
+		if !strings.Contains(yamlStr, "GH_APP_ID: ${GH_APP_ID}") {
 			t.Error("docker-compose.yaml should pass through GH_APP_ID env var")
 		}
-		if !strings.Contains(yamlStr, "GH_APP_INSTALLATION_ID=${GH_APP_INSTALLATION_ID}") {
+		if !strings.Contains(yamlStr, "GH_APP_INSTALLATION_ID: ${GH_APP_INSTALLATION_ID}") {
 			t.Error("docker-compose.yaml should pass through GH_APP_INSTALLATION_ID env var")
 		}
-		if !strings.Contains(yamlStr, "GH_APP_KEY=${GH_APP_KEY}") {
+		if !strings.Contains(yamlStr, "GH_APP_KEY: ${GH_APP_KEY}") {
 			t.Error("docker-compose.yaml should pass through GH_APP_KEY env var")
 		}
 	})
@@ -679,7 +679,7 @@ func TestDockerComposeRepoEnvVar(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "REPO=git@github.com:myuser/hd-config.git") {
+		if !strings.Contains(yamlStr, "REPO: git@github.com:myuser/hd-config.git") {
 			t.Errorf("docker-compose.yaml should contain REPO with git remote URL, got:\n%s", yamlStr)
 		}
 	})
@@ -705,7 +705,7 @@ func TestDockerComposeRepoEnvVar(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+		if !strings.Contains(yamlStr, "REPO: /etc/honeydipper/config") {
 			t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
 		}
 	})
@@ -1141,16 +1141,16 @@ func TestDockerComposeDevModeEnvVars(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should contain HD_* env var passthroughs
-	if !strings.Contains(yamlStr, "HD_GITHUB_TOKEN=${HD_GITHUB_TOKEN}") {
+	if !strings.Contains(yamlStr, "HD_GITHUB_TOKEN: ${HD_GITHUB_TOKEN}") {
 		t.Errorf("docker-compose.yaml should contain HD_GITHUB_TOKEN passthrough, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "HD_GITHUB_WEBHOOK_SECRET=${HD_GITHUB_WEBHOOK_SECRET}") {
+	if !strings.Contains(yamlStr, "HD_GITHUB_WEBHOOK_SECRET: ${HD_GITHUB_WEBHOOK_SECRET}") {
 		t.Errorf("docker-compose.yaml should contain HD_GITHUB_WEBHOOK_SECRET passthrough, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "HD_SLACK_BOT_TOKEN=${HD_SLACK_BOT_TOKEN}") {
+	if !strings.Contains(yamlStr, "HD_SLACK_BOT_TOKEN: ${HD_SLACK_BOT_TOKEN}") {
 		t.Errorf("docker-compose.yaml should contain HD_SLACK_BOT_TOKEN passthrough, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "HD_SLACK_SIGNING_SECRET=${HD_SLACK_SIGNING_SECRET}") {
+	if !strings.Contains(yamlStr, "HD_SLACK_SIGNING_SECRET: ${HD_SLACK_SIGNING_SECRET}") {
 		t.Errorf("docker-compose.yaml should contain HD_SLACK_SIGNING_SECRET passthrough, got:\n%s", yamlStr)
 	}
 }
@@ -1179,7 +1179,7 @@ func TestDockerComposeDevModePartialEnvVars(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should contain the one HD_ var
-	if !strings.Contains(yamlStr, "HD_GITHUB_TOKEN=${HD_GITHUB_TOKEN}") {
+	if !strings.Contains(yamlStr, "HD_GITHUB_TOKEN: ${HD_GITHUB_TOKEN}") {
 		t.Errorf("docker-compose.yaml should contain HD_GITHUB_TOKEN, got:\n%s", yamlStr)
 	}
 	// Should NOT contain Slack vars (they were empty)
@@ -1244,7 +1244,7 @@ func TestDockerComposeDevModeNoEnvVars(t *testing.T) {
 		t.Errorf("docker-compose.yaml should not contain HD_ vars when none referenced, got:\n%s", yamlStr)
 	}
 	// Should still have the REPO env var
-	if !strings.Contains(yamlStr, "REPO=") {
+	if !strings.Contains(yamlStr, "REPO: ") {
 		t.Errorf("docker-compose.yaml should still have REPO env var, got:\n%s", yamlStr)
 	}
 }
@@ -1547,7 +1547,7 @@ func TestDockerComposeRemoteURL(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should use the git remote URL as REPO
-	if !strings.Contains(yamlStr, "REPO=git@github.com:myuser/hd-config.git") {
+	if !strings.Contains(yamlStr, "REPO: git@github.com:myuser/hd-config.git") {
 		t.Errorf("docker-compose.yaml should contain REPO with git remote URL, got:\n%s", yamlStr)
 	}
 }
@@ -1575,7 +1575,7 @@ func TestDockerComposeFallbackREPO(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should fall back to local path since no GitRemoteURL is set
-	if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+	if !strings.Contains(yamlStr, "REPO: /etc/honeydipper/config") {
 		t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
 	}
 }
@@ -1602,7 +1602,7 @@ func TestDockerComposeLocalREPO(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should use local path as REPO
-	if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+	if !strings.Contains(yamlStr, "REPO: /etc/honeydipper/config") {
 		t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
 	}
 }
@@ -1662,7 +1662,7 @@ func TestGithubCreateRepoWithLocalCopyUsesLocalREPO(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should use local path as REPO, not a git URL
-	if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+	if !strings.Contains(yamlStr, "REPO: /etc/honeydipper/config") {
 		t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
 	}
 }
@@ -1915,12 +1915,12 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		// Single-line values are inlined directly
-		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=MY_PAT") {
-			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV=MY_PAT, got:\n%s", yamlStr)
+		// Single-line values are inlined directly in map format
+		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV: MY_PAT") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV: MY_PAT, got:\n%s", yamlStr)
 		}
-		if !strings.Contains(yamlStr, "MY_PAT=${MY_PAT}") {
-			t.Errorf("docker-compose.yaml should contain MY_PAT=${MY_PAT}, got:\n%s", yamlStr)
+		if !strings.Contains(yamlStr, "MY_PAT: ${MY_PAT}") {
+			t.Errorf("docker-compose.yaml should contain MY_PAT: ${MY_PAT}, got:\n%s", yamlStr)
 		}
 	})
 
@@ -1948,12 +1948,12 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		// Single-line values are inlined directly
-		if !strings.Contains(yamlStr, "DIPPER_GITHUB_PAT=ghp_xxxxx") {
-			t.Errorf("docker-compose.yaml should contain DIPPER_GITHUB_PAT=ghp_xxxxx, got:\n%s", yamlStr)
+		// Single-line values are inlined directly in map format
+		if !strings.Contains(yamlStr, "DIPPER_GITHUB_PAT: ghp_xxxxx") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_GITHUB_PAT: ghp_xxxxx, got:\n%s", yamlStr)
 		}
-		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV=DIPPER_GITHUB_PAT") {
-			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV=DIPPER_GITHUB_PAT, got:\n%s", yamlStr)
+		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV: DIPPER_GITHUB_PAT") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV: DIPPER_GITHUB_PAT, got:\n%s", yamlStr)
 		}
 	})
 
@@ -1983,12 +1983,12 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		// Single-line values are inlined directly
-		if !strings.Contains(yamlStr, "GH_APP_ID=12345") {
-			t.Errorf("docker-compose.yaml should contain GH_APP_ID=12345, got:\n%s", yamlStr)
+		// Single-line values are inlined directly in map format
+		if !strings.Contains(yamlStr, "GH_APP_ID: 12345") {
+			t.Errorf("docker-compose.yaml should contain GH_APP_ID: 12345, got:\n%s", yamlStr)
 		}
-		if !strings.Contains(yamlStr, "GH_INSTALLATION_ID=67890") {
-			t.Errorf("docker-compose.yaml should contain GH_INSTALLATION_ID=67890, got:\n%s", yamlStr)
+		if !strings.Contains(yamlStr, "GH_INSTALLATION_ID: 67890") {
+			t.Errorf("docker-compose.yaml should contain GH_INSTALLATION_ID: 67890, got:\n%s", yamlStr)
 		}
 	})
 
@@ -2016,9 +2016,9 @@ func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		// Single-line value inlined directly
-		if !strings.Contains(yamlStr, "DIPPER_SSH_FILE=/home/user/.ssh/id_rsa") {
-			t.Errorf("docker-compose.yaml should contain DIPPER_SSH_FILE=/home/user/.ssh/id_rsa, got:\n%s", yamlStr)
+		// Single-line value inlined directly in map format
+		if !strings.Contains(yamlStr, "DIPPER_SSH_FILE: /home/user/.ssh/id_rsa") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_SSH_FILE: /home/user/.ssh/id_rsa, got:\n%s", yamlStr)
 		}
 	})
 
@@ -2232,9 +2232,9 @@ func TestDockerComposeSSHKeyFile(t *testing.T) {
 	}
 	yamlStr := string(content)
 
-	// Should contain the multi-line SSH key inline as a double-quoted escaped string
-	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY=-----BEGIN OPENSSH PRIVATE KEY-----") {
-		t.Errorf("docker-compose.yaml should contain inline SSH key, got:\n%s", yamlStr)
+	// Should contain the multi-line SSH key as a YAML block scalar
+	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY: |") {
+		t.Errorf("docker-compose.yaml should contain DIPPER_SSH_KEY block scalar, got:\n%s", yamlStr)
 	}
 	if !strings.Contains(yamlStr, "-----END OPENSSH PRIVATE KEY-----") {
 		t.Errorf("docker-compose.yaml should contain end of inline SSH key, got:\n%s", yamlStr)
@@ -2282,9 +2282,9 @@ func TestDockerComposeSSHKeySingleLine(t *testing.T) {
 	}
 	yamlStr := string(content)
 
-	// Should contain DIPPER_SSH_KEY with the single-line value inlined
-	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY=single-line-key") {
-		t.Errorf("docker-compose.yaml should contain DIPPER_SSH_KEY=single-line-key, got:\n%s", yamlStr)
+	// Should contain DIPPER_SSH_KEY with the single-line value in map format
+	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY: single-line-key") {
+		t.Errorf("docker-compose.yaml should contain DIPPER_SSH_KEY: single-line-key, got:\n%s", yamlStr)
 	}
 
 	// Should NOT have DIPPER_SSH_FILE
