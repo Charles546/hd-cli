@@ -3662,6 +3662,84 @@ func TestPasteModeMultiLineSSHKey(t *testing.T) {
 	}
 }
 
+func TestPasteModeMultiLineSSHKeyPreservedOnTab(t *testing.T) {
+	// After pasting a multi-line SSH key and pressing Tab to leave the field,
+	// the config should still have the raw multi-line value (not the collapsed display).
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Navigate to the SSH key content field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to Clone auth method
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
+
+	if m.currentField != 3 {
+		t.Fatalf("currentField = %d, want 3 (SSH key content)", m.currentField)
+	}
+
+	// Enter paste mode and paste multi-line SSH key
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Press Tab to move to next field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	// The config should still have the multi-line SSH key
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("ConfigRepoSSHKey was corrupted after Tab!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	}
+	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
+		t.Errorf("ConfigRepoSSHKey lost newlines after Tab: %q", m.config.ConfigRepoSSHKey)
+	}
+}
+
+func TestPasteModeMultiLineSSHKeyPreservedOnEnter(t *testing.T) {
+	// After pasting a multi-line SSH key and pressing Enter to leave the field,
+	// the config should still have the raw multi-line value.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Navigate to the SSH key content field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	if m.currentField != 3 {
+		t.Fatalf("currentField = %d, want 3 (SSH key content)", m.currentField)
+	}
+
+	// Enter paste mode and paste multi-line SSH key
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Press Enter to move to next field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// The config should still have the multi-line SSH key
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("ConfigRepoSSHKey was corrupted after Enter!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	}
+	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
+		t.Errorf("ConfigRepoSSHKey lost newlines after Enter: %q", m.config.ConfigRepoSSHKey)
+	}
+}
+
 func TestPasteModeHintShownInNavigation(t *testing.T) {
 	// Navigation hints should include ctrl+e=paste mode in text input mode.
 	cfg := config.NewDefaultWizardConfig()
