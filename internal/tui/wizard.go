@@ -1375,9 +1375,13 @@ func (m *WizardModel) renderStepContent() string {
 		b.WriteString(m.renderCheckboxSelection(stepInfo, false))
 		// Render conditional text fields
 		if len(m.textInputs) > 0 {
-			// Use "Secret paths:" for step 8 (GitHub integration), generic label otherwise
+			// Use "Secret paths:" for step 8 in vault mode, "Secret values:" in dev mode, generic label otherwise
 			if m.step == 8 {
-				b.WriteString(LabelStyle.Render("Secret paths:"))
+				if isDevMode(m.config) {
+					b.WriteString(LabelStyle.Render("Secret values:"))
+				} else {
+					b.WriteString(LabelStyle.Render("Secret paths:"))
+				}
 			} else {
 				b.WriteString(LabelStyle.Render("Configuration:"))
 			}
