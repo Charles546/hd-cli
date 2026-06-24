@@ -939,7 +939,7 @@ func TestStepOrder(t *testing.T) {
 		{12, "Kubernetes Configuration"},
 		{13, "Source Configuration"},
 		{14, "GitHub Repo Creation"},
-		{15, "Clone Auth & Secure Exec"},
+		{15, "Clone Auth"},
 		{16, "Summary & Confirm"},
 	}
 
@@ -2120,9 +2120,9 @@ func TestStep14SpaceToggleFirstCheckbox(t *testing.T) {
 		t.Errorf("step 14 view should contain 'Use local copy' checkbox, got:\n%s", view)
 	}
 
-	// Text inputs should now include git remote URL and clone auth method
-	if len(m.textInputs) != 1 {
-		t.Errorf("textInputs count = %d, want 1 (git remote URL)", len(m.textInputs))
+	// Text inputs should now include git remote URL and secure-exec driver
+	if len(m.textInputs) != 2 {
+		t.Errorf("textInputs count = %d, want 2 (git remote URL + secure-exec driver)", len(m.textInputs))
 	}
 }
 
@@ -2152,7 +2152,7 @@ func TestStep14SecondCheckboxVisibleWhenFirstChecked(t *testing.T) {
 
 	// Git remote URL should still be visible, but clone auth fields should be hidden
 	if len(m.textInputs) != 1 {
-		t.Errorf("textInputs count = %d, want 1 (git remote URL visible, clone auth hidden)", len(m.textInputs))
+		t.Errorf("textInputs count = %d, want 1 (git remote URL visible, secure-exec hidden)", len(m.textInputs))
 	}
 }
 
@@ -2212,14 +2212,16 @@ func TestStep14EnterOnLastCheckboxWithTextInput(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace}) // toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})   // move to checkbox 1
 
-	// textInputs should have git remote URL + clone auth method
-	if len(m.textInputs) != 1 {
-		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
+	// textInputs should have git remote URL + secure-exec driver
+	if len(m.textInputs) != 2 {
+		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Press Enter on last checkbox: toggles UseLocalCopy on, textInputs still exist
-	// (git remote URL and clone auth method are always visible when GithubCreateRepo is true)
-	// so it switches to text input mode instead of advancing
+	// (git remote URL is always visible when GithubCreateRepo is true,
+	// and secure-exec driver is visible when !UseLocalCopy)
+	// When UseLocalCopy is toggled on, secure-exec driver becomes hidden,
+	// leaving only 1 text input (git remote URL)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	// UseLocalCopy should be toggled on
@@ -2227,7 +2229,7 @@ func TestStep14EnterOnLastCheckboxWithTextInput(t *testing.T) {
 		t.Error("UseLocalCopy should be true after Enter on second checkbox")
 	}
 
-	// Text inputs still exist (git remote URL + clone auth always visible), so should switch to text input mode
+	// Text inputs still exist (git remote URL always visible), so should switch to text input mode
 	if m.step != 14 {
 		t.Errorf("step = %d, want 14 (should stay on step 14 with text inputs)", m.step)
 	}
@@ -2267,16 +2269,16 @@ func TestStep14EnterOnLastCheckboxNoAdvanceWhenTextInputRequired(t *testing.T) {
 	// Toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// Now there are text inputs (git remote URL + clone auth method)
-	if len(m.textInputs) != 1 {
-		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
+	// Now there are text inputs (git remote URL + secure-exec driver)
+	if len(m.textInputs) != 2 {
+		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Move to last checkbox (index 1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 
 	// Press Enter on last checkbox: toggles UseLocalCopy, text inputs still exist
-	// (git remote URL + clone auth always visible), so switches to text input mode
+	// (git remote URL always visible), so switches to text input mode
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if m.step != 14 {
@@ -2296,9 +2298,9 @@ func TestStep14GitRemoteURLFieldVisibleAfterCheckingCreateRepo(t *testing.T) {
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// Text inputs should have 2 fields (git remote URL + clone auth method)
-	if len(m.textInputs) != 1 {
-		t.Errorf("textInputs count = %d, want 1", len(m.textInputs))
+	// Text inputs should have 2 fields (git remote URL + secure-exec driver)
+	if len(m.textInputs) != 2 {
+		t.Errorf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	view := m.View()
@@ -2315,9 +2317,9 @@ func TestStep14CheckboxVisibleInTextInputMode(t *testing.T) {
 
 	// Toggle "Create GitHub repo" on, move to second checkbox, press Enter to switch to text input
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace}) // toggle GithubCreateRepo on
-	// Now text inputs exist (git remote URL + clone auth method)
-	if len(m.textInputs) != 1 {
-		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
+	// Now text inputs exist (git remote URL + secure-exec driver)
+	if len(m.textInputs) != 2 {
+		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Press Down to move to checkbox 1, then Down again to move to text inputs
@@ -2348,14 +2350,14 @@ func TestStep14TextInputModeTabNavigation(t *testing.T) {
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// There should be 2 text inputs (git remote URL + clone auth method)
-	if len(m.textInputs) != 1 {
-		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
+	// There should be 2 text inputs (git remote URL + secure-exec driver)
+	if len(m.textInputs) != 2 {
+		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Move to text input: Down past last checkbox goes to textInputs[0] (Git remote URL)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
+	m, _ = updateWizard(m, tea.KeyMsg{Type:tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type:tea.KeyDown}) // to text input (Git remote URL)
 
 	// Type in the git remote URL
 	for _, ch := range "git@github.com:user/repo.git" {
@@ -2363,10 +2365,14 @@ func TestStep14TextInputModeTabNavigation(t *testing.T) {
 		m, _ = updateWizard(m, msg)
 	}
 
-	// Tab to clone auth (default is "none" so no need to type)
+	// Tab to secure-exec driver field
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
-	// Press Enter — should advance (none auth, git remote URL set)
+	// Tab to clone auth (default is "none" so no need to type)
+	// Actually, the clone auth field is on step 15, not step 14.
+	// Step 14 has: git remote URL, secure-exec driver, and vault/gcloud fields (conditional).
+	// With default "none" driver, only git remote URL and secure-exec driver are visible.
+	// Press Enter on last field — should advance.
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.step != 15 {
 		t.Errorf("step = %d, want 15", m.step)
@@ -2592,18 +2598,19 @@ func TestStep14UseLocalCopyHidesGitRemoteURL(t *testing.T) {
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// Before toggling local copy: textInputs should have 2 fields (git remote URL + clone auth)
-	if len(m.textInputs) != 1 {
-		t.Fatalf("expected 1 text input before local copy (git remote URL only), got %d", len(m.textInputs))
+	// Before toggling local copy: textInputs should have 2 fields (git remote URL + secure-exec driver)
+	if len(m.textInputs) != 2 {
+		t.Fatalf("expected 2 text inputs before local copy (git remote URL + secure-exec driver), got %d", len(m.textInputs))
 	}
 
-	// Move to second checkbox and toggle
+	// Move to second checkbox and toggle UseLocalCopy on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	m, _ = updateWizard(m, tea.KeyMsg{Type:tea.KeySpace})
 
-	// After checking local copy: textInputs should have 1 field (git remote URL only, clone auth hidden)
+	// After checking local copy: secure-exec driver is hidden (!UseLocalCopy condition fails)
+	// Git remote URL is still visible (no condition on UseLocalCopy)
 	if len(m.textInputs) != 1 {
-		t.Errorf("expected 1 text input after local copy (clone auth hidden), got %d", len(m.textInputs))
+		t.Errorf("expected 1 text input after local copy (secure-exec hidden), got %d", len(m.textInputs))
 	}
 }
 
@@ -2631,9 +2638,8 @@ func TestStep14UseLocalCopyNoValidationRequired(t *testing.T) {
 
 func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 	// Toggling checkboxes should rebuild text inputs correctly
-	// Note: UseLocalCopy no longer hides git remote URL, but hides clone auth fields
-	// When GithubCreateRepo=true && !UseLocalCopy: textInputs=2 (git remote URL + clone auth)
-	// When GithubCreateRepo=true && UseLocalCopy: textInputs=1 (git remote URL only)
+	// When GithubCreateRepo=true && !UseLocalCopy: textInputs=2 (git remote URL + secure-exec driver)
+	// When GithubCreateRepo=true && UseLocalCopy: textInputs=1 (git remote URL only, secure-exec hidden)
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
@@ -2645,21 +2651,24 @@ func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 
 	// Toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
-	if len(m.textInputs) != 1 {
-		t.Errorf("after GithubCreateRepo=true, textInputs count = %d, want 1", len(m.textInputs))
+	// Now has: git remote URL + secure-exec driver = 2
+	if len(m.textInputs) != 2 {
+		t.Errorf("after GithubCreateRepo=true, textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Move to second checkbox and toggle UseLocalCopy on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	// UseLocalCopy=true hides secure-exec driver, leaving only git remote URL = 1
 	if len(m.textInputs) != 1 {
-		t.Errorf("after UseLocalCopy=true, textInputs count = %d, want 1 (clone auth hidden)", len(m.textInputs))
+		t.Errorf("after UseLocalCopy=true, textInputs count = %d, want 1 (secure-exec hidden)", len(m.textInputs))
 	}
 
 	// Toggle UseLocalCopy off
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
-	if len(m.textInputs) != 1 {
-		t.Errorf("after UseLocalCopy=false, textInputs count = %d, want 1", len(m.textInputs))
+	// UseLocalCopy=false shows secure-exec driver again = 2
+	if len(m.textInputs) != 2 {
+		t.Errorf("after UseLocalCopy=false, textInputs count = %d, want 2", len(m.textInputs))
 	}
 }
 
@@ -3365,9 +3374,9 @@ func TestStep15CloneAuthConditionalFieldsVisible(t *testing.T) {
 		}
 	}
 
-	// Should have: Clone auth method, PAT, Enable secure execution = 3
-	if visibleFields != 3 {
-		t.Errorf("expected 3 visible fields for pat auth, got %d", visibleFields)
+	// Should have: Clone auth method, PAT = 2
+	if visibleFields != 2 {
+		t.Errorf("expected 2 visible fields for pat auth, got %d", visibleFields)
 	}
 }
 
@@ -3389,20 +3398,21 @@ func TestStep15CloneAuthSSHFieldsVisible(t *testing.T) {
 		}
 	}
 
-	// Should have: Clone auth method, SSH key content, SSH key file, SSH key passphrase, Enable secure execution = 5
-	if visibleFields != 5 {
-		t.Errorf("expected 5 visible fields for ssh auth, got %d", visibleFields)
+	// Should have: Clone auth method, SSH key content, SSH key file, SSH key passphrase = 4
+	if visibleFields != 4 {
+		t.Errorf("expected 4 visible fields for ssh auth, got %d", visibleFields)
 	}
 }
 
 func TestStep15CloneAuthHiddenForLocalCopy(t *testing.T) {
 	// When UseLocalCopy is true, clone auth fields should be hidden
+	// (they are on step 15, which is conditionally shown based on !UseLocalCopy)
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = true
 	cfg.ConfigRepoCloneAuth = "pat"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 14)
 
 	stepInfo := getStepInfo(14)
 	visibleFields := 0
@@ -3412,7 +3422,7 @@ func TestStep15CloneAuthHiddenForLocalCopy(t *testing.T) {
 		}
 	}
 
-	// Should only have: Git remote URL = 1
+	// Should only have: Git remote URL = 1 (secure-exec driver hidden when UseLocalCopy=true)
 	if visibleFields != 1 {
 		t.Errorf("expected 1 visible field when UseLocalCopy=true, got %d", visibleFields)
 	}

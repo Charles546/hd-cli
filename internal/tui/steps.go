@@ -143,6 +143,16 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.GitRemoteURL = value
 		case "use_local_copy":
 			cfg.UseLocalCopy = value == "true" || value == "yes"
+		case "secure_exec_driver":
+			cfg.SecureExecDriver = value
+		case "secure_exec_vault_addr":
+			cfg.SecureExecVaultAddr = value
+		case "secure_exec_vault_role_id":
+			cfg.SecureExecVaultRoleID = value
+		case "secure_exec_vault_secret_id":
+			cfg.SecureExecVaultSecretID = value
+		case "secure_exec_gcloud_project_id":
+			cfg.SecureExecGcloudProjectID = value
 		}
 	case 15:
 		switch key {
@@ -163,17 +173,6 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.ConfigRepoSSHFile = value
 		case "config_repo_ssh_key_pass_env":
 			cfg.ConfigRepoSSHKeyPassEnv = value
-		// Secure exec fields
-		case "secure_exec_enabled":
-			cfg.SecureExecEnabled = value == "true" || value == "yes"
-		case "secure_exec_driver_path":
-			cfg.SecureExecDriverPath = value
-		case "secure_exec_vault_addr":
-			cfg.SecureExecVaultAddr = value
-		case "secure_exec_vault_role_id":
-			cfg.SecureExecVaultRoleID = value
-		case "secure_exec_vault_secret_id":
-			cfg.SecureExecVaultSecretID = value
 		}
 	}
 
@@ -198,7 +197,7 @@ func StepLabels() []string {
 		"Kubernetes Config",
 		"Source Config",
 		"GitHub Repo",
-		"Clone Auth & Secure Exec",
+		"Clone Auth",
 		"Summary",
 	}
 }
@@ -234,7 +233,7 @@ func StepHelp(step int) string {
 		12: "Kubernetes deployment settings. Only applies if K8s mode is selected.",
 		13: "Source build settings. Only applies if source mode is selected.",
 		14: "Optionally create a new GitHub repository for the generated config.",
-		15: "Configure clone authentication and secure execution settings.",
+		15: "Configure clone authentication for the config repository.",
 		16: "Review your choices before generating the configuration files.",
 	}
 	if h, ok := helps[step]; ok {

@@ -17,7 +17,7 @@ type WizardConfig struct {
 	// Project settings
 	ProjectName    string `yaml:"project_name"`
 	ConfigDir      string `yaml:"config_dir"`
-	ConfigDirAbs   string `yaml:"-"`               // Absolute path of ConfigDir, computed during generation
+	ConfigDirAbs   string `yaml:"-"`                 // Absolute path of ConfigDir, computed during generation
 	DeploymentMode string `yaml:"deployment_mode"` // docker, source, kubernetes
 
 	// Essentials repo
@@ -99,11 +99,11 @@ type WizardConfig struct {
 	ConfigRepoCloneEnvVars  map[string]string `yaml:"config_repo_clone_env_vars,omitempty"`  // derived, for template
 
 	// Secure execution settings
-	SecureExecEnabled    bool   `yaml:"secure_exec_enabled,omitempty"`     // enable secure execution mode
-	SecureExecDriverPath string `yaml:"secure_exec_driver_path,omitempty"` // path to secure-exec driver (e.g. ./hd-driver-vault)
+	SecureExecDriver     string `yaml:"secure_exec_driver,omitempty"`      // none, hd-driver-vault, gcloud-secret
 	SecureExecVaultAddr  string `yaml:"secure_exec_vault_addr,omitempty"`   // VAULT_ADDR for vault driver
 	SecureExecVaultRoleID string `yaml:"secure_exec_vault_role_id,omitempty"` // VAULT_ROLE_ID for vault driver
 	SecureExecVaultSecretID string `yaml:"secure_exec_vault_secret_id,omitempty"` // VAULT_SECRET_ID for vault driver
+	SecureExecGcloudProjectID string `yaml:"secure_exec_gcloud_project_id,omitempty"` // GCP project ID for gcloud-secret driver
 
 	// Secure exec env vars map for docker-compose template (derived from the fields above)
 	SecureExecEnvVars map[string]string `yaml:"secure_exec_env_vars,omitempty"` // derived, for template
@@ -134,8 +134,7 @@ func NewDefaultWizardConfig() *WizardConfig {
 		K8sRepoStrategy:              "clone",
 		SourceBranch:                 "v4",
 		ConfigRepoCloneAuth:          "none",
-		SecureExecEnabled:            false,
-		SecureExecDriverPath:         "./hd-driver-vault",
+		SecureExecDriver:             "none",
 		AIModel:                      "gpt-4o",
 		AIBaseURL:                    "https://api.openai.com/v1",
 		AIEngineName:                 "default",
@@ -204,28 +203,35 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 }
 
 // BuildSecureExecEnvVars returns a map of environment variables for secure execution.
-// When secure_exec is enabled, these vars configure the daemon's security policy.
+// When a secure-exec driver is selected, these vars configure the daemon's security policy.
 // The output uses the exact env var names required by the daemon:
 //   - HD_SECURE_LOADER: path to the secure-exec driver
-//   - VAULT_ADDR: vault server address
-//   - VAULT_ROLE_ID: vault role ID
-//   - VAULT_SECRET_ID: vault secret ID
+//   - VAULT_ADDR: vault server address (for hd-driver-vault)
+//   - VAULT_ROLE_ID: vault role ID (for hd-driver-vault)
+//   - VAULT_SECRET_ID: vault secret ID (for hd-driver-vault)
+//   - GCLOUD_PROJECT_ID: GCP project ID (for gcloud-secret)
 func (c *WizardConfig) BuildSecureExecEnvVars() map[string]string {
-	if c == nil || !c.SecureExecEnabled {
+	if c == nil || c.SecureExecDriver == "" || c.SecureExecDriver == "none" {
 		return nil
 	}
 	m := map[string]string{}
-	if c.SecureExecDriverPath != "" {
-		m["HD_SECURE_LOADER"] = c.SecureExecDriverPath
-	}
-	if c.SecureExecVaultAddr != "" {
-		m["VAULT_ADDR"] = c.SecureExecVaultAddr
-	}
-	if c.SecureExecVaultRoleID != "" {
-		m["VAULT_ROLE_ID"] = c.SecureExecVaultRoleID
-	}
-	if c.SecureExecVaultSecretID != "" {
-		m["VAULT_SECRET_ID"] = c.SecureExecVaultSecretID
+	switch c.SecureExecDriver {
+	case "hd-driver-vault":
+		m["HD_SECURE_LOADER"] = "./hd-driver-vault"
+		if c.SecureExecVaultAddr != "" {
+			m["VAULT_ADDR"] = c.SecureExecVaultAddr
+		}
+		if c.SecureExecVaultRoleID != "" {
+			m["VAULT_ROLE_ID"] = c.SecureExecVaultRoleID
+		}
+		if c.SecureExecVaultSecretID != "" {
+			m["VAULT_SECRET_ID"] = c.SecureExecVaultSecretID
+		}
+	case "gcloud-secret":
+		m["HD_SECURE_LOADER"] = "./gcloud-secret"
+		if c.SecureExecGcloudProjectID != "" {
+			m["GCLOUD_PROJECT_ID"] = c.SecureExecGcloudProjectID
+		}
 	}
 	if len(m) == 0 {
 		return nil

@@ -1523,12 +1523,16 @@ func (m *WizardModel) renderSummary() string {
 		items = append(items, "  AI agent: disabled")
 	}
 	items = append(items, fmt.Sprintf("  GitHub repo creation: %v", cfg.GithubCreateRepo))
-	if cfg.SecureExecEnabled {
-		items = append(items, fmt.Sprintf("  Secure exec: enabled (%s)", cfg.SecureExecDriverPath))
+	switch cfg.SecureExecDriver {
+	case "hd-driver-vault":
+		items = append(items, "  Secure exec: hd-driver-vault")
 		items = append(items, fmt.Sprintf("  Vault address: %s", cfg.SecureExecVaultAddr))
 		items = append(items, fmt.Sprintf("  Vault role ID: %s", cfg.SecureExecVaultRoleID))
 		items = append(items, fmt.Sprintf("  Vault secret ID: %s", cfg.SecureExecVaultSecretID))
-	} else {
+	case "gcloud-secret":
+		items = append(items, "  Secure exec: gcloud-secret")
+		items = append(items, fmt.Sprintf("  GCP project ID: %s", cfg.SecureExecGcloudProjectID))
+	default:
 		items = append(items, "  Secure exec: disabled")
 	}
 	if cfg.GithubCreateRepo && !cfg.UseLocalCopy && cfg.ConfigRepoCloneAuth != "" && cfg.ConfigRepoCloneAuth != "none" {
@@ -1637,6 +1641,29 @@ func (m *WizardModel) validateCurrentStep() error {
 		if m.config.GithubCreateRepo {
 			if strings.TrimSpace(m.config.GitRemoteURL) == "" {
 				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
+			}
+		}
+		if m.config.GithubCreateRepo && !m.config.UseLocalCopy {
+			driver := strings.TrimSpace(m.config.SecureExecDriver)
+			switch driver {
+			case "none":
+				// no secure-exec, no additional fields needed
+			case "hd-driver-vault":
+				if strings.TrimSpace(m.config.SecureExecVaultAddr) == "" {
+					return fmt.Errorf("vault server address is required when using hd-driver-vault")
+				}
+				if strings.TrimSpace(m.config.SecureExecVaultRoleID) == "" {
+					return fmt.Errorf("vault role ID is required when using hd-driver-vault")
+				}
+				if strings.TrimSpace(m.config.SecureExecVaultSecretID) == "" {
+					return fmt.Errorf("vault secret ID is required when using hd-driver-vault")
+				}
+			case "gcloud-secret":
+				if strings.TrimSpace(m.config.SecureExecGcloudProjectID) == "" {
+					return fmt.Errorf("GCP project ID is required when using gcloud-secret")
+				}
+			default:
+				return fmt.Errorf("invalid secure-exec driver %q (must be one of: none, hd-driver-vault, gcloud-secret)", driver)
 			}
 		}
 	case 15:
