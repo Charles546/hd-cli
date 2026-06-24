@@ -738,9 +738,9 @@ func TestViewSummaryScreen(t *testing.T) {
 }
 
 func TestStep15ShowsSummary(t *testing.T) {
-	// Refinement 1: Step 16 should show the summary directly
+	// Step 16 should show the summary directly
 	m := NewWizard(nil)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 16)
 
 	view := m.View()
 	if !strings.Contains(view, "Configuration Summary") {
@@ -1402,7 +1402,7 @@ func TestCompleteDoesNotSetQuitFlag(t *testing.T) {
 	// quit should remain false.
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 16)
 
 	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
 
@@ -1721,7 +1721,7 @@ func TestSummaryDevModeSecretFormat(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.SecretsBackend = "dev"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 16)
 
 	view := m.View()
 
@@ -1738,7 +1738,7 @@ func TestSummaryVaultModeSecretFormat(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.SecretsBackend = "vault"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 16)
 
 	view := m.View()
 

@@ -1213,8 +1213,8 @@ func (m *WizardModel) renderStepContent() string {
 	case 1:
 		b.WriteString(renderWelcome(m))
 		return b.String()
-	case 15:
-		// Refinement 1: Show the summary directly when entering step 15
+	case 16:
+		// Show the summary on step 16 (the summary step)
 		b.WriteString(renderStepTitle("Step 16: Summary & Confirm"))
 		b.WriteString(m.renderSummary())
 		b.WriteString("\n")
