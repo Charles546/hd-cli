@@ -126,16 +126,21 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 		m.radioSavedVal = stepInfo.radioGetter(m.config)
 		// Build text inputs for conditional fields based on current config
 		m.buildRadioTextInputs(stepInfo)
+		m.populateRawFieldValuesFromConfig(stepInfo)
 	case stepTypeCheckbox:
 		m.mode = modeCheckboxSelect
 		m.checkboxIndex = 0
 		// Build text inputs for conditional fields based on current config
 		m.buildCheckboxTextInputs(stepInfo)
+		// Populate rawFieldValues from config so multi-line values survive step navigation
+		m.populateRawFieldValuesFromConfig(stepInfo)
 	case stepTypeMultiField:
 		m.mode = modeTextInput
 		m.buildMultiFieldInputs(stepInfo)
+		m.populateRawFieldValuesFromConfig(stepInfo)
 	case stepTypeSingleField:
 		m.mode = modeTextInput
+		m.populateRawFieldValuesFromConfig(stepInfo)
 		// Fix 1: For step 3 (Config Directory), default to ./<project-name>
 		placeholder := stepInfo.fields[0].placeholder
 		defaultValue := stepInfo.fields[0].getValue(m.config)
@@ -1049,6 +1054,28 @@ func (m *WizardModel) saveCheckboxFieldValue(stepInfo *stepInfo) {
 			}
 			visibleIdx++
 		}
+	}
+}
+
+
+// populateRawFieldValuesFromConfig scans config fields for multi-line values
+// and populates rawFieldValues so that fieldValueForIdx can return the raw
+// multi-line content even after initStep resets rawFieldValues.
+func (m *WizardModel) populateRawFieldValuesFromConfig(stepInfo *stepInfo) {
+	if m.rawFieldValues == nil {
+		m.rawFieldValues = make(map[string]string)
+	}
+	visibleIdx := 0
+	for _, f := range stepInfo.fields {
+		if f.condition != nil && !f.condition(m.config) {
+			continue
+		}
+		key := fmt.Sprintf("%d:%d", m.step, visibleIdx)
+		val := f.getValue(m.config)
+		if strings.Contains(val, "\n") {
+			m.rawFieldValues[key] = val
+		}
+		visibleIdx++
 	}
 }
 

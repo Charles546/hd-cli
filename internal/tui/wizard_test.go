@@ -3926,3 +3926,133 @@ func TestCollapseForDisplay(t *testing.T) {
 		})
 	}
 }
+
+// ===== Multi-line paste: Tab navigation in checkbox step =====
+
+func TestPasteModeCheckboxTabPreservesRawValueInConfig(t *testing.T) {
+	// Reproduces the user-reported bug: after pasting a multi-line SSH key in a
+	// checkbox-step text field and pressing Tab to leave the field, the config
+	// must still contain the raw multi-line value (not collapsed to single line).
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "test-project"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.GitRemoteURL = "git@github.com:test/repo.git"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Navigate to SSH key content field (visible text index 2 → currentField=3)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	if m.currentField != 3 {
+		t.Fatalf("currentField = %d, want 3", m.currentField)
+	}
+
+	// Enter paste mode and paste multi-line SSH key
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Press Tab to move to next field — this is the exact user action that triggers the bug
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	// Config must still have the raw multi-line value
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("config.ConfigRepoSSHKey corrupted after Tab!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	}
+	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
+		t.Errorf("config.ConfigRepoSSHKey lost newlines after Tab: %q", m.config.ConfigRepoSSHKey)
+	}
+}
+
+func TestPasteModeCheckboxEnterPreservesRawValueInConfig(t *testing.T) {
+	// Same scenario but using Enter instead of Tab to leave the field
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "test-project"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.GitRemoteURL = "git@github.com:test/repo.git"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	sshKey := "line1\nline2\nline3"
+	m.pasteModeTextArea.SetValue(sshKey)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Press Enter to move to next field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("config.ConfigRepoSSHKey corrupted after Enter!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	}
+	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
+		t.Errorf("config.ConfigRepoSSHKey lost newlines after Enter: %q", m.config.ConfigRepoSSHKey)
+	}
+}
+
+func TestPasteModeCheckboxStepNavigationPreservesRawValue(t *testing.T) {
+	// Full round-trip: paste → Tab → advance to next step → Esc back → verify config
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "test-project"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.GitRemoteURL = "git@github.com:test/repo.git"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Tab to next field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	// Navigate to last text field and advance to next step
+	for m.currentField < len(m.textInputs) {
+		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	}
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Config must still have raw value after advancing
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("config corrupted after advancing to next step: got %q", m.config.ConfigRepoSSHKey)
+	}
+
+	// Go back to step 14
+	if m.step == 15 {
+		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
+		if m.step == 14 {
+			// Navigate to SSH key field and verify
+			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+			if m.config.ConfigRepoSSHKey != sshKey {
+				t.Errorf("config corrupted after round-trip: got %q", m.config.ConfigRepoSSHKey)
+			}
+			if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
+				t.Errorf("config lost newlines after round-trip: got %q", m.config.ConfigRepoSSHKey)
+			}
+		}
+	}
+}
