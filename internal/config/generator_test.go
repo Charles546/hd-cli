@@ -458,7 +458,7 @@ func TestBootstrapCloneCredentialsInDockerCompose(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "DIPPER_GIT_PAT=${DIPPER_GIT_PAT}") {
+		if !strings.Contains(yamlStr, "DIPPER_GIT_PAT: ${DIPPER_GIT_PAT}") {
 			t.Error("docker-compose.yaml should pass through DIPPER_GIT_PAT env var")
 		}
 	})
@@ -486,13 +486,13 @@ func TestBootstrapCloneCredentialsInDockerCompose(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "GH_APP_ID=${GH_APP_ID}") {
+		if !strings.Contains(yamlStr, "GH_APP_ID: ${GH_APP_ID}") {
 			t.Error("docker-compose.yaml should pass through GH_APP_ID env var")
 		}
-		if !strings.Contains(yamlStr, "GH_APP_INSTALLATION_ID=${GH_APP_INSTALLATION_ID}") {
+		if !strings.Contains(yamlStr, "GH_APP_INSTALLATION_ID: ${GH_APP_INSTALLATION_ID}") {
 			t.Error("docker-compose.yaml should pass through GH_APP_INSTALLATION_ID env var")
 		}
-		if !strings.Contains(yamlStr, "GH_APP_KEY=${GH_APP_KEY}") {
+		if !strings.Contains(yamlStr, "GH_APP_KEY: ${GH_APP_KEY}") {
 			t.Error("docker-compose.yaml should pass through GH_APP_KEY env var")
 		}
 	})
@@ -679,7 +679,7 @@ func TestDockerComposeRepoEnvVar(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "REPO=git@github.com:myuser/hd-config.git") {
+		if !strings.Contains(yamlStr, "REPO: git@github.com:myuser/hd-config.git") {
 			t.Errorf("docker-compose.yaml should contain REPO with git remote URL, got:\n%s", yamlStr)
 		}
 	})
@@ -705,7 +705,7 @@ func TestDockerComposeRepoEnvVar(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+		if !strings.Contains(yamlStr, "REPO: /etc/honeydipper/config") {
 			t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
 		}
 	})
@@ -1141,16 +1141,16 @@ func TestDockerComposeDevModeEnvVars(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should contain HD_* env var passthroughs
-	if !strings.Contains(yamlStr, "HD_GITHUB_TOKEN=${HD_GITHUB_TOKEN}") {
+	if !strings.Contains(yamlStr, "HD_GITHUB_TOKEN: ${HD_GITHUB_TOKEN}") {
 		t.Errorf("docker-compose.yaml should contain HD_GITHUB_TOKEN passthrough, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "HD_GITHUB_WEBHOOK_SECRET=${HD_GITHUB_WEBHOOK_SECRET}") {
+	if !strings.Contains(yamlStr, "HD_GITHUB_WEBHOOK_SECRET: ${HD_GITHUB_WEBHOOK_SECRET}") {
 		t.Errorf("docker-compose.yaml should contain HD_GITHUB_WEBHOOK_SECRET passthrough, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "HD_SLACK_BOT_TOKEN=${HD_SLACK_BOT_TOKEN}") {
+	if !strings.Contains(yamlStr, "HD_SLACK_BOT_TOKEN: ${HD_SLACK_BOT_TOKEN}") {
 		t.Errorf("docker-compose.yaml should contain HD_SLACK_BOT_TOKEN passthrough, got:\n%s", yamlStr)
 	}
-	if !strings.Contains(yamlStr, "HD_SLACK_SIGNING_SECRET=${HD_SLACK_SIGNING_SECRET}") {
+	if !strings.Contains(yamlStr, "HD_SLACK_SIGNING_SECRET: ${HD_SLACK_SIGNING_SECRET}") {
 		t.Errorf("docker-compose.yaml should contain HD_SLACK_SIGNING_SECRET passthrough, got:\n%s", yamlStr)
 	}
 }
@@ -1179,7 +1179,7 @@ func TestDockerComposeDevModePartialEnvVars(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should contain the one HD_ var
-	if !strings.Contains(yamlStr, "HD_GITHUB_TOKEN=${HD_GITHUB_TOKEN}") {
+	if !strings.Contains(yamlStr, "HD_GITHUB_TOKEN: ${HD_GITHUB_TOKEN}") {
 		t.Errorf("docker-compose.yaml should contain HD_GITHUB_TOKEN, got:\n%s", yamlStr)
 	}
 	// Should NOT contain Slack vars (they were empty)
@@ -1244,7 +1244,7 @@ func TestDockerComposeDevModeNoEnvVars(t *testing.T) {
 		t.Errorf("docker-compose.yaml should not contain HD_ vars when none referenced, got:\n%s", yamlStr)
 	}
 	// Should still have the REPO env var
-	if !strings.Contains(yamlStr, "REPO=") {
+	if !strings.Contains(yamlStr, "REPO: ") {
 		t.Errorf("docker-compose.yaml should still have REPO env var, got:\n%s", yamlStr)
 	}
 }
@@ -1547,7 +1547,7 @@ func TestDockerComposeRemoteURL(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should use the git remote URL as REPO
-	if !strings.Contains(yamlStr, "REPO=git@github.com:myuser/hd-config.git") {
+	if !strings.Contains(yamlStr, "REPO: git@github.com:myuser/hd-config.git") {
 		t.Errorf("docker-compose.yaml should contain REPO with git remote URL, got:\n%s", yamlStr)
 	}
 }
@@ -1575,7 +1575,7 @@ func TestDockerComposeFallbackREPO(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should fall back to local path since no GitRemoteURL is set
-	if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+	if !strings.Contains(yamlStr, "REPO: /etc/honeydipper/config") {
 		t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
 	}
 }
@@ -1602,7 +1602,7 @@ func TestDockerComposeLocalREPO(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should use local path as REPO
-	if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+	if !strings.Contains(yamlStr, "REPO: /etc/honeydipper/config") {
 		t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
 	}
 }
@@ -1662,7 +1662,7 @@ func TestGithubCreateRepoWithLocalCopyUsesLocalREPO(t *testing.T) {
 	yamlStr := string(content)
 
 	// Should use local path as REPO, not a git URL
-	if !strings.Contains(yamlStr, "REPO=/etc/honeydipper/config") {
+	if !strings.Contains(yamlStr, "REPO: /etc/honeydipper/config") {
 		t.Errorf("docker-compose.yaml should contain REPO with local path, got:\n%s", yamlStr)
 	}
 }
@@ -1731,3 +1731,613 @@ func TestGithubCreateRepoWithoutLocalCopyHasNoVolumeMount(t *testing.T) {
 	}
 }
 
+
+// TestBuildConfigRepoCloneEnvVars tests the BuildConfigRepoCloneEnvVars method.
+func TestBuildConfigRepoCloneEnvVars(t *testing.T) {
+	t.Run("none auth returns nil", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "none"
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if m != nil {
+			t.Errorf("expected nil for none auth, got %v", m)
+		}
+	})
+
+	t.Run("pat auth with env var reference returns DIPPER_PASS_ENV and pass-through", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATValue = "$MY_PAT"
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if len(m) != 2 {
+			t.Fatalf("expected 2 env vars (DIPPER_PASS_ENV + pass-through), got %d: %v", len(m), m)
+		}
+		if m["DIPPER_PASS_ENV"] != "MY_PAT" {
+			t.Errorf("expected DIPPER_PASS_ENV=MY_PAT, got %v", m["DIPPER_PASS_ENV"])
+		}
+		if m["MY_PAT"] != "${MY_PAT}" {
+			t.Errorf("expected MY_PAT=${MY_PAT} pass-through, got %v", m["MY_PAT"])
+		}
+	})
+
+	t.Run("pat auth with raw PAT returns DIPPER_PASS_ENV and DIPPER_GITHUB_PAT", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATValue = "ghp_xxxxx"
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if m == nil || m["DIPPER_PASS_ENV"] != "DIPPER_GITHUB_PAT" {
+			t.Errorf("expected DIPPER_PASS_ENV=DIPPER_GITHUB_PAT, got %v", m)
+		}
+		if m == nil || m["DIPPER_GITHUB_PAT"] != "ghp_xxxxx" {
+			t.Errorf("expected DIPPER_GITHUB_PAT=ghp_xxxxx, got %v", m)
+		}
+	})
+
+	t.Run("github_app auth returns 4 vars", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "github_app"
+		cfg.ConfigRepoGHAppID = "12345"
+		cfg.ConfigRepoGHInstallID = "67890"
+		cfg.ConfigRepoGHAppKey = "fake-key-content"
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if len(m) != 4 {
+			t.Fatalf("expected 4 env vars, got %d: %v", len(m), m)
+		}
+		if m["GH_APP_TOKEN_SOURCE"] != "github" {
+			t.Errorf("GH_APP_TOKEN_SOURCE = %q, want %q", m["GH_APP_TOKEN_SOURCE"], "github")
+		}
+		if m["GH_APP_ID"] != "12345" {
+			t.Errorf("GH_APP_ID = %q, want %q", m["GH_APP_ID"], "12345")
+		}
+		if m["GH_INSTALLATION_ID"] != "67890" {
+			t.Errorf("GH_INSTALLATION_ID = %q, want %q", m["GH_INSTALLATION_ID"], "67890")
+		}
+		if m["GH_APP_KEY"] != "fake-key-content" {
+			t.Errorf("GH_APP_KEY = %q, want %q", m["GH_APP_KEY"], "fake-key-content")
+		}
+	})
+
+	t.Run("ssh auth with inline key", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "ssh"
+		cfg.ConfigRepoSSHKey = "fake-ssh-key"
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if m == nil || m["DIPPER_SSH_KEY"] != "fake-ssh-key" {
+			t.Errorf("expected DIPPER_SSH_KEY, got %v", m)
+		}
+	})
+
+	t.Run("ssh auth with key file", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "ssh"
+		cfg.ConfigRepoSSHFile = "/home/user/.ssh/id_rsa"
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if m == nil || m["DIPPER_SSH_FILE"] != "/home/user/.ssh/id_rsa" {
+			t.Errorf("expected DIPPER_SSH_FILE, got %v", m)
+		}
+	})
+
+	t.Run("ssh auth with passphrase env", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "ssh"
+		cfg.ConfigRepoSSHKey = "fake-key"
+		cfg.ConfigRepoSSHKeyPassEnv = "SSH_PASS"
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if m["DIPPER_SSH_KEY_PASS_ENV"] != "SSH_PASS" {
+			t.Errorf("DIPPER_SSH_KEY_PASS_ENV = %q, want %q", m["DIPPER_SSH_KEY_PASS_ENV"], "SSH_PASS")
+		}
+	})
+
+	t.Run("nil config returns nil", func(t *testing.T) {
+		var cfg *WizardConfig
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if m != nil {
+			t.Errorf("expected nil for nil config, got %v", m)
+		}
+	})
+}
+
+// TestGenerateEnvFile tests the generateEnvFile function.
+func TestGenerateEnvFile(t *testing.T) {
+	t.Run("empty for none auth", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "none"
+		result := generateEnvFile(cfg)
+		if result != "" {
+			t.Errorf("expected empty string for none auth, got %q", result)
+		}
+	})
+
+	t.Run("contains PAT env var reference", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATValue = "$MY_PAT"
+		result := generateEnvFile(cfg)
+		if !strings.Contains(result, "DIPPER_PASS_ENV=MY_PAT") {
+			t.Errorf("expected DIPPER_PASS_ENV=MY_PAT in .env, got %q", result)
+		}
+		if !strings.Contains(result, "MY_PAT=${MY_PAT}") {
+			t.Errorf("expected MY_PAT=${MY_PAT} pass-through in .env, got %q", result)
+		}
+	})
+
+	t.Run("contains raw PAT value", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATValue = "ghp_xxxxx"
+		result := generateEnvFile(cfg)
+		if !strings.Contains(result, "DIPPER_PASS_ENV=DIPPER_GITHUB_PAT") {
+			t.Errorf("expected DIPPER_PASS_ENV=DIPPER_GITHUB_PAT in .env, got %q", result)
+		}
+		if !strings.Contains(result, "DIPPER_GITHUB_PAT=ghp_xxxxx") {
+			t.Errorf("expected DIPPER_GITHUB_PAT=ghp_xxxxx in .env, got %q", result)
+		}
+	})
+
+	t.Run("contains github_app vars", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.ConfigRepoCloneAuth = "github_app"
+		cfg.ConfigRepoGHAppID = "12345"
+		cfg.ConfigRepoGHInstallID = "67890"
+		cfg.ConfigRepoGHAppKey = "fake-key"
+		result := generateEnvFile(cfg)
+		if !strings.Contains(result, "GH_APP_ID=12345") {
+			t.Errorf("expected GH_APP_ID=12345, got %q", result)
+		}
+		if !strings.Contains(result, "GH_APP_TOKEN_SOURCE=github") {
+			t.Errorf("expected GH_APP_TOKEN_SOURCE=github, got %q", result)
+		}
+	})
+}
+
+// TestDockerComposeConfigRepoCloneAuth tests clone auth env vars in docker-compose.
+func TestDockerComposeConfigRepoCloneAuth(t *testing.T) {
+	t.Run("pat auth with env var reference in docker-compose", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-dc-pat-auth"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.UseLocalCopy = false
+		cfg.GitRemoteURL = "https://github.com/user/repo.git"
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATValue = "$MY_PAT"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		// Single-line values are inlined directly in map format
+		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV: MY_PAT") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV: MY_PAT, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "MY_PAT: ${MY_PAT}") {
+			t.Errorf("docker-compose.yaml should contain MY_PAT: ${MY_PAT}, got:\n%s", yamlStr)
+		}
+	})
+
+	t.Run("pat auth with raw PAT in docker-compose", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-dc-pat-raw"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.UseLocalCopy = false
+		cfg.GitRemoteURL = "https://github.com/user/repo.git"
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATValue = "ghp_xxxxx"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		// Single-line values are inlined directly in map format
+		if !strings.Contains(yamlStr, "DIPPER_GITHUB_PAT: ghp_xxxxx") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_GITHUB_PAT: ghp_xxxxx, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "DIPPER_PASS_ENV: DIPPER_GITHUB_PAT") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_PASS_ENV: DIPPER_GITHUB_PAT, got:\n%s", yamlStr)
+		}
+	})
+
+	t.Run("github_app auth in docker-compose", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-dc-ghapp-auth"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.UseLocalCopy = false
+		cfg.GitRemoteURL = "https://github.com/user/repo.git"
+		cfg.ConfigRepoCloneAuth = "github_app"
+		cfg.ConfigRepoGHAppID = "12345"
+		cfg.ConfigRepoGHInstallID = "67890"
+		cfg.ConfigRepoGHAppKey = "fake-key-content"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		// Single-line values are inlined directly in map format
+		if !strings.Contains(yamlStr, "GH_APP_ID: 12345") {
+			t.Errorf("docker-compose.yaml should contain GH_APP_ID: 12345, got:\n%s", yamlStr)
+		}
+		if !strings.Contains(yamlStr, "GH_INSTALLATION_ID: 67890") {
+			t.Errorf("docker-compose.yaml should contain GH_INSTALLATION_ID: 67890, got:\n%s", yamlStr)
+		}
+	})
+
+	t.Run("ssh auth in docker-compose", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-dc-ssh-auth"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.UseLocalCopy = false
+		cfg.GitRemoteURL = "git@github.com:user/repo.git"
+		cfg.ConfigRepoCloneAuth = "ssh"
+		cfg.ConfigRepoSSHFile = "/home/user/.ssh/id_rsa"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		// Single-line value inlined directly in map format
+		if !strings.Contains(yamlStr, "DIPPER_SSH_FILE: /home/user/.ssh/id_rsa") {
+			t.Errorf("docker-compose.yaml should contain DIPPER_SSH_FILE: /home/user/.ssh/id_rsa, got:\n%s", yamlStr)
+		}
+	})
+
+	t.Run("none auth has no clone env vars", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-dc-none-auth"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.UseLocalCopy = false
+		cfg.GitRemoteURL = "https://github.com/user/repo.git"
+		cfg.ConfigRepoCloneAuth = "none"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		if strings.Contains(yamlStr, "DIPPER_PASS_ENV") {
+			t.Errorf("docker-compose.yaml should NOT contain DIPPER_PASS_ENV for none auth")
+		}
+		if strings.Contains(yamlStr, "GH_APP_") {
+			t.Errorf("docker-compose.yaml should NOT contain GH_APP_ for none auth")
+		}
+		if strings.Contains(yamlStr, "DIPPER_SSH") {
+			t.Errorf("docker-compose.yaml should NOT contain DIPPER_SSH for none auth")
+		}
+	})
+
+	t.Run("local copy skips clone auth env vars", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-dc-local-copy"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.UseLocalCopy = true
+		cfg.ConfigRepoCloneAuth = "none"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		// With local copy, no clone auth env vars should be present
+		if strings.Contains(yamlStr, "DIPPER_PASS_ENV") {
+			t.Errorf("docker-compose.yaml should NOT contain DIPPER_PASS_ENV with local copy")
+		}
+	})
+}
+
+// TestEnvFileGenerated tests that .env file is created for docker deployments.
+func TestEnvFileGenerated(t *testing.T) {
+	t.Run("env file created for docker with pat auth", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-env-file"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.UseLocalCopy = false
+		cfg.GitRemoteURL = "https://github.com/user/repo.git"
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATValue = "$MY_PAT"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		envPath := filepath.Join(tmpDir, ".env")
+		content, err := os.ReadFile(envPath)
+		if err != nil {
+			t.Fatalf("failed to read .env file: %v", err)
+		}
+		if !strings.Contains(string(content), "DIPPER_PASS_ENV=MY_PAT") {
+			t.Errorf(".env should contain DIPPER_PASS_ENV=MY_PAT, got: %s", string(content))
+		}
+		if !strings.Contains(string(content), "MY_PAT=${MY_PAT}") {
+			t.Errorf(".env should contain MY_PAT=${MY_PAT} pass-through, got: %s", string(content))
+		}
+	})
+
+	t.Run("no env file for none auth", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-no-env"
+		cfg.DeploymentMode = "docker"
+		cfg.GithubCreateRepo = true
+		cfg.UseLocalCopy = false
+		cfg.GitRemoteURL = "https://github.com/user/repo.git"
+		cfg.ConfigRepoCloneAuth = "none"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		envPath := filepath.Join(tmpDir, ".env")
+		if _, err := os.Stat(envPath); err == nil {
+			t.Error(".env file should NOT exist for none auth")
+		}
+	})
+
+	t.Run("no env file for source mode", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-source-env"
+		cfg.DeploymentMode = "source"
+		cfg.GithubCreateRepo = true
+		cfg.UseLocalCopy = false
+		cfg.GitRemoteURL = "https://github.com/user/repo.git"
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATValue = "MY_PAT"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		envPath := filepath.Join(tmpDir, ".env")
+		if _, err := os.Stat(envPath); err == nil {
+			t.Error(".env file should NOT exist for source mode")
+		}
+	})
+}
+
+// ===== Multi-line SSH key tests =====
+
+func TestBuildConfigRepoCloneEnvVars_SSHMultiLine(t *testing.T) {
+	// When SSH key contains newlines, BuildConfigRepoCloneEnvVars should
+	// still return DIPPER_SSH_KEY with the full multi-line value.
+	// The .env file generator will handle quoting.
+	cfg := NewDefaultWizardConfig()
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.ConfigRepoSSHKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+
+	m := cfg.BuildConfigRepoCloneEnvVars()
+
+	// Should contain DIPPER_SSH_KEY with the full multi-line value
+	if m["DIPPER_SSH_KEY"] != cfg.ConfigRepoSSHKey {
+		t.Errorf("expected DIPPER_SSH_KEY with full key, got %q", m["DIPPER_SSH_KEY"])
+	}
+
+	// Should NOT contain DIPPER_SSH_FILE
+	if _, ok := m["DIPPER_SSH_FILE"]; ok {
+		t.Error("multi-line SSH key should not produce DIPPER_SSH_FILE in env vars")
+	}
+}
+
+func TestBuildConfigRepoCloneEnvVars_SSHSingleLine(t *testing.T) {
+	// When SSH key is single-line, it should be inlined as before.
+	cfg := NewDefaultWizardConfig()
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.ConfigRepoSSHKey = "single-line-key"
+
+	m := cfg.BuildConfigRepoCloneEnvVars()
+
+	if m["DIPPER_SSH_KEY"] != "single-line-key" {
+		t.Errorf("expected DIPPER_SSH_KEY=single-line-key, got %q", m["DIPPER_SSH_KEY"])
+	}
+
+	if _, ok := m["DIPPER_SSH_FILE"]; ok {
+		t.Error("single-line SSH key should not produce DIPPER_SSH_FILE")
+	}
+}
+
+
+
+
+func TestDockerComposeSSHKeyFile(t *testing.T) {
+	// When SSH key is multi-line, docker-compose should inline it
+	// as a double-quoted string with \n escape sequences.
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-ssh-file"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.ConfigRepoSSHKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should contain the multi-line SSH key as a YAML block scalar
+	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY: |") {
+		t.Errorf("docker-compose.yaml should contain DIPPER_SSH_KEY block scalar, got:\n%s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "-----END OPENSSH PRIVATE KEY-----") {
+		t.Errorf("docker-compose.yaml should contain end of inline SSH key, got:\n%s", yamlStr)
+	}
+
+	// Should NOT contain DIPPER_SSH_FILE
+	if strings.Contains(yamlStr, "DIPPER_SSH_FILE") {
+		t.Errorf("docker-compose.yaml should NOT contain DIPPER_SSH_FILE, got:\n%s", yamlStr)
+	}
+
+	// Should NOT have volume mount for SSH key file
+	if strings.Contains(yamlStr, ".ssh_key:.ssh_key:ro") {
+		t.Errorf("docker-compose.yaml should NOT mount SSH key file, got:\n%s", yamlStr)
+	}
+
+	// .ssh_key file should NOT exist on disk
+	keyPath := filepath.Join(tmpDir, ".ssh_key")
+	if _, err := os.Stat(keyPath); err == nil {
+		t.Error("SSH key file should NOT be created")
+	}
+}
+
+func TestDockerComposeSSHKeySingleLine(t *testing.T) {
+	// When SSH key is single-line, docker-compose should inline it directly.
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-ssh-single"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.ConfigRepoSSHKey = "single-line-key"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("failed to read docker-compose.yaml: %v", err)
+	}
+	yamlStr := string(content)
+
+	// Should contain DIPPER_SSH_KEY with the single-line value in map format
+	if !strings.Contains(yamlStr, "DIPPER_SSH_KEY: single-line-key") {
+		t.Errorf("docker-compose.yaml should contain DIPPER_SSH_KEY: single-line-key, got:\n%s", yamlStr)
+	}
+
+	// Should NOT have DIPPER_SSH_FILE
+	if strings.Contains(yamlStr, "DIPPER_SSH_FILE") {
+		t.Errorf("docker-compose.yaml should NOT contain DIPPER_SSH_FILE for single-line key, got:\n%s", yamlStr)
+	}
+
+	// SSH key file should NOT exist on disk
+	keyPath := filepath.Join(tmpDir, ".ssh_key")
+	if _, err := os.Stat(keyPath); err == nil {
+		t.Error("SSH key file should not be created for single-line key")
+	}
+}
+
+func TestEnvFileGenerated_SSHMultiLine(t *testing.T) {
+	// When SSH key is multi-line, the .env file should contain DIPPER_SSH_KEY
+	// with the raw multi-line value (the .env file is still generated for
+	// other purposes, but the SSH key is now inlined in docker-compose.yaml).
+	g := NewGenerator()
+	cfg := NewDefaultWizardConfig()
+	cfg.ProjectName = "test-env-ssh"
+	cfg.DeploymentMode = "docker"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.ConfigRepoSSHKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+
+	tmpDir := t.TempDir()
+	err := g.Generate(cfg, tmpDir, false)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	envPath := filepath.Join(tmpDir, ".env")
+	content, err := os.ReadFile(envPath)
+	if err != nil {
+		t.Fatalf("failed to read .env file: %v", err)
+	}
+	envStr := string(content)
+
+	// Should contain DIPPER_SSH_KEY
+	if !strings.Contains(envStr, "DIPPER_SSH_KEY=") {
+		t.Errorf(".env should contain DIPPER_SSH_KEY, got:\n%s", envStr)
+	}
+
+	// Should contain the key markers
+	if !strings.Contains(envStr, "BEGIN OPENSSH PRIVATE KEY") {
+		t.Errorf(".env should contain the SSH key content, got:\n%s", envStr)
+	}
+
+	// Should NOT contain DIPPER_SSH_FILE
+	if strings.Contains(envStr, "DIPPER_SSH_FILE") {
+		t.Errorf(".env should NOT contain DIPPER_SSH_FILE, got:\n%s", envStr)
+	}
+}

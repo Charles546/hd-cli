@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"os"
 	"path/filepath"
-	"strings"
+		"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
@@ -33,6 +33,15 @@ func NewGenerator() *Generator {
 	// Add custom template functions
 	funcMap["hasStr"] = func(s string) bool { return strings.TrimSpace(s) != "" }
 	funcMap["envRef"] = func(name string) string { return "{% .env." + name + " %}" }
+	funcMap["hasNewline"] = func(s string) bool { return strings.Contains(s, "\n") }
+	funcMap["yamlBlock"] = func(s string) string {
+		lines := strings.Split(s, "\n")
+		var result []string
+		for _, line := range lines {
+			result = append(result, "        "+line)
+		}
+		return strings.Join(result, "\n")
+	}
 
 	g := &Generator{
 		funcMap: funcMap,
@@ -138,8 +147,10 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 		}
 	}
 
+	// Build config repo clone env vars for the docker-compose template
+	cfg.ConfigRepoCloneEnvVars = cfg.BuildConfigRepoCloneEnvVars()
+
 	// Run git init and git remote add if user chose to create a repo
-	// Skip git operations when using local copy
 	if cfg.GithubCreateRepo {
 		if err := runGitInit(outputDir); err != nil {
 			return fmt.Errorf("failed to run git init: %w", err)
@@ -152,6 +163,19 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 			}
 		}
 	}
+
+	// Generate .env file for docker deployments with non-source modes
+	// Contains placeholder values for sensitive data like PATs and SSH keys
+	if !dryRun && cfg.DeploymentMode != "source" {
+		envContent := generateEnvFile(cfg)
+		if envContent != "" {
+			envPath := filepath.Join(outputDir, ".env")
+			if err := util.WriteFile(envPath, []byte(envContent), 0644); err != nil {
+				return fmt.Errorf("failed to write .env file: %w", err)
+			}
+		}
+	}
+
 
 	// Generate docker-compose.yaml for Docker mode
 	if cfg.DeploymentMode == "docker" {
@@ -233,6 +257,28 @@ func runGitRemoteAdd(dir, url string) error {
 	return nil
 }
 
+// generateEnvFile creates a .env file content with placeholder values
+// for environment variables used by clone authentication.
+func generateEnvFile(cfg *WizardConfig) string {
+	if cfg == nil {
+		return ""
+	}
+
+	envVars := cfg.BuildConfigRepoCloneEnvVars()
+	if len(envVars) == 0 {
+		return ""
+	}
+
+	var lines []string
+	lines = append(lines, "# Environment variables for Honeydipper config repo clone authentication")
+	lines = append(lines, "# NOTE: Replace the placeholder values with actual secrets before deploying.")
+	lines = append(lines, "")
+	for k, v := range envVars {
+		lines = append(lines, fmt.Sprintf("%s=%s", k, v))
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
 // applyDefaults fills in default values for fields that are empty.
 func applyDefaults(cfg *WizardConfig) {
 	def := NewDefaultWizardConfig()
@@ -296,6 +342,9 @@ func applyDefaults(cfg *WizardConfig) {
 	if cfg.AIEngineName == "" {
 		cfg.AIEngineName = def.AIEngineName
 	}
+	if cfg.ConfigRepoCloneAuth == "" {
+		cfg.ConfigRepoCloneAuth = def.ConfigRepoCloneAuth
+	}
 }
 
 // ApplyDefaults fills in default values for fields that are empty.
@@ -303,3 +352,4 @@ func applyDefaults(cfg *WizardConfig) {
 func ApplyDefaults(cfg *WizardConfig) {
 	applyDefaults(cfg)
 }
+

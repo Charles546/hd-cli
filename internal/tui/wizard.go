@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -30,6 +31,7 @@ const (
 	modeTextInput                        // Actively typing in a text input
 	modeRadioSelect                      // Selecting a radio option
 	modeCheckboxSelect                   // Toggling checkboxes
+	modePasteMode                        // Multi-line paste mode (textarea overlay)
 )
 
 // WizardModel is the top-level Bubble Tea model that orchestrates the init wizard.
@@ -68,6 +70,13 @@ type WizardModel struct {
 	// quit is set to true when the user quits via ctrl+q or ctrl+c.
 	// RunWizard checks this to distinguish quit from completion.
 	quit bool
+
+	// pasteMode tracks the multi-line paste overlay state.
+	pasteModeActive bool
+	pasteModeTextArea textarea.Model
+	pasteModeFieldIdx int // which textInputs index is being edited in paste mode
+	pasteModeOldValue string // original value before paste mode, restored on cancel
+	rawFieldValues map[string]string // stores multi-line values that textinput cannot display
 }
 
 // stepCount is the total number of wizard steps (used for progress).
@@ -100,6 +109,9 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 	m.textInputs = nil
 	m.textInput = textinput.Model{}
 	m.pendingDefault = false
+	m.pasteModeActive = false
+	m.pasteModeTextArea = textarea.Model{}
+	m.rawFieldValues = nil
 
 	stepInfo := getStepInfo(s)
 	if stepInfo == nil {
@@ -114,16 +126,21 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 		m.radioSavedVal = stepInfo.radioGetter(m.config)
 		// Build text inputs for conditional fields based on current config
 		m.buildRadioTextInputs(stepInfo)
+		m.populateRawFieldValuesFromConfig(stepInfo)
 	case stepTypeCheckbox:
 		m.mode = modeCheckboxSelect
 		m.checkboxIndex = 0
 		// Build text inputs for conditional fields based on current config
 		m.buildCheckboxTextInputs(stepInfo)
+		// Populate rawFieldValues from config so multi-line values survive step navigation
+		m.populateRawFieldValuesFromConfig(stepInfo)
 	case stepTypeMultiField:
 		m.mode = modeTextInput
 		m.buildMultiFieldInputs(stepInfo)
+		m.populateRawFieldValuesFromConfig(stepInfo)
 	case stepTypeSingleField:
 		m.mode = modeTextInput
+		m.populateRawFieldValuesFromConfig(stepInfo)
 		// Fix 1: For step 3 (Config Directory), default to ./<project-name>
 		placeholder := stepInfo.fields[0].placeholder
 		defaultValue := stepInfo.fields[0].getValue(m.config)
@@ -227,26 +244,45 @@ func (m *WizardModel) findRadioIndex(info *stepInfo) int {
 	return 0
 }
 
+// normalizeSpaceKey converts a KeySpace message to KeyRunes with a space
+// character, so that textinput.Model (which uses msg.Runes) correctly
+// inserts a space.
+func normalizeSpaceKey(msg tea.Msg) tea.Msg {
+	if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.Type == tea.KeySpace {
+		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}}
+	}
+	return msg
+}
+
 // Update implements tea.Model.
 func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle paste mode separately — it captures all input for the textarea.
+	if m.pasteModeActive {
+		return m.handlePasteMode(msg)
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
-			// Ctrl+C always quits, even in text input mode
+			// Ctrl+C always quits, even in text input mode and paste mode
 			m.quit = true
 			return m, tea.Quit
 		case "ctrl+q":
-			// Ctrl+Q always quits, even in text input mode
+			// Ctrl+Q always quits, even in text input mode and paste mode
 			m.quit = true
 			return m, tea.Quit
 		case "ctrl+s":
-			// Save answers at any step (including text input mode)
+			// Save answers at any step (including text input mode and paste mode)
 			if !m.done {
 				// Commit current text input value before saving,
 				// otherwise the typed value is lost (still in textinput.Model).
 				stepInfo := getStepInfo(m.step)
 				if stepInfo != nil {
+					if m.pasteModeActive {
+						// In paste mode, save the textarea content first
+						m.exitPasteMode(true)
+					}
 					if m.mode == modeTextInput {
 						m.saveCurrentFieldValue(stepInfo)
 					} else if m.mode == modeCheckboxSelect && m.currentField > 0 {
@@ -268,6 +304,173 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.handleStepInput(msg)
+}
+
+// handlePasteMode processes input when the multi-line paste overlay is active.
+func (m *WizardModel) handlePasteMode(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyCtrlC:
+			// Ctrl+C always quits
+			m.quit = true
+			return m, tea.Quit
+		case tea.KeyCtrlQ:
+			// Ctrl+Q always quits
+			m.quit = true
+			return m, tea.Quit
+		case tea.KeyCtrlS:
+			// Ctrl+S: save answers (commit paste content first)
+			m.exitPasteMode(true)
+			stepInfo := getStepInfo(m.step)
+			if stepInfo != nil {
+				if m.mode == modeTextInput {
+					m.saveCurrentFieldValue(stepInfo)
+				} else if m.mode == modeCheckboxSelect && m.currentField > 0 {
+					m.saveCheckboxFieldValue(stepInfo)
+				}
+			}
+			if err := m.saveAnswersFile(); err != nil {
+				m.saveMsg = fmt.Sprintf("✗ Failed to save: %v", err)
+			} else {
+				m.saveMsg = fmt.Sprintf("✓ Answers saved to ./%s-answers.yaml", m.config.ProjectName)
+			}
+			return m, nil
+		case tea.KeyCtrlD:
+			// Ctrl+D: save and exit paste mode
+			m.exitPasteMode(true)
+			return m, nil
+		case tea.KeyEsc:
+			// Escape: cancel paste mode, restore old value
+			m.exitPasteMode(false)
+			return m, nil
+		}
+		// In paste mode, Enter inserts a newline (handled by textarea).
+		// All other keys go to the textarea.
+	}
+
+	var cmd tea.Cmd
+	m.pasteModeTextArea, cmd = m.pasteModeTextArea.Update(msg)
+	return m, cmd
+}
+
+// exitPasteMode exits paste mode. If save is true, the textarea content
+// is committed to the text input field. If save is false, the original
+// value is restored.
+// Note: textinput.Model.SetValue() sanitizes newlines to spaces (it is
+// single-line by design). To preserve multi-line content, we save the raw
+// value directly to the config field and in rawFieldValues, and update
+// the textinput with a display-friendly single-line representation.
+func (m *WizardModel) exitPasteMode(save bool) {
+	if save {
+		rawValue := m.pasteModeTextArea.Value()
+		// Save the raw multi-line value directly to the config.
+		m.setFieldValueFromPaste(m.pasteModeFieldIdx, rawValue)
+		// Store the raw value for later retrieval (e.g., re-entering paste mode).
+		if m.rawFieldValues == nil {
+			m.rawFieldValues = make(map[string]string)
+		}
+		fieldKey := m.pasteModeFieldKey()
+		if strings.Contains(rawValue, "\n") {
+			m.rawFieldValues[fieldKey] = rawValue
+			// Update the textinput with a display-friendly single-line value.
+			m.textInputs[m.pasteModeFieldIdx].SetValue(collapseForDisplay(rawValue))
+		} else {
+			// Single-line value: store directly in textinput, clean up rawFieldValues.
+			m.textInputs[m.pasteModeFieldIdx].SetValue(rawValue)
+			delete(m.rawFieldValues, fieldKey)
+		}
+	}
+	m.textInput = m.textInputs[m.pasteModeFieldIdx]
+	m.textInput.Focus()
+	m.pasteModeActive = false
+	m.pasteModeTextArea = textarea.Model{}
+}
+
+// pasteModeFieldKey returns a unique key for the current paste mode field,
+// used to store/retrieve raw multi-line values in rawFieldValues.
+func (m *WizardModel) pasteModeFieldKey() string {
+	return fmt.Sprintf("%d:%d", m.step, m.pasteModeFieldIdx)
+}
+
+// collapseForDisplay returns a single-line representation of a multi-line
+// value suitable for display in a textinput field. The first line is shown
+// followed by "..." if there are additional lines.
+func collapseForDisplay(value string) string {
+	lines := strings.SplitN(value, "\n", 2)
+	if len(lines) <= 1 {
+		return value
+	}
+	return lines[0] + "..."
+}
+
+// setFieldValueFromPaste saves the paste mode value directly to the
+// WizardConfig, identifying the correct field from the current step
+// and field index.
+func (m *WizardModel) setFieldValueFromPaste(fieldIdx int, value string) {
+	stepInfo := getStepInfo(m.step)
+	if stepInfo == nil {
+		return
+	}
+
+	if stepInfo.stepType == stepTypeCheckbox {
+		// For checkbox steps, find the field descriptor by visible index
+		visibleIdx := 0
+		for _, f := range stepInfo.fields {
+			if f.condition == nil || f.condition(m.config) {
+				if visibleIdx == fieldIdx {
+					f.setValue(m.config, value)
+					return
+				}
+				visibleIdx++
+			}
+		}
+	} else if stepInfo.stepType == stepTypeMultiField || stepInfo.stepType == stepTypeRadio {
+		// For multi-field and radio steps, find the field descriptor by visible index
+		visibleIdx := 0
+		for _, f := range stepInfo.fields {
+			if f.condition == nil || f.condition(m.config) {
+				if visibleIdx == fieldIdx {
+					f.setValue(m.config, value)
+					return
+				}
+				visibleIdx++
+			}
+		}
+	} else if stepInfo.stepType == stepTypeSingleField && fieldIdx < len(stepInfo.fields) {
+		stepInfo.fields[fieldIdx].setValue(m.config, value)
+	}
+}
+
+// enterPasteMode activates the multi-line paste overlay for the current
+// text input field. The current value is loaded into a textarea, and
+// the original value is saved so it can be restored on cancel.
+func (m *WizardModel) enterPasteMode() {
+	m.pasteModeActive = true
+	// For checkbox steps, currentField is 1-based (0 = checkboxes), so
+	// the textInputs index is currentField - 1. For other steps,
+	// currentField is the direct index.
+	fieldIdx := m.currentField
+	if m.mode == modeCheckboxSelect && m.currentField > 0 {
+		fieldIdx = m.currentField - 1
+	}
+	m.pasteModeFieldIdx = fieldIdx
+	// Use the raw multi-line value if available, otherwise fall back to
+	// the textinput display value (which may be collapsed).
+	fieldKey := m.pasteModeFieldKey()
+	m.pasteModeOldValue = m.textInput.Value()
+	if raw, ok := m.rawFieldValues[fieldKey]; ok {
+		m.pasteModeOldValue = raw
+	}
+
+	ta := textarea.New()
+	ta.Placeholder = "Paste multi-line content here, Ctrl+D to save, Esc to cancel"
+	ta.SetWidth(60)
+	ta.SetHeight(6)
+	ta.SetValue(m.pasteModeOldValue)
+	ta.Focus()
+	ta.CharLimit = 0 // no limit
+	m.pasteModeTextArea = ta
 }
 
 // handleDone handles input on the summary/confirmation screen.
@@ -325,6 +528,10 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "ctrl+e":
+			// Ctrl+E: enter paste mode for multi-line input
+			m.enterPasteMode()
+			return m, nil
 		case "enter", "tab":
 			// Save current field value
 			m.saveCurrentFieldValue(stepInfo)
@@ -412,7 +619,7 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 
 	// Delegate to text input
 	var cmd tea.Cmd
-	m.textInput, cmd = m.textInput.Update(msg)
+	m.textInput, cmd = m.textInput.Update(normalizeSpaceKey(msg))
 	m.textInputs[m.currentField] = m.textInput
 	return m, cmd
 }
@@ -430,7 +637,7 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 				m.buildRadioTextInputs(stepInfo)
 			}
 			return m, nil
-			case "down", "j":
+		case "down", "j":
 			if m.radioIndex < len(stepInfo.radioOptions)-1 {
 				m.radioIndex++
 				// Tentatively apply the selection and rebuild text inputs
@@ -438,7 +645,7 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 				m.buildRadioTextInputs(stepInfo)
 			}
 			return m, nil
-			case "enter", "tab":
+		case "enter", "tab":
 			// Commit the selection
 			stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
 			// Rebuild text inputs to reflect the committed selection
@@ -497,7 +704,6 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 				return m, nil
 			}
 			// When in text fields, let the text input handle 'k' (fall through)
-			// When in text fields, let the text input handle 'k' (fall through)
 		case "down", "j":
 			if m.currentField == 0 {
 				visibleCount := m.visibleCheckboxCount(stepInfo)
@@ -514,7 +720,7 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 			}
 			// When in text fields, let the text input handle 'j' (fall through)
 		case " ":
-			// Toggle the current checkbox (only when on checkbox row)
+				// Toggle the current checkbox (only when on checkbox row)
 			if m.currentField == 0 {
 				// Find the visible checkbox at checkboxIndex
 				visibleIdx := 0
@@ -531,8 +737,10 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 					}
 					visibleIdx++
 				}
+				return m, nil
 			}
-			return m, nil
+			// When m.currentField > 0 (text input mode), Space should
+			// fall through to the text input delegate below.
 		case "enter":
 			if m.currentField == 0 {
 				// On checkboxes: toggle current, then move to next checkbox or text fields
@@ -574,6 +782,19 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 			} else {
 				// In text fields: move to next or advance
 				m.saveCheckboxFieldValue(stepInfo)
+				// Rebuild text inputs in case the saved value changed conditional field visibility
+				oldLen := len(m.textInputs)
+				m.buildCheckboxTextInputs(stepInfo)
+				if len(m.textInputs) > oldLen {
+					// New fields appeared, move to the first new field
+					m.textInput.Blur()
+					m.textInputs[m.currentField-1] = m.textInput
+					m.currentField++
+					m.textInput = m.textInputs[m.currentField-1]
+					m.textInput.Focus()
+					m.textInputs[m.currentField-1] = m.textInput
+					return m, nil
+				}
 				if m.currentField < len(m.textInputs) {
 					m.textInput.Blur()
 					m.textInputs[m.currentField-1] = m.textInput
@@ -621,6 +842,19 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 			} else {
 				// In text fields: move to next field or advance step
 				m.saveCheckboxFieldValue(stepInfo)
+				// Rebuild text inputs in case the saved value changed conditional field visibility
+				oldLen := len(m.textInputs)
+				m.buildCheckboxTextInputs(stepInfo)
+				if len(m.textInputs) > oldLen {
+					// New fields appeared, move to the first new field
+					m.textInput.Blur()
+					m.textInputs[m.currentField-1] = m.textInput
+					m.currentField++
+					m.textInput = m.textInputs[m.currentField-1]
+					m.textInput.Focus()
+					m.textInputs[m.currentField-1] = m.textInput
+					return m, nil
+				}
 				if m.currentField < len(m.textInputs) {
 					m.textInput.Blur()
 					m.textInputs[m.currentField-1] = m.textInput
@@ -683,13 +917,37 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 				return m, m.initStep(prevStep(m.step, m.config))
 			}
 			return m, nil
+		case "ctrl+e":
+			// Ctrl+E: enter paste mode for multi-line input (text fields only)
+			if m.currentField > 0 {
+				m.enterPasteMode()
+				return m, nil
+			}
+			return m, nil
 		}
 	}
 
 	// Delegate to text input when in text field mode
 	if m.currentField > 0 {
+		// Handle pendingDefault for checkbox text fields
+		if m.pendingDefault {
+			if keyMsg, ok := msg.(tea.KeyMsg); ok {
+				switch keyMsg.Type {
+				case tea.KeyRunes:
+					m.textInput.SetValue("")
+					m.pendingDefault = false
+				case tea.KeyBackspace:
+					m.textInput.SetValue("")
+					m.pendingDefault = false
+				case tea.KeyLeft, tea.KeyRight:
+					m.pendingDefault = false
+					m.textInput.SetCursor(len(m.textInput.Value()))
+				}
+			}
+		}
+
 		var cmd tea.Cmd
-		m.textInput, cmd = m.textInput.Update(msg)
+		m.textInput, cmd = m.textInput.Update(normalizeSpaceKey(msg))
 		m.textInputs[m.currentField-1] = m.textInput
 		return m, cmd
 	}
@@ -728,6 +986,35 @@ func (m *WizardModel) handleNavigate(msg tea.Msg, stepInfo *stepInfo) (tea.Model
 	return m, nil
 }
 
+// fieldValue returns the value for the current text input field.
+// If a raw multi-line value was stored via paste mode, it is returned;
+// otherwise the textinput's display value is used.
+func (m *WizardModel) fieldValue() string {
+	if m.rawFieldValues != nil {
+		key := fmt.Sprintf("%d:%d", m.step, m.currentField)
+		if raw, ok := m.rawFieldValues[key]; ok {
+			return raw
+		}
+	}
+	return m.textInput.Value()
+}
+
+// fieldValueForIdx returns the value for a specific text input field index.
+// If a raw multi-line value was stored via paste mode, it is returned;
+// otherwise the textinput's display value is used.
+func (m *WizardModel) fieldValueForIdx(step, idx int) string {
+	if m.rawFieldValues != nil {
+		key := fmt.Sprintf("%d:%d", step, idx)
+		if raw, ok := m.rawFieldValues[key]; ok {
+			return raw
+		}
+	}
+	if idx < len(m.textInputs) {
+		return m.textInputs[idx].Value()
+	}
+	return ""
+}
+
 // saveCurrentFieldValue saves the current text input's value to the config.
 func (m *WizardModel) saveCurrentFieldValue(stepInfo *stepInfo) {
 	// For multi-field and radio steps, we need to map the visible field index back to the original field
@@ -736,7 +1023,7 @@ func (m *WizardModel) saveCurrentFieldValue(stepInfo *stepInfo) {
 		for _, f := range stepInfo.fields {
 			if f.condition == nil || f.condition(m.config) {
 				if visibleIdx == m.currentField {
-					val := m.textInput.Value()
+					val := m.fieldValue()
 					f.setValue(m.config, val)
 					return
 				}
@@ -744,7 +1031,7 @@ func (m *WizardModel) saveCurrentFieldValue(stepInfo *stepInfo) {
 			}
 		}
 	} else if m.currentField < len(stepInfo.fields) {
-		val := m.textInput.Value()
+		val := m.fieldValue()
 		stepInfo.fields[m.currentField].setValue(m.config, val)
 	}
 }
@@ -761,7 +1048,7 @@ func (m *WizardModel) saveCheckboxFieldValue(stepInfo *stepInfo) {
 	for _, f := range stepInfo.fields {
 		if f.condition == nil || f.condition(m.config) {
 			if visibleIdx == fieldIdx {
-				val := m.textInput.Value()
+				val := m.fieldValueForIdx(m.step, fieldIdx)
 				f.setValue(m.config, val)
 				return
 			}
@@ -770,8 +1057,35 @@ func (m *WizardModel) saveCheckboxFieldValue(stepInfo *stepInfo) {
 	}
 }
 
+
+// populateRawFieldValuesFromConfig scans config fields for multi-line values
+// and populates rawFieldValues so that fieldValueForIdx can return the raw
+// multi-line content even after initStep resets rawFieldValues.
+func (m *WizardModel) populateRawFieldValuesFromConfig(stepInfo *stepInfo) {
+	if m.rawFieldValues == nil {
+		m.rawFieldValues = make(map[string]string)
+	}
+	visibleIdx := 0
+	for _, f := range stepInfo.fields {
+		if f.condition != nil && !f.condition(m.config) {
+			continue
+		}
+		key := fmt.Sprintf("%d:%d", m.step, visibleIdx)
+		val := f.getValue(m.config)
+		if strings.Contains(val, "\n") {
+			m.rawFieldValues[key] = val
+		}
+		visibleIdx++
+	}
+}
+
 // View renders the current step of the wizard.
 func (m *WizardModel) View() string {
+	// If paste mode is active, render the paste overlay.
+	if m.pasteModeActive {
+		return m.renderPasteMode()
+	}
+
 	var b strings.Builder
 
 	// Header
@@ -811,6 +1125,21 @@ func (m *WizardModel) View() string {
 	return b.String()
 }
 
+// renderPasteMode renders the multi-line paste overlay.
+func (m *WizardModel) renderPasteMode() string {
+	var b strings.Builder
+
+	b.WriteString(TitleStyle.Render("hd init — Paste Mode"))
+	b.WriteString("\n\n")
+
+	b.WriteString(HelpStyle.Render("  Paste or type multi-line content. Ctrl+D to save, Esc to cancel."))
+	b.WriteString("\n\n")
+
+	b.WriteString(m.pasteModeTextArea.View())
+	b.WriteString("\n")
+
+	return b.String()
+}
 
 // renderRadioSelection renders the radio options with the selected marker.
 // Used by both modeRadioSelect and modeTextInput (for radio steps with conditional fields).
@@ -1068,39 +1397,18 @@ func (m *WizardModel) renderStepContent() string {
 		}
 
 	case modeCheckboxSelect:
-		b.WriteString(LabelStyle.Render(stepInfo.checkboxLabel + ":"))
-		b.WriteString("\n")
-		visibleIdx := 0
-		for _, cb := range stepInfo.checkboxes {
-			// Skip checkboxes that don't meet their condition
-			if cb.condition != nil && !cb.condition(m.config) {
-				continue
-			}
-			checked := cb.getValue(m.config)
-			checkboxChar := "☐"
-			if checked {
-				checkboxChar = "☑"
-			}
-			if visibleIdx == m.checkboxIndex && m.currentField == 0 {
-				b.WriteString(SelectedItemStyle.Render("  " + checkboxChar + " "))
-				b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)).Render(cb.label))
-			} else {
-				b.WriteString(UnselectedItemStyle.Render("  " + checkboxChar + " "))
-				b.WriteString(UnselectedItemStyle.Render(cb.label))
-			}
-			b.WriteString("\n")
-			if cb.help != "" {
-				b.WriteString(HelpStyle.Render("      " + cb.help))
-				b.WriteString("\n")
-			}
-			visibleIdx++
-		}
-		b.WriteString("\n")
+		// Render checkboxes using the shared renderCheckboxSelection method
+		// with dimmed=false since checkboxes are interactive in this mode
+		b.WriteString(m.renderCheckboxSelection(stepInfo, false))
 		// Render conditional text fields
 		if len(m.textInputs) > 0 {
-			// Use "Secret paths:" for step 8 (GitHub integration), generic label otherwise
+			// Use "Secret paths:" for step 8 in vault mode, "Secret values:" in dev mode, generic label otherwise
 			if m.step == 8 {
-				b.WriteString(LabelStyle.Render("Secret paths:"))
+				if isDevMode(m.config) {
+					b.WriteString(LabelStyle.Render("Secret values:"))
+				} else {
+					b.WriteString(LabelStyle.Render("Secret paths:"))
+				}
 			} else {
 				b.WriteString(LabelStyle.Render("Configuration:"))
 			}
@@ -1168,6 +1476,7 @@ func (m *WizardModel) renderNavigation(stepInfo *stepInfo) string {
 			} else {
 				hints = append(hints, "esc=back")
 			}
+			hints = append(hints, "ctrl+e=paste mode")
 		case modeRadioSelect:
 			hints = append(hints, "↑↓ select")
 			hints = append(hints, "enter=confirm")
@@ -1178,6 +1487,9 @@ func (m *WizardModel) renderNavigation(stepInfo *stepInfo) string {
 			hints = append(hints, "↑↓ navigate")
 			hints = append(hints, "space=toggle")
 			hints = append(hints, "enter=next")
+			if m.currentField > 0 {
+				hints = append(hints, "ctrl+e=paste mode")
+			}
 			if m.step > 1 {
 				hints = append(hints, "esc=back")
 			}
@@ -1249,6 +1561,9 @@ func (m *WizardModel) renderSummary() string {
 		items = append(items, "  AI agent: disabled")
 	}
 	items = append(items, fmt.Sprintf("  GitHub repo creation: %v", cfg.GithubCreateRepo))
+	if cfg.GithubCreateRepo && !cfg.UseLocalCopy && cfg.ConfigRepoCloneAuth != "" && cfg.ConfigRepoCloneAuth != "none" {
+		items = append(items, fmt.Sprintf("  Clone auth method: %s", cfg.ConfigRepoCloneAuth))
+	}
 
 	return SummaryBoxStyle.Render(
 		StepTitleStyle.Render("Configuration Summary") + "\n\n" + strings.Join(items, "\n"),
@@ -1352,6 +1667,37 @@ func (m *WizardModel) validateCurrentStep() error {
 		if m.config.GithubCreateRepo {
 			if strings.TrimSpace(m.config.GitRemoteURL) == "" {
 				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
+			}
+			// Validate clone auth method (only when not using local copy)
+			if !m.config.UseLocalCopy {
+				auth := strings.TrimSpace(m.config.ConfigRepoCloneAuth)
+				switch auth {
+				case "none":
+					// No additional auth needed
+				case "pat":
+					if strings.TrimSpace(m.config.ConfigRepoPATValue) == "" {
+						return fmt.Errorf("PAT is required when clone auth is 'pat'")
+					}
+				case "github_app":
+					if strings.TrimSpace(m.config.ConfigRepoGHAppID) == "" {
+						return fmt.Errorf("GitHub App ID is required when clone auth is 'github_app'")
+					}
+					if strings.TrimSpace(m.config.ConfigRepoGHInstallID) == "" {
+						return fmt.Errorf("installation ID is required when clone auth is 'github_app'")
+					}
+					if strings.TrimSpace(m.config.ConfigRepoGHAppKey) == "" {
+						return fmt.Errorf("private key is required when clone auth is 'github_app'")
+					}
+				case "ssh":
+					if !strings.HasPrefix(m.config.GitRemoteURL, "git@") {
+						return fmt.Errorf("SSH remote URL must start with 'git@'")
+					}
+					if strings.TrimSpace(m.config.ConfigRepoSSHKey) == "" && strings.TrimSpace(m.config.ConfigRepoSSHFile) == "" {
+						return fmt.Errorf("either SSH key content or SSH key file path is required when clone auth is 'ssh'")
+					}
+				default:
+					return fmt.Errorf("invalid clone auth method %q (must be one of: none, pat, github_app, ssh)", auth)
+				}
 			}
 		}
 	}

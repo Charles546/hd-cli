@@ -2119,9 +2119,9 @@ func TestStep14SpaceToggleFirstCheckbox(t *testing.T) {
 		t.Errorf("step 14 view should contain 'Use local copy' checkbox, got:\n%s", view)
 	}
 
-	// Text inputs should now include git remote URL
-	if len(m.textInputs) != 1 {
-		t.Errorf("textInputs count = %d, want 1 (git remote URL)", len(m.textInputs))
+	// Text inputs should now include git remote URL and clone auth method
+	if len(m.textInputs) != 2 {
+		t.Errorf("textInputs count = %d, want 2 (git remote URL + clone auth method)", len(m.textInputs))
 	}
 }
 
@@ -2149,9 +2149,9 @@ func TestStep14SecondCheckboxVisibleWhenFirstChecked(t *testing.T) {
 		t.Error("UseLocalCopy should be true after toggling second checkbox")
 	}
 
-	// Git remote URL should still be visible (condition: GithubCreateRepo)
+	// Git remote URL should still be visible, but clone auth fields should be hidden
 	if len(m.textInputs) != 1 {
-		t.Errorf("textInputs count = %d, want 1 (git remote URL still visible when using local copy)", len(m.textInputs))
+		t.Errorf("textInputs count = %d, want 1 (git remote URL visible, clone auth hidden)", len(m.textInputs))
 	}
 }
 
@@ -2211,14 +2211,14 @@ func TestStep14EnterOnLastCheckboxWithTextInput(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace}) // toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})   // move to checkbox 1
 
-	// textInputs should have git remote URL
-	if len(m.textInputs) != 1 {
-		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
+	// textInputs should have git remote URL + clone auth method
+	if len(m.textInputs) != 2 {
+		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Press Enter on last checkbox: toggles UseLocalCopy on, textInputs still exist
-	// (git remote URL is always visible when GithubCreateRepo is true), so it
-	// switches to text input mode instead of advancing
+	// (git remote URL and clone auth method are always visible when GithubCreateRepo is true)
+	// so it switches to text input mode instead of advancing
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	// UseLocalCopy should be toggled on
@@ -2226,7 +2226,7 @@ func TestStep14EnterOnLastCheckboxWithTextInput(t *testing.T) {
 		t.Error("UseLocalCopy should be true after Enter on second checkbox")
 	}
 
-	// Text inputs still exist (git remote URL always visible), so should switch to text input mode
+	// Text inputs still exist (git remote URL + clone auth always visible), so should switch to text input mode
 	if m.step != 14 {
 		t.Errorf("step = %d, want 14 (should stay on step 14 with text inputs)", m.step)
 	}
@@ -2266,16 +2266,16 @@ func TestStep14EnterOnLastCheckboxNoAdvanceWhenTextInputRequired(t *testing.T) {
 	// Toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// Now there are text inputs (git remote URL)
-	if len(m.textInputs) != 1 {
-		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
+	// Now there are text inputs (git remote URL + clone auth method)
+	if len(m.textInputs) != 2 {
+		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Move to last checkbox (index 1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 
 	// Press Enter on last checkbox: toggles UseLocalCopy, text inputs still exist
-	// (git remote URL always visible), so switches to text input mode
+	// (git remote URL + clone auth always visible), so switches to text input mode
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if m.step != 14 {
@@ -2287,7 +2287,7 @@ func TestStep14EnterOnLastCheckboxNoAdvanceWhenTextInputRequired(t *testing.T) {
 }
 
 func TestStep14GitRemoteURLFieldVisibleAfterCheckingCreateRepo(t *testing.T) {
-	// After checking "Create GitHub repo", git remote URL field should appear
+	// After checking "Create GitHub repo", git remote URL and clone auth fields should appear
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
@@ -2295,9 +2295,9 @@ func TestStep14GitRemoteURLFieldVisibleAfterCheckingCreateRepo(t *testing.T) {
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// Text inputs should have 1 field
-	if len(m.textInputs) != 1 {
-		t.Errorf("textInputs count = %d, want 1", len(m.textInputs))
+	// Text inputs should have 2 fields (git remote URL + clone auth method)
+	if len(m.textInputs) != 2 {
+		t.Errorf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	view := m.View()
@@ -2314,12 +2314,13 @@ func TestStep14CheckboxVisibleInTextInputMode(t *testing.T) {
 
 	// Toggle "Create GitHub repo" on, move to second checkbox, press Enter to switch to text input
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace}) // toggle GithubCreateRepo on
-	// Now text inputs exist (git remote URL)
-	if len(m.textInputs) != 1 {
-		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
+	// Now text inputs exist (git remote URL + clone auth method)
+	if len(m.textInputs) != 2 {
+		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Press Down to move to checkbox 1, then Down again to move to text inputs
+	// Down from last checkbox goes to textInputs[0] at currentField=1
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text inputs (currentField=1)
 
@@ -2346,14 +2347,14 @@ func TestStep14TextInputModeTabNavigation(t *testing.T) {
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// There should be 1 text input
-	if len(m.textInputs) != 1 {
-		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
+	// There should be 2 text inputs (git remote URL + clone auth method)
+	if len(m.textInputs) != 2 {
+		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
-	// Move to text input: Down past last checkbox
+	// Move to text input: Down past last checkbox goes to textInputs[0] (Git remote URL)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
 
 	// Type in the git remote URL
 	for _, ch := range "git@github.com:user/repo.git" {
@@ -2361,18 +2362,18 @@ func TestStep14TextInputModeTabNavigation(t *testing.T) {
 		m, _ = updateWizard(m, msg)
 	}
 
-	// Press Enter to advance
+	// Tab to clone auth (default is "none" so no need to type)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	// Press Enter — should advance (none auth, git remote URL set)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.step != 15 {
 		t.Errorf("step = %d, want 15", m.step)
 	}
-
-	// Verify the value was saved
-	if m.config.GitRemoteURL != "git@github.com:user/repo.git" {
-		t.Errorf("GitRemoteURL = %q, want %q", m.config.GitRemoteURL, "git@github.com:user/repo.git")
+	if m.validationErr != "" {
+		t.Errorf("expected no validation error, got: %s", m.validationErr)
 	}
 }
-
 func TestStep14TextInputEscBackToCheckboxes(t *testing.T) {
 	// Pressing Esc on first text field should go back to checkboxes
 	cfg := config.NewDefaultWizardConfig()
@@ -2489,7 +2490,7 @@ func TestStep14EscOnFirstCheckboxGoesBack(t *testing.T) {
 }
 
 func TestStep14GitRemoteURLRequiredWhenCreateRepoAndNoLocalCopy(t *testing.T) {
-	// When GithubCreateRepo is true and UseLocalCopy is false, git remote URL is required
+	// When GithubCreateRepo is true (regardless of UseLocalCopy), git remote URL is required
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
@@ -2497,14 +2498,17 @@ func TestStep14GitRemoteURLRequiredWhenCreateRepoAndNoLocalCopy(t *testing.T) {
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// Move to text input field
+	// Move to text input field (Git remote URL is the first text input)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
 
-	// Try to press Enter without filling in the git remote URL
+	// Tab to clone auth field (still no values filled)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	// Press Enter on last text field - should trigger validation error
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	// Should NOT advance — should show validation error
+	// Should NOT advance - should show validation error for empty git remote URL
 	if m.step != 14 {
 		t.Errorf("step = %d, want 14 (should not advance with empty git remote URL)", m.step)
 	}
@@ -2515,7 +2519,6 @@ func TestStep14GitRemoteURLRequiredWhenCreateRepoAndNoLocalCopy(t *testing.T) {
 		t.Errorf("validation error should mention git remote URL, got: %s", m.validationErr)
 	}
 }
-
 func TestStep14GitRemoteURLValidationPasses(t *testing.T) {
 	// When git remote URL is filled, should advance
 	cfg := config.NewDefaultWizardConfig()
@@ -2527,13 +2530,16 @@ func TestStep14GitRemoteURLValidationPasses(t *testing.T) {
 
 	// Move to text input
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
 
 	// Type in the git remote URL
 	for _, ch := range "git@github.com:user/repo.git" {
 		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
 		m, _ = updateWizard(m, msg)
 	}
+
+	// Tab to clone auth (default is "none" so no need to type)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
 	// Press Enter — should advance
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
@@ -2544,7 +2550,6 @@ func TestStep14GitRemoteURLValidationPasses(t *testing.T) {
 		t.Errorf("expected no validation error, got: %s", m.validationErr)
 	}
 }
-
 func TestStep14UseLocalCopySpaceToggles(t *testing.T) {
 	// Pressing space on the "Use local copy" checkbox should toggle UseLocalCopy
 	cfg := config.NewDefaultWizardConfig()
@@ -2586,18 +2591,18 @@ func TestStep14UseLocalCopyHidesGitRemoteURL(t *testing.T) {
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// Before toggling local copy: textInputs should have 1 field (git remote URL)
-	if len(m.textInputs) != 1 {
-		t.Fatalf("expected 1 text input before local copy, got %d", len(m.textInputs))
+	// Before toggling local copy: textInputs should have 2 fields (git remote URL + clone auth)
+	if len(m.textInputs) != 2 {
+		t.Fatalf("expected 2 text inputs before local copy, got %d", len(m.textInputs))
 	}
 
 	// Move to second checkbox and toggle
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// After checking local copy: textInputs should still have 1 field (git remote URL)
+	// After checking local copy: textInputs should have 1 field (git remote URL only, clone auth hidden)
 	if len(m.textInputs) != 1 {
-		t.Errorf("expected 1 text input after local copy (git remote URL still visible), got %d", len(m.textInputs))
+		t.Errorf("expected 1 text input after local copy (clone auth hidden), got %d", len(m.textInputs))
 	}
 }
 
@@ -2625,8 +2630,9 @@ func TestStep14UseLocalCopyNoValidationRequired(t *testing.T) {
 
 func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 	// Toggling checkboxes should rebuild text inputs correctly
-	// Note: UseLocalCopy no longer hides git remote URL, so textInputs=1 whenever
-	// GithubCreateRepo is true
+	// Note: UseLocalCopy no longer hides git remote URL, but hides clone auth fields
+	// When GithubCreateRepo=true && !UseLocalCopy: textInputs=2 (git remote URL + clone auth)
+	// When GithubCreateRepo=true && UseLocalCopy: textInputs=1 (git remote URL only)
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
@@ -2638,21 +2644,21 @@ func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 
 	// Toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
-	if len(m.textInputs) != 1 {
-		t.Errorf("after GithubCreateRepo=true, textInputs count = %d, want 1", len(m.textInputs))
+	if len(m.textInputs) != 2 {
+		t.Errorf("after GithubCreateRepo=true, textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Move to second checkbox and toggle UseLocalCopy on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 	if len(m.textInputs) != 1 {
-		t.Errorf("after UseLocalCopy=true, textInputs count = %d, want 1 (git remote URL still visible)", len(m.textInputs))
+		t.Errorf("after UseLocalCopy=true, textInputs count = %d, want 1 (clone auth hidden)", len(m.textInputs))
 	}
 
 	// Toggle UseLocalCopy off
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
-	if len(m.textInputs) != 1 {
-		t.Errorf("after UseLocalCopy=false, textInputs count = %d, want 1", len(m.textInputs))
+	if len(m.textInputs) != 2 {
+		t.Errorf("after UseLocalCopy=false, textInputs count = %d, want 2", len(m.textInputs))
 	}
 }
 
@@ -3139,3 +3145,914 @@ func TestStep10ConditionalFieldTabNavigation(t *testing.T) {
 	}
 }
 
+
+// ===== Clone auth tests =====
+
+func TestStep14CloneAuthNone(t *testing.T) {
+	// When clone auth is "none", no additional fields are needed
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "none"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	err := m.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with none auth, got: %v", err)
+	}
+}
+
+func TestStep14CloneAuthPAT(t *testing.T) {
+	// When clone auth is "pat", PAT value is required
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "pat"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	err := m.validateCurrentStep()
+	if err == nil {
+		t.Error("validateCurrentStep should fail without PAT value")
+	}
+	if err != nil && !strings.Contains(err.Error(), "PAT is required") {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// Now set the PAT value (env var reference)
+	cfg.ConfigRepoPATValue = "$MY_PAT"
+	m2 := NewWizard(cfg)
+	m2 = runInitStep(m2, 14)
+
+	err = m2.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with PAT value set, got: %v", err)
+	}
+
+	// Also test with raw PAT value
+	cfg.ConfigRepoPATValue = "ghp_xxxxx"
+	m3 := NewWizard(cfg)
+	m3 = runInitStep(m3, 14)
+
+	err = m3.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with raw PAT value, got: %v", err)
+	}
+}
+
+func TestStep14CloneAuthGitHubApp(t *testing.T) {
+	// When clone auth is "github_app", all 4 fields are required
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "github_app"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	err := m.validateCurrentStep()
+	if err == nil {
+		t.Error("validateCurrentStep should fail without GitHub App ID")
+	}
+
+	// Set ID but missing others
+	cfg.ConfigRepoGHAppID = "12345"
+	m2 := NewWizard(cfg)
+	m2 = runInitStep(m2, 14)
+	err = m2.validateCurrentStep()
+	if err == nil {
+		t.Error("validateCurrentStep should fail without Installation ID")
+	}
+
+	// Set ID and Installation ID but missing key
+	cfg.ConfigRepoGHInstallID = "67890"
+	m3 := NewWizard(cfg)
+	m3 = runInitStep(m3, 14)
+	err = m3.validateCurrentStep()
+	if err == nil {
+		t.Error("validateCurrentStep should fail without Private Key")
+	}
+
+	// Set all fields
+	cfg.ConfigRepoGHAppKey = "fake-key-content"
+	m4 := NewWizard(cfg)
+	m4 = runInitStep(m4, 14)
+	err = m4.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with all github_app fields, got: %v", err)
+	}
+}
+
+func TestStep14CloneAuthSSH(t *testing.T) {
+	// When clone auth is "ssh", URL must start with git@ and key or file is required
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// URL doesn't start with git@
+	err := m.validateCurrentStep()
+	if err == nil {
+		t.Error("validateCurrentStep should fail with https URL for ssh auth")
+	}
+	if err != nil && !strings.Contains(err.Error(), "git@") {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// Fix URL but no key or file
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	m2 := NewWizard(cfg)
+	m2 = runInitStep(m2, 14)
+	err = m2.validateCurrentStep()
+	if err == nil {
+		t.Error("validateCurrentStep should fail without SSH key or file")
+	}
+
+	// Set SSH key content
+	cfg.ConfigRepoSSHKey = "fake-ssh-key"
+	m3 := NewWizard(cfg)
+	m3 = runInitStep(m3, 14)
+	err = m3.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with SSH key, got: %v", err)
+	}
+
+	// Set SSH key file instead
+	cfg.ConfigRepoSSHKey = ""
+	cfg.ConfigRepoSSHFile = "/home/user/.ssh/id_rsa"
+	m4 := NewWizard(cfg)
+	m4 = runInitStep(m4, 14)
+	err = m4.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with SSH key file, got: %v", err)
+	}
+}
+
+func TestStep14CloneAuthInvalid(t *testing.T) {
+	// Invalid auth method should fail
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "invalid_auth"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	err := m.validateCurrentStep()
+	if err == nil {
+		t.Error("validateCurrentStep should fail with invalid auth method")
+	}
+	if err != nil && !strings.Contains(err.Error(), "invalid clone auth method") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestStep14CloneAuthSkippedForLocalCopy(t *testing.T) {
+	// When UseLocalCopy is true, clone auth is not validated
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = true
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh" // would normally require key
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	err := m.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with UseLocalCopy=true (no clone auth validation), got: %v", err)
+	}
+}
+
+func TestStep14CloneAuthNoneNoAdditionalFields(t *testing.T) {
+	// With none auth and https URL, no additional fields needed
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "none"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	err := m.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with none auth and https URL, got: %v", err)
+	}
+}
+
+func TestStep14CloneAuthConditionalFieldsVisible(t *testing.T) {
+	// When clone auth is "pat", the PAT field should be visible
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "pat"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// The clone auth field and PAT field should be visible
+	stepInfo := getStepInfo(14)
+	visibleFields := 0
+	for _, field := range stepInfo.fields {
+		if field.condition == nil || field.condition(m.config) {
+			visibleFields++
+		}
+	}
+
+	// Should have: Git remote URL, Clone auth method, PAT = 3
+	if visibleFields != 3 {
+		t.Errorf("expected 3 visible fields for pat auth, got %d", visibleFields)
+	}
+}
+
+func TestStep14CloneAuthSSHFieldsVisible(t *testing.T) {
+	// When clone auth is "ssh", SSH key fields should be visible
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	stepInfo := getStepInfo(14)
+	visibleFields := 0
+	for _, field := range stepInfo.fields {
+		if field.condition == nil || field.condition(m.config) {
+			visibleFields++
+		}
+	}
+
+	// Should have: Git remote URL, Clone auth method, SSH key content, SSH key file, SSH key passphrase = 5
+	if visibleFields != 5 {
+		t.Errorf("expected 5 visible fields for ssh auth, got %d", visibleFields)
+	}
+}
+
+func TestStep14CloneAuthHiddenForLocalCopy(t *testing.T) {
+	// When UseLocalCopy is true, clone auth fields should be hidden
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = true
+	cfg.ConfigRepoCloneAuth = "pat"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	stepInfo := getStepInfo(14)
+	visibleFields := 0
+	for _, field := range stepInfo.fields {
+		if field.condition == nil || field.condition(m.config) {
+			visibleFields++
+		}
+	}
+
+	// Should only have: Git remote URL = 1
+	if visibleFields != 1 {
+		t.Errorf("expected 1 visible field when UseLocalCopy=true, got %d", visibleFields)
+	}
+}
+
+func TestStep14SummaryShowsCloneAuth(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.ConfigRepoCloneAuth = "github_app"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	view := m.View()
+	if !strings.Contains(view, "Clone auth method") {
+		t.Errorf("summary should show clone auth method, got view:\n%s", view)
+	}
+}
+
+
+// ===== Space key in checkbox text fields =====
+
+func TestSpaceKeyInCheckboxTextField(t *testing.T) {
+	// When in text field mode within a checkbox step, Space should insert
+	// a space character instead of being captured by the checkbox handler.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true // Enable conditional text fields
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to text input: Down past checkboxes to textInputs[0] (Git remote URL)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
+
+	if m.currentField != 1 {
+		t.Fatalf("currentField = %d, want 1", m.currentField)
+	}
+
+	// Type "hello" then Space then "world"
+	for _, ch := range "hello" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	for _, ch := range "world" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// The text input should contain "hello world" with a space
+	if m.textInput.Value() != "hello world" {
+		t.Errorf("textInput.Value() = %q, want %q", m.textInput.Value(), "hello world")
+	}
+}
+
+func TestSpaceKeyStillTogglesCheckbox(t *testing.T) {
+	// When on checkbox row (currentField == 0), Space should still toggle checkboxes.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	if m.currentField != 0 {
+		t.Fatalf("currentField = %d, want 0", m.currentField)
+	}
+	if m.config.GithubCreateRepo {
+		t.Fatal("GithubCreateRepo should be false initially")
+	}
+
+	// Press Space to toggle
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+
+	if !m.config.GithubCreateRepo {
+		t.Error("GithubCreateRepo should be true after pressing space on checkbox")
+	}
+}
+
+// ===== Paste mode tests =====
+
+func TestPasteModeToggleWithCtrlE(t *testing.T) {
+	// Ctrl+E in text input mode should enter paste mode.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name step (text input)
+
+	// Type something first
+	for _, ch := range "test" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Ctrl+E to enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	if !m.pasteModeActive {
+		t.Error("pasteModeActive should be true after Ctrl+E")
+	}
+}
+
+func TestPasteModeShowsInView(t *testing.T) {
+	// When paste mode is active, the view should show the paste overlay.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	view := m.View()
+	if !strings.Contains(view, "Paste Mode") {
+		t.Errorf("View() should contain 'Paste Mode' header, got: %s", view)
+	}
+	if !strings.Contains(view, "Ctrl+D to save") {
+		t.Errorf("View() should contain 'Ctrl+D to save' hint, got: %s", view)
+	}
+}
+
+func TestPasteModeSavesOnCtrlD(t *testing.T) {
+	// Ctrl+D in paste mode should save the content and exit paste mode.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	// Type multi-line content into the textarea
+	m.pasteModeTextArea.SetValue("line1\nline2\nline3")
+
+	// Press Ctrl+D to save
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	if m.pasteModeActive {
+		t.Error("pasteModeActive should be false after Ctrl+D")
+	}
+	// The config should have the multi-line value preserved
+	if m.config.ProjectName != "line1\nline2\nline3" {
+		t.Errorf("ProjectName = %q, want multi-line content", m.config.ProjectName)
+	}
+}
+
+func TestPasteModeCancelsOnEsc(t *testing.T) {
+	// Escape in paste mode should cancel and restore the original value.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Type something first
+	for _, ch := range "original" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	// Change the content in the textarea
+	m.pasteModeTextArea.SetValue("changed content")
+
+	// Press Esc to cancel
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
+
+	if m.pasteModeActive {
+		t.Error("pasteModeActive should be false after Esc")
+	}
+	// The original value should be preserved
+	if m.textInput.Value() != "original" {
+		t.Errorf("textInput.Value() = %q, want %q (original value should be restored)", m.textInput.Value(), "original")
+	}
+}
+
+func TestPasteModeInCheckboxTextField(t *testing.T) {
+	// Ctrl+E should work in checkbox step text fields too.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to text input
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
+
+	if m.currentField != 1 {
+		t.Fatalf("currentField = %d, want 1", m.currentField)
+	}
+
+	// Press Ctrl+E to enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	if !m.pasteModeActive {
+		t.Error("pasteModeActive should be true after Ctrl+E in checkbox text field")
+	}
+
+	// Type multi-line content
+	m.pasteModeTextArea.SetValue("ssh-rsa AAAA...")
+
+	// Save with Ctrl+D
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	if m.pasteModeActive {
+		t.Error("pasteModeActive should be false after Ctrl+D")
+	}
+	if m.textInput.Value() != "ssh-rsa AAAA..." {
+		t.Errorf("textInput.Value() = %q, want %q", m.textInput.Value(), "ssh-rsa AAAA...")
+	}
+}
+
+func TestPasteModeMultiLineSSHKey(t *testing.T) {
+	// Simulate pasting a multi-line SSH private key.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Navigate to the SSH key content field
+	// Fields: Git remote URL (idx 0), Clone auth method (idx 1), SSH key content (idx 2), SSH key file (idx 3), SSH key passphrase (idx 4)
+	// First fill Git remote URL
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
+
+	// Tab through fields to get to SSH key content
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab}) // to Clone auth method
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab}) // to SSH key content
+
+	if m.currentField != 3 {
+		t.Fatalf("currentField = %d, want 3 (SSH key content)", m.currentField)
+	}
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	// Paste multi-line SSH key
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+
+	// Save with Ctrl+D
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	if m.pasteModeActive {
+		t.Error("pasteModeActive should be false after Ctrl+D")
+	}
+
+	// The config should have the multi-line SSH key preserved
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("ConfigRepoSSHKey not preserved correctly, got %q", m.config.ConfigRepoSSHKey)
+	}
+}
+
+func TestPasteModeMultiLineSSHKeyPreservedOnTab(t *testing.T) {
+	// After pasting a multi-line SSH key and pressing Tab to leave the field,
+	// the config should still have the raw multi-line value (not the collapsed display).
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Navigate to the SSH key content field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to Clone auth method
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
+
+	if m.currentField != 3 {
+		t.Fatalf("currentField = %d, want 3 (SSH key content)", m.currentField)
+	}
+
+	// Enter paste mode and paste multi-line SSH key
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Press Tab to move to next field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	// The config should still have the multi-line SSH key
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("ConfigRepoSSHKey was corrupted after Tab!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	}
+	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
+		t.Errorf("ConfigRepoSSHKey lost newlines after Tab: %q", m.config.ConfigRepoSSHKey)
+	}
+}
+
+func TestPasteModeMultiLineSSHKeyPreservedOnEnter(t *testing.T) {
+	// After pasting a multi-line SSH key and pressing Enter to leave the field,
+	// the config should still have the raw multi-line value.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Navigate to the SSH key content field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	if m.currentField != 3 {
+		t.Fatalf("currentField = %d, want 3 (SSH key content)", m.currentField)
+	}
+
+	// Enter paste mode and paste multi-line SSH key
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Press Enter to move to next field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// The config should still have the multi-line SSH key
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("ConfigRepoSSHKey was corrupted after Enter!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	}
+	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
+		t.Errorf("ConfigRepoSSHKey lost newlines after Enter: %q", m.config.ConfigRepoSSHKey)
+	}
+}
+
+func TestPasteModeHintShownInNavigation(t *testing.T) {
+	// Navigation hints should include ctrl+e=paste mode in text input mode.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name step (text input)
+
+	view := m.View()
+	if !strings.Contains(view, "ctrl+e=paste mode") {
+		t.Errorf("View() should contain 'ctrl+e=paste mode' hint in text input mode, got: %s", view)
+	}
+}
+
+func TestPasteModeHintShownInCheckboxTextField(t *testing.T) {
+	// Navigation hints should include ctrl+e=paste mode in checkbox text fields.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Move to text input
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
+
+	view := m.View()
+	if !strings.Contains(view, "ctrl+e=paste mode") {
+		t.Errorf("View() should contain 'ctrl+e=paste mode' hint in checkbox text field mode, got: %s", view)
+	}
+}
+
+func TestPasteModeCtrlCQuits(t *testing.T) {
+	// Ctrl+C should quit even in paste mode.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	if !m.pasteModeActive {
+		t.Fatal("should be in paste mode")
+	}
+
+	// Press Ctrl+C - should quit
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+
+	if cmd == nil {
+		t.Error("ctrl+c in paste mode should produce a quit command")
+	}
+	if !m.quit {
+		t.Error("quit flag should be true after ctrl+c in paste mode")
+	}
+}
+
+func TestPasteModeCtrlSSaves(t *testing.T) {
+	// Ctrl+S should save answers even in paste mode.
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "paste-save-test"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	if !m.pasteModeActive {
+		t.Fatal("should be in paste mode")
+	}
+
+	// Press Ctrl+S - should save (and commit current text input value)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	// Should show save confirmation
+	view := m.View()
+	if !strings.Contains(view, "Answers saved to") {
+		t.Errorf("Ctrl+S in paste mode should trigger save, got: %s", view)
+	}
+}
+
+// ===== Multi-line paste mode: raw value preservation tests =====
+
+func TestPasteModeRawValuePreservedInConfig(t *testing.T) {
+	// After paste mode saves multi-line content, the config should have
+	// the raw multi-line value even though the textinput displays a
+	// collapsed single-line version.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2) // Project Name step (text input)
+
+	// Enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	// Paste multi-line content
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+
+	// Save with Ctrl+D
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	if m.pasteModeActive {
+		t.Fatal("pasteModeActive should be false after Ctrl+D")
+	}
+
+	// The config should have the raw multi-line value
+	if m.config.ProjectName != sshKey {
+		t.Errorf("config.ProjectName should have raw multi-line value, got %q", m.config.ProjectName)
+	}
+
+	// The textinput should show a collapsed display value
+	if !strings.Contains(m.textInput.Value(), "...") {
+		t.Errorf("textinput should show collapsed value with '...', got %q", m.textInput.Value())
+	}
+	if strings.Contains(m.textInput.Value(), "\n") {
+		t.Errorf("textinput should NOT contain newlines, got %q", m.textInput.Value())
+	}
+}
+
+func TestPasteModeRawValueReopened(t *testing.T) {
+	// When re-entering paste mode on a field with a raw multi-line value,
+	// the textarea should show the raw value, not the collapsed display.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode and save multi-line content
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	m.pasteModeTextArea.SetValue("line1\nline2\nline3")
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Re-enter paste mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+
+	if !m.pasteModeActive {
+		t.Fatal("should be in paste mode")
+	}
+
+	// The textarea should have the raw multi-line value
+	if m.pasteModeTextArea.Value() != "line1\nline2\nline3" {
+		t.Errorf("textarea should have raw multi-line value, got %q", m.pasteModeTextArea.Value())
+	}
+}
+
+func TestPasteModeSingleLineNoRawValue(t *testing.T) {
+	// When pasting single-line content, rawFieldValues should not be set.
+	cfg := config.NewDefaultWizardConfig()
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Enter paste mode and save single-line content
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	m.pasteModeTextArea.SetValue("single-line-value")
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// rawFieldValues should not contain this field
+	if m.rawFieldValues != nil {
+		key := m.pasteModeFieldKey()
+		if _, ok := m.rawFieldValues[key]; ok {
+			t.Error("rawFieldValues should not contain single-line value")
+		}
+	}
+
+	// The textinput should show the exact value
+	if m.textInput.Value() != "single-line-value" {
+		t.Errorf("textInput.Value() = %q, want %q", m.textInput.Value(), "single-line-value")
+	}
+}
+
+func TestCollapseForDisplay(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"single line", "hello world", "hello world"},
+		{"multi-line", "line1\nline2\nline3", "line1..."},
+		{"empty", "", ""},
+		{"single newline", "hello\n", "hello..."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := collapseForDisplay(tt.input)
+			if got != tt.expected {
+				t.Errorf("collapseForDisplay(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+// ===== Multi-line paste: Tab navigation in checkbox step =====
+
+func TestPasteModeCheckboxTabPreservesRawValueInConfig(t *testing.T) {
+	// Reproduces the user-reported bug: after pasting a multi-line SSH key in a
+	// checkbox-step text field and pressing Tab to leave the field, the config
+	// must still contain the raw multi-line value (not collapsed to single line).
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "test-project"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.GitRemoteURL = "git@github.com:test/repo.git"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	// Navigate to SSH key content field (visible text index 2 → currentField=3)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	if m.currentField != 3 {
+		t.Fatalf("currentField = %d, want 3", m.currentField)
+	}
+
+	// Enter paste mode and paste multi-line SSH key
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Press Tab to move to next field — this is the exact user action that triggers the bug
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	// Config must still have the raw multi-line value
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("config.ConfigRepoSSHKey corrupted after Tab!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	}
+	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
+		t.Errorf("config.ConfigRepoSSHKey lost newlines after Tab: %q", m.config.ConfigRepoSSHKey)
+	}
+}
+
+func TestPasteModeCheckboxEnterPreservesRawValueInConfig(t *testing.T) {
+	// Same scenario but using Enter instead of Tab to leave the field
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "test-project"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.GitRemoteURL = "git@github.com:test/repo.git"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	sshKey := "line1\nline2\nline3"
+	m.pasteModeTextArea.SetValue(sshKey)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Press Enter to move to next field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("config.ConfigRepoSSHKey corrupted after Enter!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	}
+	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
+		t.Errorf("config.ConfigRepoSSHKey lost newlines after Enter: %q", m.config.ConfigRepoSSHKey)
+	}
+}
+
+func TestPasteModeCheckboxStepNavigationPreservesRawValue(t *testing.T) {
+	// Full round-trip: paste → Tab → advance to next step → Esc back → verify config
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ProjectName = "test-project"
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.GitRemoteURL = "git@github.com:test/repo.git"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 14)
+
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
+	m.pasteModeTextArea.SetValue(sshKey)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	// Tab to next field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	// Navigate to last text field and advance to next step
+	for m.currentField < len(m.textInputs) {
+		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	}
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Config must still have raw value after advancing
+	if m.config.ConfigRepoSSHKey != sshKey {
+		t.Errorf("config corrupted after advancing to next step: got %q", m.config.ConfigRepoSSHKey)
+	}
+
+	// Go back to step 14
+	if m.step == 15 {
+		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
+		if m.step == 14 {
+			// Navigate to SSH key field and verify
+			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
+			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+			if m.config.ConfigRepoSSHKey != sshKey {
+				t.Errorf("config corrupted after round-trip: got %q", m.config.ConfigRepoSSHKey)
+			}
+			if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
+				t.Errorf("config lost newlines after round-trip: got %q", m.config.ConfigRepoSSHKey)
+			}
+		}
+	}
+}
