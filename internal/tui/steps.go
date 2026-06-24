@@ -183,6 +183,7 @@ func StepLabels() []string {
 		"Kubernetes Config",
 		"Source Config",
 		"GitHub Repo",
+		"Clone Auth & Secure Exec",
 		"Summary",
 	}
 }
@@ -218,7 +219,8 @@ func StepHelp(step int) string {
 		12: "Kubernetes deployment settings. Only applies if K8s mode is selected.",
 		13: "Source build settings. Only applies if source mode is selected.",
 		14: "Optionally create a new GitHub repository for the generated config.",
-		15: "Review your choices before generating the configuration files.",
+		15: "Configure clone authentication and secure execution settings.",
+		16: "Review your choices before generating the configuration files.",
 	}
 	if h, ok := helps[step]; ok {
 		return h

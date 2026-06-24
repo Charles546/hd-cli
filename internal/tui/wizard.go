@@ -80,7 +80,7 @@ type WizardModel struct {
 }
 
 // stepCount is the total number of wizard steps (used for progress).
-const stepCount = 15
+const stepCount = 16
 
 // NewWizard creates a new wizard model starting at step 1.
 func NewWizard(cfg *config.WizardConfig) *WizardModel {

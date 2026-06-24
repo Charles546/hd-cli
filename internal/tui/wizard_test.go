@@ -766,37 +766,37 @@ func TestStep15ShowsSummary(t *testing.T) {
 	}
 }
 
-func TestStep15EnterGeneratesDirectly(t *testing.T) {
-	// Fix 1: Pressing Enter on step 15 should generate config directly
+func TestStep16EnterGeneratesDirectly(t *testing.T) {
+	// Fix 1: Pressing Enter on step 16 should generate config directly
 	// without going through the done/confirmation screen.
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15) // Summary step (navigate mode)
+	m = runInitStep(m, 16) // Summary step (navigate mode)
 
 	// Press Enter - should trigger generateConfig and return quit
 	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if cmd == nil {
-		t.Error("expected quit command after enter on step 15")
+		t.Error("expected quit command after enter on step 16")
 	}
 	// Should NOT be in done state (direct generation, no intermediate done)
 	if m.done {
-		t.Error("should not be in done state after enter on step 15")
+		t.Error("should not be in done state after enter on step 16")
 	}
 }
 
-func TestStep15SaveAndGenerateDirectly(t *testing.T) {
-	// Fix 1: Pressing 's' on step 15 should save answers and generate directly.
+func TestStep16SaveAndGenerateDirectly(t *testing.T) {
+	// Fix 1: Pressing 's' on step 16 should save answers and generate directly.
 	cfg := config.NewDefaultWizardConfig()
 	cfg.ProjectName = "save-gen-test"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 16)
 
 	// Press 's' - should save and generate
 	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 
 	if cmd == nil {
-		t.Error("expected quit command after 's' on step 15")
+		t.Error("expected quit command after 's' on step 16")
 	}
 	if m.done {
 		t.Error("should not be in done state after 's' on step 15")
@@ -939,7 +939,8 @@ func TestStepOrder(t *testing.T) {
 		{12, "Kubernetes Configuration"},
 		{13, "Source Configuration"},
 		{14, "GitHub Repo Creation"},
-		{15, "Summary & Confirm"},
+		{15, "Clone Auth & Secure Exec"},
+		{16, "Summary & Confirm"},
 	}
 
 	for _, expected := range expectedOrder {

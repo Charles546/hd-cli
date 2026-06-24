@@ -35,6 +35,11 @@ services:
 {{- end }}
 {{- end }}
 {{- end }}
+{{- if .SecureExecEnvVars }}
+{{- range $key, $value := .SecureExecEnvVars }}
+      {{ $key }}: {{ $value }}
+{{- end }}
+{{- end }}
 {{- if eq .BootstrapCloneCredentialType "pat" }}
       DIPPER_GIT_PAT: ${DIPPER_GIT_PAT}
 {{- else if eq .BootstrapCloneCredentialType "github_app" }}

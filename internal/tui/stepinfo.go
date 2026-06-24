@@ -566,7 +566,45 @@ func getStepInfo(step int) *stepInfo {
 		}
 	case 15:
 		return &stepInfo{
-			title:    "Step 15: Summary & Confirm",
+			title:    "Step 15: Clone Auth & Secure Exec",
+			stepType: stepTypeMultiField,
+			fields: []fieldDescriptor{
+				{
+					label:       "Enable secure execution",
+					placeholder: "yes or no",
+					help:        "Enable secure execution mode for the daemon (recommended for production)",
+					getValue:    func(c *config.WizardConfig) string { return boolToRadio(c.SecureExecEnabled) },
+					setValue:    func(c *config.WizardConfig, v string) { c.SecureExecEnabled = radioToBool(v) },
+				},
+				{
+					label:       "Security policy",
+					placeholder: "strict or permissive",
+					help:        "Security enforcement policy: strict blocks all unauthorized operations, permissive allows listed operations",
+					getValue:    func(c *config.WizardConfig) string { return c.SecureExecPolicy },
+					setValue:    func(c *config.WizardConfig, v string) { c.SecureExecPolicy = v },
+					condition:   func(c *config.WizardConfig) bool { return c.SecureExecEnabled },
+				},
+				{
+					label:       "Allowed env vars",
+					placeholder: "HD_GITHUB_TOKEN,HD_SLACK_TOKEN (comma-separated)",
+					help:        "Comma-separated list of allowed environment variable names for hd-lookup",
+					getValue:    func(c *config.WizardConfig) string { return c.SecureExecEnvVars },
+					setValue:    func(c *config.WizardConfig, v string) { c.SecureExecEnvVars = v },
+					condition:   func(c *config.WizardConfig) bool { return c.SecureExecEnabled },
+				},
+				{
+					label:       "Allowed mount paths",
+					placeholder: "/etc/honeydipper,/secrets (comma-separated)",
+					help:        "Comma-separated list of allowed mount paths for config repos",
+					getValue:    func(c *config.WizardConfig) string { return c.SecureExecMountPaths },
+					setValue:    func(c *config.WizardConfig, v string) { c.SecureExecMountPaths = v },
+					condition:   func(c *config.WizardConfig) bool { return c.SecureExecEnabled },
+				},
+			},
+		}
+	case 16:
+		return &stepInfo{
+			title:    "Step 16: Summary & Confirm",
 			stepType: stepTypeNavigate,
 		}
 	default:

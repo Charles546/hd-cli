@@ -98,6 +98,12 @@ type WizardConfig struct {
 	ConfigRepoSSHKeyPassEnv string            `yaml:"config_repo_ssh_key_pass_env"`          // env var name for key passphrase
 	ConfigRepoCloneEnvVars  map[string]string `yaml:"config_repo_clone_env_vars,omitempty"`  // derived, for template
 
+	// Secure execution settings
+	SecureExecEnabled    bool   `yaml:"secure_exec_enabled,omitempty"`     // enable secure execution mode
+	SecureExecPolicy     string `yaml:"secure_exec_policy,omitempty"`      // enforcement policy: strict, permissive
+	SecureExecEnvVars    string `yaml:"secure_exec_env_vars,omitempty"`     // comma-separated list of allowed env vars
+	SecureExecMountPaths string `yaml:"secure_exec_mount_paths,omitempty"`  // comma-separated list of allowed mount paths
+
 	// Dev mode env vars tracks which HD_* variables are referenced during the wizard.
 	// Used by the docker-compose template to pass them into the container.
 	DevEnvVars []string `yaml:"dev_env_vars,omitempty"`
@@ -124,6 +130,8 @@ func NewDefaultWizardConfig() *WizardConfig {
 		K8sRepoStrategy:              "clone",
 		SourceBranch:                 "v4",
 		ConfigRepoCloneAuth:          "none",
+		SecureExecEnabled:            false,
+		SecureExecPolicy:             "permissive",
 		AIModel:                      "gpt-4o",
 		AIBaseURL:                    "https://api.openai.com/v1",
 		AIEngineName:                 "default",
@@ -132,6 +140,8 @@ func NewDefaultWizardConfig() *WizardConfig {
 
 // BuildConfigRepoCloneEnvVars returns a map of env var names to their placeholder
 // values for the selected config repo clone authentication method.
+// hd-lookup prefix handling: For PAT values starting with "$HD_", the value is
+// treated as an hd-lookup reference and passed through directly.
 func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 	if c == nil {
 		return nil
@@ -140,8 +150,17 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 	case "pat":
 		patVal := strings.TrimSpace(c.ConfigRepoPATValue)
 		if strings.HasPrefix(patVal, "$") {
-			// Env var reference: $MY_PAT -> DIPPER_PASS_ENV=MY_PAT
-			// Also pass through the env var itself so the value is available in the container.
+			// Check if this is an hd-lookup reference ($HD_*)
+			if strings.HasPrefix(patVal, "$HD_") {
+				// hd-lookup reference: pass through the value as-is
+				// The daemon will resolve it at runtime
+				envVarName := patVal[1:] // strip "$"
+				return map[string]string{
+					"HD_LOOKUP_PREFIX": envVarName,
+					envVarName:          patVal,
+				}
+			}
+			// Regular env var reference: $MY_PAT -> DIPPER_PASS_ENV=MY_PAT
 			envVarName := patVal[1:]
 			return map[string]string{
 				"DIPPER_PASS_ENV": envVarName,
@@ -180,6 +199,24 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 	}
 }
 
+// BuildSecureExecEnvVars returns a map of environment variables for secure execution.
+// When secure_exec is enabled, these vars configure the daemon's security policy.
+func (c *WizardConfig) BuildSecureExecEnvVars() map[string]string {
+	if c == nil || !c.SecureExecEnabled {
+		return nil
+	}
+	m := map[string]string{
+		"SECURE_EXEC_ENABLED": "true",
+		"SECURE_EXEC_POLICY":  c.SecureExecPolicy,
+	}
+	if c.SecureExecEnvVars != "" {
+		m["SECURE_EXEC_ENV_VARS"] = c.SecureExecEnvVars
+	}
+	if c.SecureExecMountPaths != "" {
+		m["SECURE_EXEC_MOUNT_PATHS"] = c.SecureExecMountPaths
+	}
+	return m
+}
 
 // CollectDevEnvVars scans the wizard config for all $HD_* env var references
 // used in dev mode and returns a deduplicated list of variable names (with HD_ prefix).
