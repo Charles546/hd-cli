@@ -299,10 +299,6 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if m.done {
-		return m.handleDone(msg)
-	}
-
 	return m.handleStepInput(msg)
 }
 
@@ -474,33 +470,6 @@ func (m *WizardModel) enterPasteMode() {
 }
 
 // handleDone handles input on the summary/confirmation screen.
-func (m *WizardModel) handleDone(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "enter":
-			m.err = m.generateConfig()
-			return m, tea.Quit
-		case "s":
-			// Refinement 2: Save answers to YAML file, then generate config (same as Enter)
-			if err := m.saveAnswersFile(); err != nil {
-				m.validationErr = fmt.Sprintf("failed to save answers: %v", err)
-				return m, nil
-			}
-			m.err = m.generateConfig()
-			return m, tea.Quit
-		case "ctrl+q":
-			// Quit without generating config
-			m.quit = true
-			return m, tea.Quit
-		case "esc", "backspace":
-			m.done = false
-			m.step = prevStep(stepCount, m.config)
-			return m, m.initStep(m.step)
-		}
-	}
-	return m, nil
-}
 
 // handleStepInput dispatches input handling based on the current step.
 func (m *WizardModel) handleStepInput(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -1094,15 +1063,6 @@ func (m *WizardModel) View() string {
 	b.WriteString(ProgressBar(m.step, m.total))
 	b.WriteString("\n\n")
 
-	if m.done {
-		// Refinement 1: When done, show the confirmation prompt (summary already shown in step 15)
-		b.WriteString(ConfirmStyle.Render("  Press Enter to confirm and generate configs."))
-		b.WriteString("\n")
-		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • ctrl+q=quit"))
-		b.WriteString("\n")
-		return b.String()
-	}
-
 	stepInfo := getStepInfo(m.step)
 
 	// Render step content
@@ -1219,8 +1179,6 @@ func (m *WizardModel) renderStepContent() string {
 		b.WriteString(m.renderSummary())
 		b.WriteString("\n")
 		b.WriteString(ConfirmStyle.Render("  Press Enter to generate configs."))
-		b.WriteString("\n")
-		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • ctrl+q=quit"))
 		return b.String()
 	}
 
@@ -1494,7 +1452,11 @@ func (m *WizardModel) renderNavigation(stepInfo *stepInfo) string {
 				hints = append(hints, "esc=back")
 			}
 		case modeNavigate:
-			hints = append(hints, "enter=next")
+			if m.step >= m.total {
+				hints = append(hints, "enter=generate")
+			} else {
+				hints = append(hints, "enter=next")
+			}
 			if m.step > 1 {
 				hints = append(hints, "esc=back")
 			}

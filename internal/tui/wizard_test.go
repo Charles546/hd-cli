@@ -703,16 +703,16 @@ func TestCtrlQInTextInputModeQuits(t *testing.T) {
 }
 
 func TestCtrlQOnDoneScreenQuits(t *testing.T) {
-	// Ctrl+Q on the done screen should quit without generating config
+	// Ctrl+Q on step 16 should quit without generating config
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m.done = true
+	m = runInitStep(m, 16)
 
 	// Press ctrl+q - should quit without generating
 	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
 
 	if cmd == nil {
-		t.Error("ctrl+q on done screen should produce a quit command")
+		t.Error("ctrl+q on step 16 should produce a quit command")
 	}
 	// err should be nil (no config generation)
 	if m.err != nil {
@@ -721,19 +721,18 @@ func TestCtrlQOnDoneScreenQuits(t *testing.T) {
 }
 
 func TestViewSummaryScreen(t *testing.T) {
-	// With refinement 1, the summary is shown at step 15, not on the done screen.
-	// The done screen shows a confirmation prompt instead.
+	// The summary is shown on step 16 (navigate mode), not on a done screen.
 	m := NewWizard(nil)
-	m.done = true
+	m = runInitStep(m, 16)
 
 	view := m.View()
-	// Done screen should show the confirmation prompt
-	if !strings.Contains(view, "Press Enter to confirm and generate configs") {
-		t.Errorf("View() should contain confirmation prompt, got: %s", view)
+	// Step 16 should show the summary
+	if !strings.Contains(view, "Configuration Summary") {
+		t.Errorf("Step 16 View() should contain 'Configuration Summary', got: %s", view)
 	}
-	// Done screen should NOT contain the summary (it's shown at step 15)
-	if strings.Contains(view, "Configuration Summary") {
-		t.Errorf("Done screen should NOT contain 'Configuration Summary' (shown at step 15)")
+	// Step 16 should show the generate prompt
+	if !strings.Contains(view, "Press Enter to generate configs") {
+		t.Errorf("Step 16 View() should contain 'Press Enter to generate configs', got: %s", view)
 	}
 }
 
@@ -760,9 +759,9 @@ func TestStep15ShowsSummary(t *testing.T) {
 	if !strings.Contains(view, "Press Enter to generate configs") {
 		t.Errorf("Step 16 View() should contain 'Press Enter to generate configs', got: %s", view)
 	}
-	// Step 16 should show the save hint
-	if !strings.Contains(view, "s=save answers") {
-		t.Errorf("Step 16 View() should contain save hint, got: %s", view)
+	// Step 16 should show the save hint (from renderNavigation)
+	if !strings.Contains(view, "ctrl+s=save") {
+		t.Errorf("Step 16 View() should contain 'ctrl+s=save' hint, got: %s", view)
 	}
 }
 
@@ -781,7 +780,7 @@ func TestStep16EnterGeneratesDirectly(t *testing.T) {
 	}
 	// Should NOT be in done state (direct generation, no intermediate done)
 	if m.done {
-		t.Error("should not be in done state after enter on step 16")
+		t.Error("model should NOT be in done state")
 	}
 }
 
@@ -799,7 +798,7 @@ func TestStep16SaveAndGenerateDirectly(t *testing.T) {
 		t.Error("expected quit command after 's' on step 16")
 	}
 	if m.done {
-		t.Error("should not be in done state after 's' on step 15")
+		t.Error("model should NOT be in done state")
 	}
 }
 
@@ -818,28 +817,29 @@ func TestStep15EscGoesBack(t *testing.T) {
 func TestDoneScreenEnterConfirms(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m.done = true
+	m = runInitStep(m, 16)
 
 	// Press Enter - should trigger generateConfig and return a quit command
 	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if cmd == nil {
-		t.Error("expected quit command after enter on done screen")
+		t.Error("expected quit command after enter on step 16")
 	}
-	// The model should still be in done state
-	if !m.done {
-		t.Error("model should still be in done state")
+	// Should NOT be in done state (direct generation, no intermediate done)
+	if m.done {
+		t.Error("model should NOT be in done state")
 	}
 }
 
 func TestDoneScreenEscGoesBack(t *testing.T) {
 	m := NewWizard(nil)
-	m.done = true
+	m = runInitStep(m, 16)
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-	if m.done {
-		t.Error("should no longer be in done state after esc")
+	// Esc on step 16 should go back to step 15
+	if m.step != 15 {
+		t.Errorf("should be on step 15 after esc on step 16, got %d", m.step)
 	}
 }
 
@@ -1242,16 +1242,16 @@ func TestCtrlCInTextInputModeQuits(t *testing.T) {
 }
 
 func TestCtrlQOnDoneScreenQuitsWithoutGenerating(t *testing.T) {
-	// Pressing ctrl+q on the done screen should quit without generating config
+	// Pressing ctrl+q on step 16 should quit without generating config
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m.done = true
+	m = runInitStep(m, 16)
 
 	// Press ctrl+q - should quit without generating
 	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
 
 	if cmd == nil {
-		t.Error("ctrl+q on done screen should produce a quit command")
+		t.Error("ctrl+q on step 16 should produce a quit command")
 	}
 	// err should be nil (no config generation)
 	if m.err != nil {
