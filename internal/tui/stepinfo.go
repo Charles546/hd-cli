@@ -605,7 +605,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "GitHub App private key content",
 					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHAppKey },
 					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHAppKey = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "github_app" },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "github_app" && (c.SecureExecDriver == "none" || c.SecureExecDriver == "") },
 				},
 				{
 					label:       "SSH key content",
@@ -615,7 +615,7 @@ func getStepInfo(step int) *stepInfo {
 					help:        "SSH private key content (used as DIPPER_SSH_KEY)",
 					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoSSHKey },
 					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHKey = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" && (c.SecureExecDriver == "none" || c.SecureExecDriver == "") },
 				},
 				{
 					label:       "SSH key file path",

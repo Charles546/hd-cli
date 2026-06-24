@@ -3468,6 +3468,7 @@ func TestStep15PlaceholderDefaultNoSecureExec(t *testing.T) {
 
 func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
 	// When hd-driver-vault is selected, placeholders should show hd-lookup paths
+	// Private key field is hidden since secure-exec is active
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
@@ -3477,10 +3478,10 @@ func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
 	m := NewWizard(cfg)
 	m = runInitStep(m, 15)
 
-	if len(m.textInputs) < 4 {
-		t.Fatalf("expected at least 4 text inputs for step 15 with github_app auth, got %d", len(m.textInputs))
+	if len(m.textInputs) != 3 {
+		t.Fatalf("expected 3 text inputs for step 15 with github_app auth + secure-exec, got %d", len(m.textInputs))
 	}
-	// Fields: Clone auth method, GitHub App ID, Installation ID, Private key
+	// Fields: Clone auth method, GitHub App ID, Installation ID (Private key hidden)
 	// Index 1 = GitHub App ID
 	if m.textInputs[1].Placeholder != "hd-lookup:/secrets/data/project/gh_app_id" {
 		t.Errorf("GitHub App ID placeholder = %q, want %q", m.textInputs[1].Placeholder, "hd-lookup:/secrets/data/project/gh_app_id")
@@ -3489,14 +3490,11 @@ func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
 	if m.textInputs[2].Placeholder != "hd-lookup:/secrets/data/project/gh_install_id" {
 		t.Errorf("Installation ID placeholder = %q, want %q", m.textInputs[2].Placeholder, "hd-lookup:/secrets/data/project/gh_install_id")
 	}
-	// Index 3 = Private key
-	if m.textInputs[3].Placeholder != "hd-lookup:/secrets/data/project/gh_private_key" {
-		t.Errorf("Private key placeholder = %q, want %q", m.textInputs[3].Placeholder, "hd-lookup:/secrets/data/project/gh_private_key")
-	}
 }
 
 func TestStep15PlaceholderWithSecureExecGcloud(t *testing.T) {
 	// When gcloud-secret is selected, placeholders should show hd-lookup paths
+	// SSH key content is hidden since secure-exec is active
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
@@ -3506,13 +3504,13 @@ func TestStep15PlaceholderWithSecureExecGcloud(t *testing.T) {
 	m := NewWizard(cfg)
 	m = runInitStep(m, 15)
 
-	if len(m.textInputs) < 4 {
-		t.Fatalf("expected at least 4 text inputs for step 15 with ssh auth, got %d", len(m.textInputs))
+	if len(m.textInputs) != 3 {
+		t.Fatalf("expected 3 text inputs for step 15 with ssh auth + secure-exec, got %d", len(m.textInputs))
 	}
-	// Fields: Clone auth method, SSH key content, SSH key file, SSH key passphrase
-	// Index 1 = SSH key content
-	if m.textInputs[1].Placeholder != "hd-lookup:/secrets/data/project/ssh_key" {
-		t.Errorf("SSH key content placeholder = %q, want %q", m.textInputs[1].Placeholder, "hd-lookup:/secrets/data/project/ssh_key")
+	// Fields: Clone auth method, SSH key file, SSH key passphrase (SSH key content hidden)
+	// Index 1 = SSH key file path
+	if m.textInputs[1].Placeholder != "/home/user/.ssh/id_rsa" {
+		t.Errorf("SSH key file placeholder = %q, want %q", m.textInputs[1].Placeholder, "/home/user/.ssh/id_rsa")
 	}
 }
 
