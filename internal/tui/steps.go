@@ -160,6 +160,19 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 		case "config_repo_ssh_key_pass_env":
 			cfg.ConfigRepoSSHKeyPassEnv = value
 		}
+	case 15:
+		switch key {
+		case "secure_exec_enabled":
+			cfg.SecureExecEnabled = value == "true" || value == "yes"
+		case "secure_exec_driver_path":
+			cfg.SecureExecDriverPath = value
+		case "secure_exec_vault_addr":
+			cfg.SecureExecVaultAddr = value
+		case "secure_exec_vault_role_id":
+			cfg.SecureExecVaultRoleID = value
+		case "secure_exec_vault_secret_id":
+			cfg.SecureExecVaultSecretID = value
+		}
 	}
 
 	return nil

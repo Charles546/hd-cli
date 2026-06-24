@@ -738,31 +738,31 @@ func TestViewSummaryScreen(t *testing.T) {
 }
 
 func TestStep15ShowsSummary(t *testing.T) {
-	// Refinement 1: Step 15 should show the summary directly
+	// Refinement 1: Step 16 should show the summary directly
 	m := NewWizard(nil)
 	m = runInitStep(m, 15)
 
 	view := m.View()
 	if !strings.Contains(view, "Configuration Summary") {
-		t.Errorf("Step 15 View() should contain 'Configuration Summary', got: %s", view)
+		t.Errorf("Step 16 View() should contain 'Configuration Summary', got: %s", view)
 	}
 	if !strings.Contains(view, "Project:") {
-		t.Errorf("Step 15 View() should contain 'Project:' in summary, got: %s", view)
+		t.Errorf("Step 16 View() should contain 'Project:' in summary, got: %s", view)
 	}
 	// Verify new order in summary
 	if !strings.Contains(view, "Secrets backend:") {
-		t.Errorf("Step 15 View() should contain 'Secrets backend:' in summary, got: %s", view)
+		t.Errorf("Step 16 View() should contain 'Secrets backend:' in summary, got: %s", view)
 	}
 	if !strings.Contains(view, "Redis:") {
-		t.Errorf("Step 15 View() should contain 'Redis:' in summary, got: %s", view)
+		t.Errorf("Step 16 View() should contain 'Redis:' in summary, got: %s", view)
 	}
-	// Step 15 should also show the generate prompt
+	// Step 16 should also show the generate prompt
 	if !strings.Contains(view, "Press Enter to generate configs") {
-		t.Errorf("Step 15 View() should contain 'Press Enter to generate configs', got: %s", view)
+		t.Errorf("Step 16 View() should contain 'Press Enter to generate configs', got: %s", view)
 	}
-	// Step 15 should show the save hint
+	// Step 16 should show the save hint
 	if !strings.Contains(view, "s=save answers") {
-		t.Errorf("Step 15 View() should contain save hint, got: %s", view)
+		t.Errorf("Step 16 View() should contain save hint, got: %s", view)
 	}
 }
 

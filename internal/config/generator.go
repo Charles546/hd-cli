@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"os"
 	"path/filepath"
-		"strings"
+	"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
@@ -90,6 +90,9 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 	if cfg.SecretsBackend == "dev" {
 		cfg.DevEnvVars = cfg.CollectDevEnvVars()
 	}
+
+	// Build secure exec env vars for docker-compose template
+	cfg.SecureExecEnvVars = cfg.BuildSecureExecEnvVars()
 
 	// Ensure output directory exists (unless dry run)
 	if !dryRun {
@@ -176,7 +179,6 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 		}
 	}
 
-
 	// Generate docker-compose.yaml for Docker mode
 	if cfg.DeploymentMode == "docker" {
 		tmpl := g.templates.Lookup("docker-compose.yaml.tmpl")
@@ -217,7 +219,6 @@ func (g *Generator) GenerateFromAnswersFile(answersPath, outputDir string, dryRu
 
 	return g.Generate(cfg, outputDir, dryRun)
 }
-
 
 // runGitInit runs git init in the given directory.
 func runGitInit(dir string) error {
@@ -352,4 +353,3 @@ func applyDefaults(cfg *WizardConfig) {
 func ApplyDefaults(cfg *WizardConfig) {
 	applyDefaults(cfg)
 }
-

@@ -1215,7 +1215,7 @@ func (m *WizardModel) renderStepContent() string {
 		return b.String()
 	case 15:
 		// Refinement 1: Show the summary directly when entering step 15
-		b.WriteString(renderStepTitle("Step 15: Summary & Confirm"))
+		b.WriteString(renderStepTitle("Step 16: Summary & Confirm"))
 		b.WriteString(m.renderSummary())
 		b.WriteString("\n")
 		b.WriteString(ConfirmStyle.Render("  Press Enter to generate configs."))
@@ -1561,6 +1561,14 @@ func (m *WizardModel) renderSummary() string {
 		items = append(items, "  AI agent: disabled")
 	}
 	items = append(items, fmt.Sprintf("  GitHub repo creation: %v", cfg.GithubCreateRepo))
+	if cfg.SecureExecEnabled {
+		items = append(items, fmt.Sprintf("  Secure exec: enabled (%s)", cfg.SecureExecDriverPath))
+		items = append(items, fmt.Sprintf("  Vault address: %s", cfg.SecureExecVaultAddr))
+		items = append(items, fmt.Sprintf("  Vault role ID: %s", cfg.SecureExecVaultRoleID))
+		items = append(items, fmt.Sprintf("  Vault secret ID: %s", cfg.SecureExecVaultSecretID))
+	} else {
+		items = append(items, "  Secure exec: disabled")
+	}
 	if cfg.GithubCreateRepo && !cfg.UseLocalCopy && cfg.ConfigRepoCloneAuth != "" && cfg.ConfigRepoCloneAuth != "none" {
 		items = append(items, fmt.Sprintf("  Clone auth method: %s", cfg.ConfigRepoCloneAuth))
 	}

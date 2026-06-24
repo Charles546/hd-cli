@@ -100,9 +100,13 @@ type WizardConfig struct {
 
 	// Secure execution settings
 	SecureExecEnabled    bool   `yaml:"secure_exec_enabled,omitempty"`     // enable secure execution mode
-	SecureExecPolicy     string `yaml:"secure_exec_policy,omitempty"`      // enforcement policy: strict, permissive
-	SecureExecEnvVars    string `yaml:"secure_exec_env_vars,omitempty"`     // comma-separated list of allowed env vars
-	SecureExecMountPaths string `yaml:"secure_exec_mount_paths,omitempty"`  // comma-separated list of allowed mount paths
+	SecureExecDriverPath string `yaml:"secure_exec_driver_path,omitempty"` // path to secure-exec driver (e.g. ./hd-driver-vault)
+	SecureExecVaultAddr  string `yaml:"secure_exec_vault_addr,omitempty"`   // VAULT_ADDR for vault driver
+	SecureExecVaultRoleID string `yaml:"secure_exec_vault_role_id,omitempty"` // VAULT_ROLE_ID for vault driver
+	SecureExecVaultSecretID string `yaml:"secure_exec_vault_secret_id,omitempty"` // VAULT_SECRET_ID for vault driver
+
+	// Secure exec env vars map for docker-compose template (derived from the fields above)
+	SecureExecEnvVars map[string]string `yaml:"secure_exec_env_vars,omitempty"` // derived, for template
 
 	// Dev mode env vars tracks which HD_* variables are referenced during the wizard.
 	// Used by the docker-compose template to pass them into the container.
@@ -131,7 +135,7 @@ func NewDefaultWizardConfig() *WizardConfig {
 		SourceBranch:                 "v4",
 		ConfigRepoCloneAuth:          "none",
 		SecureExecEnabled:            false,
-		SecureExecPolicy:             "permissive",
+		SecureExecDriverPath:         "./hd-driver-vault",
 		AIModel:                      "gpt-4o",
 		AIBaseURL:                    "https://api.openai.com/v1",
 		AIEngineName:                 "default",
@@ -201,19 +205,30 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 
 // BuildSecureExecEnvVars returns a map of environment variables for secure execution.
 // When secure_exec is enabled, these vars configure the daemon's security policy.
+// The output uses the exact env var names required by the daemon:
+//   - HD_SECURE_LOADER: path to the secure-exec driver
+//   - VAULT_ADDR: vault server address
+//   - VAULT_ROLE_ID: vault role ID
+//   - VAULT_SECRET_ID: vault secret ID
 func (c *WizardConfig) BuildSecureExecEnvVars() map[string]string {
 	if c == nil || !c.SecureExecEnabled {
 		return nil
 	}
-	m := map[string]string{
-		"SECURE_EXEC_ENABLED": "true",
-		"SECURE_EXEC_POLICY":  c.SecureExecPolicy,
+	m := map[string]string{}
+	if c.SecureExecDriverPath != "" {
+		m["HD_SECURE_LOADER"] = c.SecureExecDriverPath
 	}
-	if c.SecureExecEnvVars != "" {
-		m["SECURE_EXEC_ENV_VARS"] = c.SecureExecEnvVars
+	if c.SecureExecVaultAddr != "" {
+		m["VAULT_ADDR"] = c.SecureExecVaultAddr
 	}
-	if c.SecureExecMountPaths != "" {
-		m["SECURE_EXEC_MOUNT_PATHS"] = c.SecureExecMountPaths
+	if c.SecureExecVaultRoleID != "" {
+		m["VAULT_ROLE_ID"] = c.SecureExecVaultRoleID
+	}
+	if c.SecureExecVaultSecretID != "" {
+		m["VAULT_SECRET_ID"] = c.SecureExecVaultSecretID
+	}
+	if len(m) == 0 {
+		return nil
 	}
 	return m
 }
