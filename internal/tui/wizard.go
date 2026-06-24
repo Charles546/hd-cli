@@ -175,7 +175,11 @@ func (m *WizardModel) buildMultiFieldInputs(stepInfo *stepInfo) {
 	m.textInputs = make([]textinput.Model, len(visibleFields))
 	for i, field := range visibleFields {
 		ti := textinput.New()
-		ti.Placeholder = field.placeholder
+		if field.placeholderFunc != nil {
+					ti.Placeholder = field.placeholderFunc(m.config)
+				} else {
+					ti.Placeholder = field.placeholder
+				}
 		ti.Width = 60
 		ti.Prompt = ""
 		ti.SetValue(field.getValue(m.config))
@@ -202,7 +206,11 @@ func (m *WizardModel) buildCheckboxTextInputs(stepInfo *stepInfo) {
 	m.textInputs = make([]textinput.Model, len(visibleFields))
 	for i, field := range visibleFields {
 		ti := textinput.New()
-		ti.Placeholder = field.placeholder
+		if field.placeholderFunc != nil {
+					ti.Placeholder = field.placeholderFunc(m.config)
+				} else {
+					ti.Placeholder = field.placeholder
+				}
 		ti.Width = 60
 		ti.Prompt = ""
 		ti.SetValue(field.getValue(m.config))
@@ -222,7 +230,11 @@ func (m *WizardModel) buildRadioTextInputs(stepInfo *stepInfo) {
 	m.textInputs = make([]textinput.Model, len(visibleFields))
 	for i, field := range visibleFields {
 		ti := textinput.New()
-		ti.Placeholder = field.placeholder
+		if field.placeholderFunc != nil {
+					ti.Placeholder = field.placeholderFunc(m.config)
+				} else {
+					ti.Placeholder = field.placeholder
+				}
 		ti.Width = 60
 		ti.Prompt = ""
 		ti.SetValue(field.getValue(m.config))
@@ -1265,6 +1277,9 @@ func (m *WizardModel) renderStepContent() string {
 				// Determine the label, placeholder, and help for this field
 				fieldLabel := field.label
 				fieldPlaceholder := field.placeholder
+				if field.placeholderFunc != nil {
+					fieldPlaceholder = field.placeholderFunc(m.config)
+				}
 				fieldHelp := field.help
 				// Override labels for Slack secret fields based on secrets backend
 				if m.step == 9 {
@@ -1380,6 +1395,9 @@ func (m *WizardModel) renderStepContent() string {
 				// Determine the label, placeholder, and help for this field
 				fieldLabel := field.label
 				fieldPlaceholder := field.placeholder
+				if field.placeholderFunc != nil {
+					fieldPlaceholder = field.placeholderFunc(m.config)
+				}
 				fieldHelp := field.help
 				// Override labels for GitHub secret fields based on secrets backend
 				if m.step == 8 {

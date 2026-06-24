@@ -34,6 +34,9 @@ type fieldDescriptor struct {
 	// condition, if set, determines whether this field is shown.
 	// When nil, the field is always shown.
 	condition func(*config.WizardConfig) bool
+	// placeholderFunc, if set, returns dynamic placeholder text based on config.
+	// It takes precedence over the static placeholder field.
+	placeholderFunc func(*config.WizardConfig) string
 }
 
 // checkboxOption describes a single checkbox toggle within a step.
@@ -117,6 +120,17 @@ func slackSecretLabels(cfg *config.WizardConfig, field string) (label, placehold
 	return "", "", ""
 }
 
+
+// secureExecPlaceholder returns a placeholder string that adapts based on
+// whether a secure-exec driver is enabled. When SecureExecDriver is set to
+// a non-"none" value, the placeholder shows an hd-lookup path example.
+// Otherwise it falls back to the given default placeholder.
+func secureExecPlaceholder(cfg *config.WizardConfig, secureExample, defaultPlaceholder string) string {
+	if cfg != nil && cfg.SecureExecDriver != "" && cfg.SecureExecDriver != "none" {
+		return secureExample
+	}
+	return defaultPlaceholder
+}
 // getStepInfo returns the stepInfo for a given step number.
 func getStepInfo(step int) *stepInfo {
 	switch step {
@@ -555,7 +569,9 @@ func getStepInfo(step int) *stepInfo {
 				},
 				{
 					label:       "PAT",
-					placeholder: "ghp_xxxxx or $MY_PAT",
+					placeholderFunc: func(cfg *config.WizardConfig) string {
+						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/pat", "ghp_xxxxx or $MY_PAT")
+					},
 					help:        "Personal Access Token value, or $ENV_VAR reference to an environment variable holding the PAT",
 					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoPATValue },
 					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoPATValue = v },
@@ -563,7 +579,9 @@ func getStepInfo(step int) *stepInfo {
 				},
 				{
 					label:       "GitHub App ID",
-					placeholder: "12345",
+					placeholderFunc: func(cfg *config.WizardConfig) string {
+						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/gh_app_id", "12345")
+					},
 					help:        "GitHub App ID for authentication",
 					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHAppID },
 					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHAppID = v },
@@ -571,7 +589,9 @@ func getStepInfo(step int) *stepInfo {
 				},
 				{
 					label:       "Installation ID",
-					placeholder: "67890",
+					placeholderFunc: func(cfg *config.WizardConfig) string {
+						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/gh_install_id", "67890")
+					},
 					help:        "GitHub App Installation ID",
 					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHInstallID },
 					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHInstallID = v },
@@ -579,7 +599,9 @@ func getStepInfo(step int) *stepInfo {
 				},
 				{
 					label:       "Private key",
-					placeholder: "-----BEGIN RSA PRIVATE KEY-----\n...",
+					placeholderFunc: func(cfg *config.WizardConfig) string {
+						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/gh_private_key", "-----BEGIN RSA PRIVATE KEY-----\n...")
+					},
 					help:        "GitHub App private key content",
 					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHAppKey },
 					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHAppKey = v },
@@ -587,7 +609,9 @@ func getStepInfo(step int) *stepInfo {
 				},
 				{
 					label:       "SSH key content",
-					placeholder: "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+					placeholderFunc: func(cfg *config.WizardConfig) string {
+						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/ssh_key", "-----BEGIN OPENSSH PRIVATE KEY-----\n...")
+					},
 					help:        "SSH private key content (used as DIPPER_SSH_KEY)",
 					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoSSHKey },
 					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHKey = v },

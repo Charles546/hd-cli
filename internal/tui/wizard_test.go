@@ -3443,6 +3443,100 @@ func TestStep15SummaryShowsCloneAuth(t *testing.T) {
 }
 
 
+func TestStep15PlaceholderDefaultNoSecureExec(t *testing.T) {
+	// When no secure-exec driver is selected, default placeholders should be shown
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = "none"
+	cfg.ConfigRepoCloneAuth = "pat"
+
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	// The first visible field is "Clone auth method", second is "PAT"
+	// With buildMultiFieldInputs, the textInputs should have the default placeholder
+	if len(m.textInputs) < 2 {
+		t.Fatal("expected at least 2 text inputs for step 15 with pat auth")
+	}
+	// PAT field is the 2nd visible field (clone auth method, PAT)
+	patInput := m.textInputs[1]
+	if patInput.Placeholder != "ghp_xxxxx or $MY_PAT" {
+		t.Errorf("PAT placeholder = %q, want %q", patInput.Placeholder, "ghp_xxxxx or $MY_PAT")
+	}
+}
+
+func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
+	// When hd-driver-vault is selected, placeholders should show hd-lookup paths
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.ConfigRepoCloneAuth = "github_app"
+
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	if len(m.textInputs) < 4 {
+		t.Fatalf("expected at least 4 text inputs for step 15 with github_app auth, got %d", len(m.textInputs))
+	}
+	// Fields: Clone auth method, GitHub App ID, Installation ID, Private key
+	// Index 1 = GitHub App ID
+	if m.textInputs[1].Placeholder != "hd-lookup:/secrets/data/project/gh_app_id" {
+		t.Errorf("GitHub App ID placeholder = %q, want %q", m.textInputs[1].Placeholder, "hd-lookup:/secrets/data/project/gh_app_id")
+	}
+	// Index 2 = Installation ID
+	if m.textInputs[2].Placeholder != "hd-lookup:/secrets/data/project/gh_install_id" {
+		t.Errorf("Installation ID placeholder = %q, want %q", m.textInputs[2].Placeholder, "hd-lookup:/secrets/data/project/gh_install_id")
+	}
+	// Index 3 = Private key
+	if m.textInputs[3].Placeholder != "hd-lookup:/secrets/data/project/gh_private_key" {
+		t.Errorf("Private key placeholder = %q, want %q", m.textInputs[3].Placeholder, "hd-lookup:/secrets/data/project/gh_private_key")
+	}
+}
+
+func TestStep15PlaceholderWithSecureExecGcloud(t *testing.T) {
+	// When gcloud-secret is selected, placeholders should show hd-lookup paths
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = "gcloud-secret"
+	cfg.ConfigRepoCloneAuth = "ssh"
+
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	if len(m.textInputs) < 4 {
+		t.Fatalf("expected at least 4 text inputs for step 15 with ssh auth, got %d", len(m.textInputs))
+	}
+	// Fields: Clone auth method, SSH key content, SSH key file, SSH key passphrase
+	// Index 1 = SSH key content
+	if m.textInputs[1].Placeholder != "hd-lookup:/secrets/data/project/ssh_key" {
+		t.Errorf("SSH key content placeholder = %q, want %q", m.textInputs[1].Placeholder, "hd-lookup:/secrets/data/project/ssh_key")
+	}
+}
+
+func TestStep15PlaceholderSSHKeyContentDefault(t *testing.T) {
+	// Without secure-exec, SSH key content should show BEGIN OPENSSH placeholder
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = ""
+	cfg.ConfigRepoCloneAuth = "ssh"
+
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	if len(m.textInputs) < 2 {
+		t.Fatal("expected at least 2 text inputs")
+	}
+	// Index 1 = SSH key content
+	if m.textInputs[1].Placeholder != "-----BEGIN OPENSSH PRIVATE KEY-----\n..." {
+		t.Errorf("SSH key content placeholder = %q, want default", m.textInputs[1].Placeholder)
+	}
+}
+
+
 // ===== Space key in checkbox text fields =====
 
 func TestSpaceKeyInCheckboxTextField(t *testing.T) {
