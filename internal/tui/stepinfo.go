@@ -633,6 +633,31 @@ func getStepInfo(step int) *stepInfo {
 					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHKeyPassEnv = v },
 					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" },
 				},
+				// Secure-exec secret path fields (shown when a secure-exec driver is active)
+				{
+					label:       "PAT secret path",
+					placeholder: "hd-lookup:/secrets/data/project/pat",
+					help:        "Secret path for the PAT when using secure-exec driver",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoPATPath },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoPATPath = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "pat" && c.SecureExecDriver != "none" && c.SecureExecDriver != "" },
+				},
+				{
+					label:       "GitHub App key secret path",
+					placeholder: "hd-lookup:/secrets/data/project/gh_app_key",
+					help:        "Secret path for the GitHub App private key when using secure-exec driver",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHAppKeyPath },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHAppKeyPath = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "github_app" && c.SecureExecDriver != "none" && c.SecureExecDriver != "" },
+				},
+				{
+					label:       "SSH key secret path",
+					placeholder: "hd-lookup:/secrets/data/project/ssh_key",
+					help:        "Secret path for the SSH key when using secure-exec driver",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoSSHKeyPath },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHKeyPath = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" && c.SecureExecDriver != "none" && c.SecureExecDriver != "" },
+				},
 			},
 		}
 	case 16:

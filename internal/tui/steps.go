@@ -173,6 +173,12 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.ConfigRepoSSHFile = value
 		case "config_repo_ssh_key_pass_env":
 			cfg.ConfigRepoSSHKeyPassEnv = value
+		case "config_repo_pat_path":
+			cfg.ConfigRepoPATPath = value
+		case "config_repo_gh_app_key_path":
+			cfg.ConfigRepoGHAppKeyPath = value
+		case "config_repo_ssh_key_path":
+			cfg.ConfigRepoSSHKeyPath = value
 		}
 	}
 
@@ -323,7 +329,7 @@ func ValidateStepComplete(m *WizardModel) error {
 			switch auth {
 			case "none":
 			case "pat":
-				if strings.TrimSpace(cfg.ConfigRepoPATValue) == "" {
+				if strings.TrimSpace(cfg.ConfigRepoPATValue) == "" && strings.TrimSpace(cfg.ConfigRepoPATPath) == "" {
 					return fmt.Errorf("PAT is required when clone auth is 'pat'")
 				}
 			case "github_app":
@@ -333,14 +339,14 @@ func ValidateStepComplete(m *WizardModel) error {
 				if strings.TrimSpace(cfg.ConfigRepoGHInstallID) == "" {
 					return fmt.Errorf("installation ID is required when clone auth is 'github_app'")
 				}
-				if strings.TrimSpace(cfg.ConfigRepoGHAppKey) == "" {
+				if strings.TrimSpace(cfg.ConfigRepoGHAppKey) == "" && strings.TrimSpace(cfg.ConfigRepoGHAppKeyPath) == "" {
 					return fmt.Errorf("private key is required when clone auth is 'github_app'")
 				}
 			case "ssh":
 				if !strings.HasPrefix(cfg.GitRemoteURL, "git@") {
 					return fmt.Errorf("SSH remote URL must start with 'git@'")
 				}
-				if strings.TrimSpace(cfg.ConfigRepoSSHKey) == "" && strings.TrimSpace(cfg.ConfigRepoSSHFile) == "" {
+				if strings.TrimSpace(cfg.ConfigRepoSSHKey) == "" && strings.TrimSpace(cfg.ConfigRepoSSHFile) == "" && strings.TrimSpace(cfg.ConfigRepoSSHKeyPath) == "" {
 					return fmt.Errorf("either SSH key content or SSH key file path is required when clone auth is 'ssh'")
 				}
 			default:

@@ -96,6 +96,9 @@ type WizardConfig struct {
 	ConfigRepoSSHKey        string            `yaml:"config_repo_ssh_key"`                   // inline SSH key content
 	ConfigRepoSSHFile       string            `yaml:"config_repo_ssh_file"`                  // path to SSH key file
 	ConfigRepoSSHKeyPassEnv string            `yaml:"config_repo_ssh_key_pass_env"`          // env var name for key passphrase
+	ConfigRepoPATPath       string            `yaml:"config_repo_pat_path"`                  // hd-lookup path for PAT (secure-exec mode)
+	ConfigRepoGHAppKeyPath  string            `yaml:"config_repo_gh_app_key_path"`           // hd-lookup path for GH App private key (secure-exec mode)
+	ConfigRepoSSHKeyPath    string            `yaml:"config_repo_ssh_key_path"`              // hd-lookup path for SSH key (secure-exec mode)
 	ConfigRepoCloneEnvVars  map[string]string `yaml:"config_repo_clone_env_vars,omitempty"`  // derived, for template
 
 	// Secure execution settings
@@ -151,6 +154,12 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 	}
 	switch c.ConfigRepoCloneAuth {
 	case "pat":
+		// When secure-exec is enabled, use the secret path instead of raw value
+		if strings.TrimSpace(c.ConfigRepoPATPath) != "" {
+			return map[string]string{
+				"DIPPER_PASS_ENV": c.ConfigRepoPATPath,
+			}
+		}
 		patVal := strings.TrimSpace(c.ConfigRepoPATValue)
 		if strings.HasPrefix(patVal, "$") {
 			// Check if this is an hd-lookup reference ($HD_*)
@@ -176,15 +185,22 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 			"DIPPER_GITHUB_PAT": patVal,
 		}
 	case "github_app":
-		return map[string]string{
+		m := map[string]string{
 			"GH_APP_TOKEN_SOURCE": "github",
 			"GH_APP_ID":           c.ConfigRepoGHAppID,
 			"GH_INSTALLATION_ID":  c.ConfigRepoGHInstallID,
-			"GH_APP_KEY":          c.ConfigRepoGHAppKey,
 		}
+		if strings.TrimSpace(c.ConfigRepoGHAppKeyPath) != "" {
+			m["GH_APP_KEY"] = c.ConfigRepoGHAppKeyPath
+		} else {
+			m["GH_APP_KEY"] = c.ConfigRepoGHAppKey
+		}
+		return m
 	case "ssh":
 		m := map[string]string{}
-		if c.ConfigRepoSSHKey != "" {
+		if strings.TrimSpace(c.ConfigRepoSSHKeyPath) != "" {
+			m["DIPPER_SSH_KEY"] = c.ConfigRepoSSHKeyPath
+		} else if c.ConfigRepoSSHKey != "" {
 			m["DIPPER_SSH_KEY"] = c.ConfigRepoSSHKey
 		}
 		if c.ConfigRepoSSHFile != "" {

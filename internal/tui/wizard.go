@@ -1691,8 +1691,8 @@ func (m *WizardModel) validateCurrentStep() error {
 			case "none":
 				// No additional auth needed
 			case "pat":
-				if strings.TrimSpace(m.config.ConfigRepoPATValue) == "" {
-					return fmt.Errorf("PAT is required when clone auth is 'pat'")
+				if strings.TrimSpace(m.config.ConfigRepoPATValue) == "" && strings.TrimSpace(m.config.ConfigRepoPATPath) == "" {
+					return fmt.Errorf("PAT value or secret path is required when clone auth is 'pat'")
 				}
 			case "github_app":
 				if strings.TrimSpace(m.config.ConfigRepoGHAppID) == "" {
@@ -1701,15 +1701,15 @@ func (m *WizardModel) validateCurrentStep() error {
 				if strings.TrimSpace(m.config.ConfigRepoGHInstallID) == "" {
 					return fmt.Errorf("installation ID is required when clone auth is 'github_app'")
 				}
-				if strings.TrimSpace(m.config.ConfigRepoGHAppKey) == "" {
-					return fmt.Errorf("private key is required when clone auth is 'github_app'")
+				if strings.TrimSpace(m.config.ConfigRepoGHAppKey) == "" && strings.TrimSpace(m.config.ConfigRepoGHAppKeyPath) == "" {
+					return fmt.Errorf("private key or secret path is required when clone auth is 'github_app'")
 				}
 			case "ssh":
 				if !strings.HasPrefix(m.config.GitRemoteURL, "git@") {
 					return fmt.Errorf("SSH remote URL must start with 'git@'")
 				}
-				if strings.TrimSpace(m.config.ConfigRepoSSHKey) == "" && strings.TrimSpace(m.config.ConfigRepoSSHFile) == "" {
-					return fmt.Errorf("either SSH key content or SSH key file path is required when clone auth is 'ssh'")
+				if strings.TrimSpace(m.config.ConfigRepoSSHKey) == "" && strings.TrimSpace(m.config.ConfigRepoSSHFile) == "" && strings.TrimSpace(m.config.ConfigRepoSSHKeyPath) == "" {
+					return fmt.Errorf("either SSH key content, SSH key file path, or secret path is required when clone auth is 'ssh'")
 				}
 			default:
 				return fmt.Errorf("invalid clone auth method %q (must be one of: none, pat, github_app, ssh)", auth)

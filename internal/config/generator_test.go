@@ -1827,6 +1827,47 @@ func TestBuildConfigRepoCloneEnvVars(t *testing.T) {
 		}
 	})
 
+	t.Run("pat auth with secret path returns DIPPER_PASS_ENV with path", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.SecureExecDriver = "hd-driver-vault"
+		cfg.ConfigRepoCloneAuth = "pat"
+		cfg.ConfigRepoPATPath = "hd-lookup:/secrets/data/project/pat"
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if len(m) != 1 {
+			t.Fatalf("expected 1 env var, got %d: %v", len(m), m)
+		}
+		if m["DIPPER_PASS_ENV"] != "hd-lookup:/secrets/data/project/pat" {
+			t.Errorf("DIPPER_PASS_ENV = %q, want %q", m["DIPPER_PASS_ENV"], "hd-lookup:/secrets/data/project/pat")
+		}
+	})
+
+	t.Run("github_app auth with secret path uses path for GH_APP_KEY", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.SecureExecDriver = "gcloud-secret"
+		cfg.ConfigRepoCloneAuth = "github_app"
+		cfg.ConfigRepoGHAppID = "12345"
+		cfg.ConfigRepoGHInstallID = "67890"
+		cfg.ConfigRepoGHAppKeyPath = "hd-lookup:/secrets/data/project/gh_app_key"
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if len(m) != 4 {
+			t.Fatalf("expected 4 env vars, got %d: %v", len(m), m)
+		}
+		if m["GH_APP_KEY"] != "hd-lookup:/secrets/data/project/gh_app_key" {
+			t.Errorf("GH_APP_KEY = %q, want %q", m["GH_APP_KEY"], "hd-lookup:/secrets/data/project/gh_app_key")
+		}
+	})
+
+	t.Run("ssh auth with secret path uses path for DIPPER_SSH_KEY", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.SecureExecDriver = "hd-driver-vault"
+		cfg.ConfigRepoCloneAuth = "ssh"
+		cfg.ConfigRepoSSHKeyPath = "hd-lookup:/secrets/data/project/ssh_key"
+		m := cfg.BuildConfigRepoCloneEnvVars()
+		if m == nil || m["DIPPER_SSH_KEY"] != "hd-lookup:/secrets/data/project/ssh_key" {
+			t.Errorf("expected DIPPER_SSH_KEY to use secret path, got %v", m)
+		}
+	})
+
 	t.Run("nil config returns nil", func(t *testing.T) {
 		var cfg *WizardConfig
 		m := cfg.BuildConfigRepoCloneEnvVars()

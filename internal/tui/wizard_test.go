@@ -3188,7 +3188,7 @@ func TestStep15CloneAuthPAT(t *testing.T) {
 	if err == nil {
 		t.Error("validateCurrentStep should fail without PAT value")
 	}
-	if err != nil && !strings.Contains(err.Error(), "PAT is required") {
+	if err != nil && !strings.Contains(err.Error(), "PAT") {
 		t.Errorf("unexpected error: %v", err)
 	}
 
@@ -3468,7 +3468,7 @@ func TestStep15PlaceholderDefaultNoSecureExec(t *testing.T) {
 
 func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
 	// When hd-driver-vault is selected, placeholders should show hd-lookup paths
-	// Private key field is hidden since secure-exec is active
+	// Private key value field is hidden, but GH App key secret path is shown
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
@@ -3478,10 +3478,10 @@ func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
 	m := NewWizard(cfg)
 	m = runInitStep(m, 15)
 
-	if len(m.textInputs) != 3 {
-		t.Fatalf("expected 3 text inputs for step 15 with github_app auth + secure-exec, got %d", len(m.textInputs))
+	if len(m.textInputs) != 4 {
+		t.Fatalf("expected 4 text inputs for step 15 with github_app auth + secure-exec, got %d", len(m.textInputs))
 	}
-	// Fields: Clone auth method, GitHub App ID, Installation ID (Private key hidden)
+	// Fields: Clone auth method, GitHub App ID, Installation ID, GH App key secret path
 	// Index 1 = GitHub App ID
 	if m.textInputs[1].Placeholder != "hd-lookup:/secrets/data/project/gh_app_id" {
 		t.Errorf("GitHub App ID placeholder = %q, want %q", m.textInputs[1].Placeholder, "hd-lookup:/secrets/data/project/gh_app_id")
@@ -3490,11 +3490,15 @@ func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
 	if m.textInputs[2].Placeholder != "hd-lookup:/secrets/data/project/gh_install_id" {
 		t.Errorf("Installation ID placeholder = %q, want %q", m.textInputs[2].Placeholder, "hd-lookup:/secrets/data/project/gh_install_id")
 	}
+	// Index 3 = GH App key secret path
+	if m.textInputs[3].Placeholder != "hd-lookup:/secrets/data/project/gh_app_key" {
+		t.Errorf("GH App key path placeholder = %q, want %q", m.textInputs[3].Placeholder, "hd-lookup:/secrets/data/project/gh_app_key")
+	}
 }
 
 func TestStep15PlaceholderWithSecureExecGcloud(t *testing.T) {
 	// When gcloud-secret is selected, placeholders should show hd-lookup paths
-	// SSH key content is hidden since secure-exec is active
+	// SSH key content is hidden, but SSH key secret path is shown
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
@@ -3504,13 +3508,17 @@ func TestStep15PlaceholderWithSecureExecGcloud(t *testing.T) {
 	m := NewWizard(cfg)
 	m = runInitStep(m, 15)
 
-	if len(m.textInputs) != 3 {
-		t.Fatalf("expected 3 text inputs for step 15 with ssh auth + secure-exec, got %d", len(m.textInputs))
+	if len(m.textInputs) != 4 {
+		t.Fatalf("expected 4 text inputs for step 15 with ssh auth + secure-exec, got %d", len(m.textInputs))
 	}
-	// Fields: Clone auth method, SSH key file, SSH key passphrase (SSH key content hidden)
+	// Fields: Clone auth method, SSH key file, SSH key passphrase, SSH key secret path
 	// Index 1 = SSH key file path
 	if m.textInputs[1].Placeholder != "/home/user/.ssh/id_rsa" {
 		t.Errorf("SSH key file placeholder = %q, want %q", m.textInputs[1].Placeholder, "/home/user/.ssh/id_rsa")
+	}
+	// Index 3 = SSH key secret path
+	if m.textInputs[3].Placeholder != "hd-lookup:/secrets/data/project/ssh_key" {
+		t.Errorf("SSH key path placeholder = %q, want %q", m.textInputs[3].Placeholder, "hd-lookup:/secrets/data/project/ssh_key")
 	}
 }
 
@@ -3534,6 +3542,105 @@ func TestStep15PlaceholderSSHKeyContentDefault(t *testing.T) {
 	}
 }
 
+
+func TestStep15SecureExecSecretPathFieldsVisible(t *testing.T) {
+	// When secure-exec is enabled with PAT auth, the PAT secret path field should be visible
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.ConfigRepoCloneAuth = "pat"
+
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	// Fields: Clone auth method, PAT value, PAT secret path = 3
+	if len(m.textInputs) != 3 {
+		t.Fatalf("expected 3 text inputs for step 15 with pat + secure-exec, got %d", len(m.textInputs))
+	}
+	// Index 2 = PAT secret path (PAT value field is still shown at index 1)
+	if m.textInputs[2].Placeholder != "hd-lookup:/secrets/data/project/pat" {
+		t.Errorf("PAT secret path placeholder = %q, want %q", m.textInputs[2].Placeholder, "hd-lookup:/secrets/data/project/pat")
+	}
+}
+
+func TestStep15SecureExecPATValueAccepted(t *testing.T) {
+	// When PAT secret path is set, validation should pass without PAT value
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "pat"
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.ConfigRepoPATPath = "hd-lookup:/secrets/data/project/pat"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	err := m.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with PAT secret path set, got: %v", err)
+	}
+}
+
+func TestStep15SecureExecSSHKeyPathAccepted(t *testing.T) {
+	// When SSH key secret path is set, validation should pass without SSH key content
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.SecureExecDriver = "gcloud-secret"
+	cfg.ConfigRepoSSHKeyPath = "hd-lookup:/secrets/data/project/ssh_key"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	err := m.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with SSH key secret path set, got: %v", err)
+	}
+}
+
+func TestStep15SecureExecGHAppKeyPathAccepted(t *testing.T) {
+	// When GH App key secret path is set, validation should pass without private key value
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "github_app"
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.ConfigRepoGHAppID = "12345"
+	cfg.ConfigRepoGHInstallID = "67890"
+	cfg.ConfigRepoGHAppKeyPath = "hd-lookup:/secrets/data/project/gh_app_key"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	err := m.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with GH App key secret path set, got: %v", err)
+	}
+}
+
+func TestStep15SecureExecFieldsHiddenWithoutDriver(t *testing.T) {
+	// When no secure-exec driver is set, secret path fields should be hidden
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = "none"
+	cfg.ConfigRepoCloneAuth = "pat"
+
+	stepInfo := getStepInfo(15)
+	visibleFields := 0
+	for _, field := range stepInfo.fields {
+		if field.condition == nil || field.condition(cfg) {
+			visibleFields++
+		}
+	}
+	// Should have: Clone auth method, PAT value = 2
+	// (no PAT secret path since driver is "none")
+	if visibleFields != 2 {
+		t.Errorf("expected 2 visible fields with pat + no secure-exec, got %d", visibleFields)
+	}
+}
 
 // ===== Space key in checkbox text fields =====
 
