@@ -528,14 +528,6 @@ func getStepInfo(step int) *stepInfo {
 					setValue:    func(c *config.WizardConfig, v string) { c.SecureExecVaultAddr = v },
 					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.SecureExecDriver == "hd-driver-vault" },
 				},
-				{
-					label:       "Vault docker secrets",
-					placeholder: "",
-					help:        "VAULT_ROLE_ID and VAULT_SECRET_ID are expected as host environment variables; they are mounted as docker secrets",
-					getValue:    func(c *config.WizardConfig) string { return "" },
-					setValue:    func(c *config.WizardConfig, v string) {},
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.SecureExecDriver == "hd-driver-vault" },
-				},
 			},
 		}
 	case 15:
