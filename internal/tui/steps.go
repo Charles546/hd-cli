@@ -143,9 +143,18 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.GitRemoteURL = value
 		case "use_local_copy":
 			cfg.UseLocalCopy = value == "true" || value == "yes"
+		case "secure_exec_driver":
+			cfg.SecureExecDriver = value
+		case "secure_exec_vault_addr":
+			cfg.SecureExecVaultAddr = value
+
+		}
+	case 15:
+		switch key {
+		// Clone auth fields
 		case "config_repo_clone_auth":
 			cfg.ConfigRepoCloneAuth = value
-		case "config_repo_pat_env_var":
+		case "config_repo_pat_value":
 			cfg.ConfigRepoPATValue = value
 		case "config_repo_gh_app_id":
 			cfg.ConfigRepoGHAppID = value
@@ -159,6 +168,12 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.ConfigRepoSSHFile = value
 		case "config_repo_ssh_key_pass_env":
 			cfg.ConfigRepoSSHKeyPassEnv = value
+		case "config_repo_pat_path":
+			cfg.ConfigRepoPATPath = prependHDLookup(value)
+		case "config_repo_gh_app_key_path":
+			cfg.ConfigRepoGHAppKeyPath = prependHDLookup(value)
+		case "config_repo_ssh_key_path":
+			cfg.ConfigRepoSSHKeyPath = prependHDLookup(value)
 		}
 	}
 
@@ -183,6 +198,7 @@ func StepLabels() []string {
 		"Kubernetes Config",
 		"Source Config",
 		"GitHub Repo",
+		"Clone Auth",
 		"Summary",
 	}
 }
@@ -218,12 +234,24 @@ func StepHelp(step int) string {
 		12: "Kubernetes deployment settings. Only applies if K8s mode is selected.",
 		13: "Source build settings. Only applies if source mode is selected.",
 		14: "Optionally create a new GitHub repository for the generated config.",
-		15: "Review your choices before generating the configuration files.",
+		15: "Configure clone authentication for the config repository.",
+		16: "Review your choices before generating the configuration files.",
 	}
 	if h, ok := helps[step]; ok {
 		return h
 	}
 	return ""
+}
+
+// prependHDLookup prepends "hd-lookup:" to a value if it doesn't already
+// have the prefix. This allows users to type just the secret path while
+// the code stores the full hd-lookup: reference.
+func prependHDLookup(value string) string {
+	v := strings.TrimSpace(value)
+	if v == "" || strings.HasPrefix(v, "hd-lookup:") {
+		return v
+	}
+	return "hd-lookup:" + v
 }
 
 // ValidateStepComplete checks if a step has all required data.
@@ -263,10 +291,10 @@ func ValidateStepComplete(m *WizardModel) error {
 	case 8:
 		if cfg.HasGitHubAppIntegration {
 			if strings.TrimSpace(cfg.GithubAppID) == "" {
-				return fmt.Errorf("github App ID is required when GitHub App integration is enabled")
+				return fmt.Errorf("GitHub App ID is required when GitHub App integration is enabled")
 			}
 			if strings.TrimSpace(cfg.GithubInstallationID) == "" {
-				return fmt.Errorf("github Installation ID is required when GitHub App integration is enabled")
+				return fmt.Errorf("GitHub Installation ID is required when GitHub App integration is enabled")
 			}
 			if strings.TrimSpace(cfg.GithubKeyPath) == "" {
 				return fmt.Errorf("private key secret path is required when GitHub App integration is enabled")
@@ -300,34 +328,35 @@ func ValidateStepComplete(m *WizardModel) error {
 			if strings.TrimSpace(cfg.GitRemoteURL) == "" {
 				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
 			}
-			if !cfg.UseLocalCopy {
-				auth := strings.TrimSpace(cfg.ConfigRepoCloneAuth)
-				switch auth {
-				case "none":
-				case "pat":
-					if strings.TrimSpace(cfg.ConfigRepoPATValue) == "" {
-						return fmt.Errorf("PAT is required when clone auth is 'pat'")
-					}
-				case "github_app":
-					if strings.TrimSpace(cfg.ConfigRepoGHAppID) == "" {
-						return fmt.Errorf("GitHub App ID is required when clone auth is 'github_app'")
-					}
-					if strings.TrimSpace(cfg.ConfigRepoGHInstallID) == "" {
-						return fmt.Errorf("installation ID is required when clone auth is 'github_app'")
-					}
-					if strings.TrimSpace(cfg.ConfigRepoGHAppKey) == "" {
-						return fmt.Errorf("private key is required when clone auth is 'github_app'")
-					}
-				case "ssh":
-					if !strings.HasPrefix(cfg.GitRemoteURL, "git@") {
-						return fmt.Errorf("SSH remote URL must start with 'git@'")
-					}
-					if strings.TrimSpace(cfg.ConfigRepoSSHKey) == "" && strings.TrimSpace(cfg.ConfigRepoSSHFile) == "" {
-						return fmt.Errorf("either SSH key content or SSH key file path is required when clone auth is 'ssh'")
-					}
-				default:
-					return fmt.Errorf("invalid clone auth method %q (must be one of: none, pat, github_app, ssh)", auth)
+		}
+	case 15:
+		if cfg.GithubCreateRepo && !cfg.UseLocalCopy {
+			auth := strings.TrimSpace(cfg.ConfigRepoCloneAuth)
+			switch auth {
+			case "none":
+			case "pat":
+				if strings.TrimSpace(cfg.ConfigRepoPATValue) == "" && strings.TrimSpace(cfg.ConfigRepoPATPath) == "" {
+					return fmt.Errorf("PAT is required when clone auth is 'pat'")
 				}
+			case "github_app":
+				if strings.TrimSpace(cfg.ConfigRepoGHAppID) == "" {
+					return fmt.Errorf("GitHub App ID is required when clone auth is 'github_app'")
+				}
+				if strings.TrimSpace(cfg.ConfigRepoGHInstallID) == "" {
+					return fmt.Errorf("installation ID is required when clone auth is 'github_app'")
+				}
+				if strings.TrimSpace(cfg.ConfigRepoGHAppKey) == "" && strings.TrimSpace(cfg.ConfigRepoGHAppKeyPath) == "" {
+					return fmt.Errorf("private key is required when clone auth is 'github_app'")
+				}
+			case "ssh":
+				if !strings.HasPrefix(cfg.GitRemoteURL, "git@") {
+					return fmt.Errorf("SSH remote URL must start with 'git@'")
+				}
+				if strings.TrimSpace(cfg.ConfigRepoSSHKey) == "" && strings.TrimSpace(cfg.ConfigRepoSSHFile) == "" && strings.TrimSpace(cfg.ConfigRepoSSHKeyPath) == "" {
+					return fmt.Errorf("either SSH key content or SSH key file path is required when clone auth is 'ssh'")
+				}
+			default:
+				return fmt.Errorf("invalid clone auth method %q (must be one of: none, pat, github_app, ssh)", auth)
 			}
 		}
 	}

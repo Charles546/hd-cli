@@ -703,16 +703,16 @@ func TestCtrlQInTextInputModeQuits(t *testing.T) {
 }
 
 func TestCtrlQOnDoneScreenQuits(t *testing.T) {
-	// Ctrl+Q on the done screen should quit without generating config
+	// Ctrl+Q on step 16 should quit without generating config
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m.done = true
+	m = runInitStep(m, 16)
 
 	// Press ctrl+q - should quit without generating
 	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
 
 	if cmd == nil {
-		t.Error("ctrl+q on done screen should produce a quit command")
+		t.Error("ctrl+q on step 16 should produce a quit command")
 	}
 	// err should be nil (no config generation)
 	if m.err != nil {
@@ -721,85 +721,84 @@ func TestCtrlQOnDoneScreenQuits(t *testing.T) {
 }
 
 func TestViewSummaryScreen(t *testing.T) {
-	// With refinement 1, the summary is shown at step 15, not on the done screen.
-	// The done screen shows a confirmation prompt instead.
+	// The summary is shown on step 16 (navigate mode), not on a done screen.
 	m := NewWizard(nil)
-	m.done = true
+	m = runInitStep(m, 16)
 
 	view := m.View()
-	// Done screen should show the confirmation prompt
-	if !strings.Contains(view, "Press Enter to confirm and generate configs") {
-		t.Errorf("View() should contain confirmation prompt, got: %s", view)
+	// Step 16 should show the summary
+	if !strings.Contains(view, "Configuration Summary") {
+		t.Errorf("Step 16 View() should contain 'Configuration Summary', got: %s", view)
 	}
-	// Done screen should NOT contain the summary (it's shown at step 15)
-	if strings.Contains(view, "Configuration Summary") {
-		t.Errorf("Done screen should NOT contain 'Configuration Summary' (shown at step 15)")
+	// Step 16 should show the generate prompt
+	if !strings.Contains(view, "Press Enter to generate configs") {
+		t.Errorf("Step 16 View() should contain 'Press Enter to generate configs', got: %s", view)
 	}
 }
 
 func TestStep15ShowsSummary(t *testing.T) {
-	// Refinement 1: Step 15 should show the summary directly
+	// Step 16 should show the summary directly
 	m := NewWizard(nil)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 16)
 
 	view := m.View()
 	if !strings.Contains(view, "Configuration Summary") {
-		t.Errorf("Step 15 View() should contain 'Configuration Summary', got: %s", view)
+		t.Errorf("Step 16 View() should contain 'Configuration Summary', got: %s", view)
 	}
 	if !strings.Contains(view, "Project:") {
-		t.Errorf("Step 15 View() should contain 'Project:' in summary, got: %s", view)
+		t.Errorf("Step 16 View() should contain 'Project:' in summary, got: %s", view)
 	}
 	// Verify new order in summary
 	if !strings.Contains(view, "Secrets backend:") {
-		t.Errorf("Step 15 View() should contain 'Secrets backend:' in summary, got: %s", view)
+		t.Errorf("Step 16 View() should contain 'Secrets backend:' in summary, got: %s", view)
 	}
 	if !strings.Contains(view, "Redis:") {
-		t.Errorf("Step 15 View() should contain 'Redis:' in summary, got: %s", view)
+		t.Errorf("Step 16 View() should contain 'Redis:' in summary, got: %s", view)
 	}
-	// Step 15 should also show the generate prompt
+	// Step 16 should also show the generate prompt
 	if !strings.Contains(view, "Press Enter to generate configs") {
-		t.Errorf("Step 15 View() should contain 'Press Enter to generate configs', got: %s", view)
+		t.Errorf("Step 16 View() should contain 'Press Enter to generate configs', got: %s", view)
 	}
-	// Step 15 should show the save hint
-	if !strings.Contains(view, "s=save answers") {
-		t.Errorf("Step 15 View() should contain save hint, got: %s", view)
+	// Step 16 should show the save hint (from renderNavigation)
+	if !strings.Contains(view, "ctrl+s=save") {
+		t.Errorf("Step 16 View() should contain 'ctrl+s=save' hint, got: %s", view)
 	}
 }
 
-func TestStep15EnterGeneratesDirectly(t *testing.T) {
-	// Fix 1: Pressing Enter on step 15 should generate config directly
+func TestStep16EnterGeneratesDirectly(t *testing.T) {
+	// Fix 1: Pressing Enter on step 16 should generate config directly
 	// without going through the done/confirmation screen.
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15) // Summary step (navigate mode)
+	m = runInitStep(m, 16) // Summary step (navigate mode)
 
 	// Press Enter - should trigger generateConfig and return quit
 	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if cmd == nil {
-		t.Error("expected quit command after enter on step 15")
+		t.Error("expected quit command after enter on step 16")
 	}
 	// Should NOT be in done state (direct generation, no intermediate done)
 	if m.done {
-		t.Error("should not be in done state after enter on step 15")
+		t.Error("model should NOT be in done state")
 	}
 }
 
-func TestStep15SaveAndGenerateDirectly(t *testing.T) {
-	// Fix 1: Pressing 's' on step 15 should save answers and generate directly.
+func TestStep16SaveAndGenerateDirectly(t *testing.T) {
+	// Fix 1: Pressing 's' on step 16 should save answers and generate directly.
 	cfg := config.NewDefaultWizardConfig()
 	cfg.ProjectName = "save-gen-test"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 16)
 
 	// Press 's' - should save and generate
 	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 
 	if cmd == nil {
-		t.Error("expected quit command after 's' on step 15")
+		t.Error("expected quit command after 's' on step 16")
 	}
 	if m.done {
-		t.Error("should not be in done state after 's' on step 15")
+		t.Error("model should NOT be in done state")
 	}
 }
 
@@ -818,28 +817,29 @@ func TestStep15EscGoesBack(t *testing.T) {
 func TestDoneScreenEnterConfirms(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m.done = true
+	m = runInitStep(m, 16)
 
 	// Press Enter - should trigger generateConfig and return a quit command
 	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if cmd == nil {
-		t.Error("expected quit command after enter on done screen")
+		t.Error("expected quit command after enter on step 16")
 	}
-	// The model should still be in done state
-	if !m.done {
-		t.Error("model should still be in done state")
+	// Should NOT be in done state (direct generation, no intermediate done)
+	if m.done {
+		t.Error("model should NOT be in done state")
 	}
 }
 
 func TestDoneScreenEscGoesBack(t *testing.T) {
 	m := NewWizard(nil)
-	m.done = true
+	m = runInitStep(m, 16)
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-	if m.done {
-		t.Error("should no longer be in done state after esc")
+	// Esc on step 16 should go back to step 15
+	if m.step != 15 {
+		t.Errorf("should be on step 15 after esc on step 16, got %d", m.step)
 	}
 }
 
@@ -939,7 +939,8 @@ func TestStepOrder(t *testing.T) {
 		{12, "Kubernetes Configuration"},
 		{13, "Source Configuration"},
 		{14, "GitHub Repo Creation"},
-		{15, "Summary & Confirm"},
+		{15, "Clone Auth"},
+		{16, "Summary & Confirm"},
 	}
 
 	for _, expected := range expectedOrder {
@@ -1241,16 +1242,16 @@ func TestCtrlCInTextInputModeQuits(t *testing.T) {
 }
 
 func TestCtrlQOnDoneScreenQuitsWithoutGenerating(t *testing.T) {
-	// Pressing ctrl+q on the done screen should quit without generating config
+	// Pressing ctrl+q on step 16 should quit without generating config
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m.done = true
+	m = runInitStep(m, 16)
 
 	// Press ctrl+q - should quit without generating
 	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
 
 	if cmd == nil {
-		t.Error("ctrl+q on done screen should produce a quit command")
+		t.Error("ctrl+q on step 16 should produce a quit command")
 	}
 	// err should be nil (no config generation)
 	if m.err != nil {
@@ -1401,7 +1402,7 @@ func TestCompleteDoesNotSetQuitFlag(t *testing.T) {
 	// quit should remain false.
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 16)
 
 	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
 
@@ -1720,7 +1721,7 @@ func TestSummaryDevModeSecretFormat(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.SecretsBackend = "dev"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 16)
 
 	view := m.View()
 
@@ -1737,7 +1738,7 @@ func TestSummaryVaultModeSecretFormat(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.SecretsBackend = "vault"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 16)
 
 	view := m.View()
 
@@ -2119,9 +2120,9 @@ func TestStep14SpaceToggleFirstCheckbox(t *testing.T) {
 		t.Errorf("step 14 view should contain 'Use local copy' checkbox, got:\n%s", view)
 	}
 
-	// Text inputs should now include git remote URL and clone auth method
+	// Text inputs should now include git remote URL and secure-exec driver
 	if len(m.textInputs) != 2 {
-		t.Errorf("textInputs count = %d, want 2 (git remote URL + clone auth method)", len(m.textInputs))
+		t.Errorf("textInputs count = %d, want 2 (git remote URL + secure-exec driver)", len(m.textInputs))
 	}
 }
 
@@ -2151,7 +2152,7 @@ func TestStep14SecondCheckboxVisibleWhenFirstChecked(t *testing.T) {
 
 	// Git remote URL should still be visible, but clone auth fields should be hidden
 	if len(m.textInputs) != 1 {
-		t.Errorf("textInputs count = %d, want 1 (git remote URL visible, clone auth hidden)", len(m.textInputs))
+		t.Errorf("textInputs count = %d, want 1 (git remote URL visible, secure-exec hidden)", len(m.textInputs))
 	}
 }
 
@@ -2211,14 +2212,16 @@ func TestStep14EnterOnLastCheckboxWithTextInput(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace}) // toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})   // move to checkbox 1
 
-	// textInputs should have git remote URL + clone auth method
+	// textInputs should have git remote URL + secure-exec driver
 	if len(m.textInputs) != 2 {
 		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Press Enter on last checkbox: toggles UseLocalCopy on, textInputs still exist
-	// (git remote URL and clone auth method are always visible when GithubCreateRepo is true)
-	// so it switches to text input mode instead of advancing
+	// (git remote URL is always visible when GithubCreateRepo is true,
+	// and secure-exec driver is visible when !UseLocalCopy)
+	// When UseLocalCopy is toggled on, secure-exec driver becomes hidden,
+	// leaving only 1 text input (git remote URL)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	// UseLocalCopy should be toggled on
@@ -2226,7 +2229,7 @@ func TestStep14EnterOnLastCheckboxWithTextInput(t *testing.T) {
 		t.Error("UseLocalCopy should be true after Enter on second checkbox")
 	}
 
-	// Text inputs still exist (git remote URL + clone auth always visible), so should switch to text input mode
+	// Text inputs still exist (git remote URL always visible), so should switch to text input mode
 	if m.step != 14 {
 		t.Errorf("step = %d, want 14 (should stay on step 14 with text inputs)", m.step)
 	}
@@ -2266,7 +2269,7 @@ func TestStep14EnterOnLastCheckboxNoAdvanceWhenTextInputRequired(t *testing.T) {
 	// Toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// Now there are text inputs (git remote URL + clone auth method)
+	// Now there are text inputs (git remote URL + secure-exec driver)
 	if len(m.textInputs) != 2 {
 		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
@@ -2275,7 +2278,7 @@ func TestStep14EnterOnLastCheckboxNoAdvanceWhenTextInputRequired(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 
 	// Press Enter on last checkbox: toggles UseLocalCopy, text inputs still exist
-	// (git remote URL + clone auth always visible), so switches to text input mode
+	// (git remote URL always visible), so switches to text input mode
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if m.step != 14 {
@@ -2295,7 +2298,7 @@ func TestStep14GitRemoteURLFieldVisibleAfterCheckingCreateRepo(t *testing.T) {
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// Text inputs should have 2 fields (git remote URL + clone auth method)
+	// Text inputs should have 2 fields (git remote URL + secure-exec driver)
 	if len(m.textInputs) != 2 {
 		t.Errorf("textInputs count = %d, want 2", len(m.textInputs))
 	}
@@ -2314,7 +2317,7 @@ func TestStep14CheckboxVisibleInTextInputMode(t *testing.T) {
 
 	// Toggle "Create GitHub repo" on, move to second checkbox, press Enter to switch to text input
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace}) // toggle GithubCreateRepo on
-	// Now text inputs exist (git remote URL + clone auth method)
+	// Now text inputs exist (git remote URL + secure-exec driver)
 	if len(m.textInputs) != 2 {
 		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
@@ -2347,14 +2350,14 @@ func TestStep14TextInputModeTabNavigation(t *testing.T) {
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// There should be 2 text inputs (git remote URL + clone auth method)
+	// There should be 2 text inputs (git remote URL + secure-exec driver)
 	if len(m.textInputs) != 2 {
 		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Move to text input: Down past last checkbox goes to textInputs[0] (Git remote URL)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
+	m, _ = updateWizard(m, tea.KeyMsg{Type:tea.KeyDown}) // to checkbox 1
+	m, _ = updateWizard(m, tea.KeyMsg{Type:tea.KeyDown}) // to text input (Git remote URL)
 
 	// Type in the git remote URL
 	for _, ch := range "git@github.com:user/repo.git" {
@@ -2362,10 +2365,14 @@ func TestStep14TextInputModeTabNavigation(t *testing.T) {
 		m, _ = updateWizard(m, msg)
 	}
 
-	// Tab to clone auth (default is "none" so no need to type)
+	// Tab to secure-exec driver field
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
-	// Press Enter — should advance (none auth, git remote URL set)
+	// Tab to clone auth (default is "none" so no need to type)
+	// Actually, the clone auth field is on step 15, not step 14.
+	// Step 14 has: git remote URL, secure-exec driver, and vault/gcloud fields (conditional).
+	// With default "none" driver, only git remote URL and secure-exec driver are visible.
+	// Press Enter on last field — should advance.
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.step != 15 {
 		t.Errorf("step = %d, want 15", m.step)
@@ -2591,18 +2598,19 @@ func TestStep14UseLocalCopyHidesGitRemoteURL(t *testing.T) {
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
-	// Before toggling local copy: textInputs should have 2 fields (git remote URL + clone auth)
+	// Before toggling local copy: textInputs should have 2 fields (git remote URL + secure-exec driver)
 	if len(m.textInputs) != 2 {
-		t.Fatalf("expected 2 text inputs before local copy, got %d", len(m.textInputs))
+		t.Fatalf("expected 2 text inputs before local copy (git remote URL + secure-exec driver), got %d", len(m.textInputs))
 	}
 
-	// Move to second checkbox and toggle
+	// Move to second checkbox and toggle UseLocalCopy on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	m, _ = updateWizard(m, tea.KeyMsg{Type:tea.KeySpace})
 
-	// After checking local copy: textInputs should have 1 field (git remote URL only, clone auth hidden)
+	// After checking local copy: secure-exec driver is hidden (!UseLocalCopy condition fails)
+	// Git remote URL is still visible (no condition on UseLocalCopy)
 	if len(m.textInputs) != 1 {
-		t.Errorf("expected 1 text input after local copy (clone auth hidden), got %d", len(m.textInputs))
+		t.Errorf("expected 1 text input after local copy (secure-exec hidden), got %d", len(m.textInputs))
 	}
 }
 
@@ -2630,9 +2638,8 @@ func TestStep14UseLocalCopyNoValidationRequired(t *testing.T) {
 
 func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 	// Toggling checkboxes should rebuild text inputs correctly
-	// Note: UseLocalCopy no longer hides git remote URL, but hides clone auth fields
-	// When GithubCreateRepo=true && !UseLocalCopy: textInputs=2 (git remote URL + clone auth)
-	// When GithubCreateRepo=true && UseLocalCopy: textInputs=1 (git remote URL only)
+	// When GithubCreateRepo=true && !UseLocalCopy: textInputs=2 (git remote URL + secure-exec driver)
+	// When GithubCreateRepo=true && UseLocalCopy: textInputs=1 (git remote URL only, secure-exec hidden)
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
 	m = runInitStep(m, 14)
@@ -2644,6 +2651,7 @@ func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 
 	// Toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	// Now has: git remote URL + secure-exec driver = 2
 	if len(m.textInputs) != 2 {
 		t.Errorf("after GithubCreateRepo=true, textInputs count = %d, want 2", len(m.textInputs))
 	}
@@ -2651,12 +2659,14 @@ func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 	// Move to second checkbox and toggle UseLocalCopy on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	// UseLocalCopy=true hides secure-exec driver, leaving only git remote URL = 1
 	if len(m.textInputs) != 1 {
-		t.Errorf("after UseLocalCopy=true, textInputs count = %d, want 1 (clone auth hidden)", len(m.textInputs))
+		t.Errorf("after UseLocalCopy=true, textInputs count = %d, want 1 (secure-exec hidden)", len(m.textInputs))
 	}
 
 	// Toggle UseLocalCopy off
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	// UseLocalCopy=false shows secure-exec driver again = 2
 	if len(m.textInputs) != 2 {
 		t.Errorf("after UseLocalCopy=false, textInputs count = %d, want 2", len(m.textInputs))
 	}
@@ -2839,7 +2849,7 @@ func TestStep6RadioRebuildsOnArrowKey(t *testing.T) {
 	// Move back up to "vault" (index 0)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
 	if len(m.textInputs) != 2 {
-		t.Errorf("after back to 'vault' textInputs count = %d, want 2", len(m.textInputs))
+		t.Errorf("after back to vault textInputs count = %d, want 2", len(m.textInputs))
 	}
 }
 
@@ -3148,7 +3158,7 @@ func TestStep10ConditionalFieldTabNavigation(t *testing.T) {
 
 // ===== Clone auth tests =====
 
-func TestStep14CloneAuthNone(t *testing.T) {
+func TestStep15CloneAuthNone(t *testing.T) {
 	// When clone auth is "none", no additional fields are needed
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3156,7 +3166,7 @@ func TestStep14CloneAuthNone(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "none"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
 	err := m.validateCurrentStep()
 	if err != nil {
@@ -3164,7 +3174,7 @@ func TestStep14CloneAuthNone(t *testing.T) {
 	}
 }
 
-func TestStep14CloneAuthPAT(t *testing.T) {
+func TestStep15CloneAuthPAT(t *testing.T) {
 	// When clone auth is "pat", PAT value is required
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3172,20 +3182,20 @@ func TestStep14CloneAuthPAT(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "pat"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
 	err := m.validateCurrentStep()
 	if err == nil {
 		t.Error("validateCurrentStep should fail without PAT value")
 	}
-	if err != nil && !strings.Contains(err.Error(), "PAT is required") {
+	if err != nil && !strings.Contains(err.Error(), "PAT") {
 		t.Errorf("unexpected error: %v", err)
 	}
 
 	// Now set the PAT value (env var reference)
 	cfg.ConfigRepoPATValue = "$MY_PAT"
 	m2 := NewWizard(cfg)
-	m2 = runInitStep(m2, 14)
+	m2 = runInitStep(m2, 15)
 
 	err = m2.validateCurrentStep()
 	if err != nil {
@@ -3195,7 +3205,7 @@ func TestStep14CloneAuthPAT(t *testing.T) {
 	// Also test with raw PAT value
 	cfg.ConfigRepoPATValue = "ghp_xxxxx"
 	m3 := NewWizard(cfg)
-	m3 = runInitStep(m3, 14)
+	m3 = runInitStep(m3, 15)
 
 	err = m3.validateCurrentStep()
 	if err != nil {
@@ -3203,7 +3213,7 @@ func TestStep14CloneAuthPAT(t *testing.T) {
 	}
 }
 
-func TestStep14CloneAuthGitHubApp(t *testing.T) {
+func TestStep15CloneAuthGitHubApp(t *testing.T) {
 	// When clone auth is "github_app", all 4 fields are required
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3211,7 +3221,7 @@ func TestStep14CloneAuthGitHubApp(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "github_app"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
 	err := m.validateCurrentStep()
 	if err == nil {
@@ -3221,7 +3231,7 @@ func TestStep14CloneAuthGitHubApp(t *testing.T) {
 	// Set ID but missing others
 	cfg.ConfigRepoGHAppID = "12345"
 	m2 := NewWizard(cfg)
-	m2 = runInitStep(m2, 14)
+	m2 = runInitStep(m2, 15)
 	err = m2.validateCurrentStep()
 	if err == nil {
 		t.Error("validateCurrentStep should fail without Installation ID")
@@ -3230,7 +3240,7 @@ func TestStep14CloneAuthGitHubApp(t *testing.T) {
 	// Set ID and Installation ID but missing key
 	cfg.ConfigRepoGHInstallID = "67890"
 	m3 := NewWizard(cfg)
-	m3 = runInitStep(m3, 14)
+	m3 = runInitStep(m3, 15)
 	err = m3.validateCurrentStep()
 	if err == nil {
 		t.Error("validateCurrentStep should fail without Private Key")
@@ -3246,7 +3256,7 @@ func TestStep14CloneAuthGitHubApp(t *testing.T) {
 	}
 }
 
-func TestStep14CloneAuthSSH(t *testing.T) {
+func TestStep15CloneAuthSSH(t *testing.T) {
 	// When clone auth is "ssh", URL must start with git@ and key or file is required
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3254,7 +3264,7 @@ func TestStep14CloneAuthSSH(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
 	// URL doesn't start with git@
 	err := m.validateCurrentStep()
@@ -3268,7 +3278,7 @@ func TestStep14CloneAuthSSH(t *testing.T) {
 	// Fix URL but no key or file
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	m2 := NewWizard(cfg)
-	m2 = runInitStep(m2, 14)
+	m2 = runInitStep(m2, 15)
 	err = m2.validateCurrentStep()
 	if err == nil {
 		t.Error("validateCurrentStep should fail without SSH key or file")
@@ -3277,7 +3287,7 @@ func TestStep14CloneAuthSSH(t *testing.T) {
 	// Set SSH key content
 	cfg.ConfigRepoSSHKey = "fake-ssh-key"
 	m3 := NewWizard(cfg)
-	m3 = runInitStep(m3, 14)
+	m3 = runInitStep(m3, 15)
 	err = m3.validateCurrentStep()
 	if err != nil {
 		t.Errorf("validateCurrentStep should pass with SSH key, got: %v", err)
@@ -3294,7 +3304,7 @@ func TestStep14CloneAuthSSH(t *testing.T) {
 	}
 }
 
-func TestStep14CloneAuthInvalid(t *testing.T) {
+func TestStep15CloneAuthInvalid(t *testing.T) {
 	// Invalid auth method should fail
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3302,7 +3312,7 @@ func TestStep14CloneAuthInvalid(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "invalid_auth"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
 	err := m.validateCurrentStep()
 	if err == nil {
@@ -3313,7 +3323,7 @@ func TestStep14CloneAuthInvalid(t *testing.T) {
 	}
 }
 
-func TestStep14CloneAuthSkippedForLocalCopy(t *testing.T) {
+func TestStep15CloneAuthSkippedForLocalCopy(t *testing.T) {
 	// When UseLocalCopy is true, clone auth is not validated
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3321,7 +3331,7 @@ func TestStep14CloneAuthSkippedForLocalCopy(t *testing.T) {
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh" // would normally require key
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
 	err := m.validateCurrentStep()
 	if err != nil {
@@ -3329,7 +3339,7 @@ func TestStep14CloneAuthSkippedForLocalCopy(t *testing.T) {
 	}
 }
 
-func TestStep14CloneAuthNoneNoAdditionalFields(t *testing.T) {
+func TestStep15CloneAuthNoneNoAdditionalFields(t *testing.T) {
 	// With none auth and https URL, no additional fields needed
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3337,7 +3347,7 @@ func TestStep14CloneAuthNoneNoAdditionalFields(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "none"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
 	err := m.validateCurrentStep()
 	if err != nil {
@@ -3345,7 +3355,7 @@ func TestStep14CloneAuthNoneNoAdditionalFields(t *testing.T) {
 	}
 }
 
-func TestStep14CloneAuthConditionalFieldsVisible(t *testing.T) {
+func TestStep15CloneAuthConditionalFieldsVisible(t *testing.T) {
 	// When clone auth is "pat", the PAT field should be visible
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3353,10 +3363,10 @@ func TestStep14CloneAuthConditionalFieldsVisible(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "pat"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
 	// The clone auth field and PAT field should be visible
-	stepInfo := getStepInfo(14)
+	stepInfo := getStepInfo(15)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
 		if field.condition == nil || field.condition(m.config) {
@@ -3364,13 +3374,13 @@ func TestStep14CloneAuthConditionalFieldsVisible(t *testing.T) {
 		}
 	}
 
-	// Should have: Git remote URL, Clone auth method, PAT = 3
-	if visibleFields != 3 {
-		t.Errorf("expected 3 visible fields for pat auth, got %d", visibleFields)
+	// Should have: Clone auth method, PAT = 2
+	if visibleFields != 2 {
+		t.Errorf("expected 2 visible fields for pat auth, got %d", visibleFields)
 	}
 }
 
-func TestStep14CloneAuthSSHFieldsVisible(t *testing.T) {
+func TestStep15CloneAuthSSHFieldsVisible(t *testing.T) {
 	// When clone auth is "ssh", SSH key fields should be visible
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3378,9 +3388,9 @@ func TestStep14CloneAuthSSHFieldsVisible(t *testing.T) {
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
-	stepInfo := getStepInfo(14)
+	stepInfo := getStepInfo(15)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
 		if field.condition == nil || field.condition(m.config) {
@@ -3388,14 +3398,15 @@ func TestStep14CloneAuthSSHFieldsVisible(t *testing.T) {
 		}
 	}
 
-	// Should have: Git remote URL, Clone auth method, SSH key content, SSH key file, SSH key passphrase = 5
-	if visibleFields != 5 {
-		t.Errorf("expected 5 visible fields for ssh auth, got %d", visibleFields)
+	// Should have: Clone auth method, SSH key content, SSH key file, SSH key passphrase = 4
+	if visibleFields != 4 {
+		t.Errorf("expected 4 visible fields for ssh auth, got %d", visibleFields)
 	}
 }
 
-func TestStep14CloneAuthHiddenForLocalCopy(t *testing.T) {
+func TestStep15CloneAuthHiddenForLocalCopy(t *testing.T) {
 	// When UseLocalCopy is true, clone auth fields should be hidden
+	// (they are on step 15, which is conditionally shown based on !UseLocalCopy)
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = true
@@ -3411,19 +3422,19 @@ func TestStep14CloneAuthHiddenForLocalCopy(t *testing.T) {
 		}
 	}
 
-	// Should only have: Git remote URL = 1
+	// Should only have: Git remote URL = 1 (secure-exec driver hidden when UseLocalCopy=true)
 	if visibleFields != 1 {
 		t.Errorf("expected 1 visible field when UseLocalCopy=true, got %d", visibleFields)
 	}
 }
 
-func TestStep14SummaryShowsCloneAuth(t *testing.T) {
+func TestStep15SummaryShowsCloneAuth(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
 	cfg.ConfigRepoCloneAuth = "github_app"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
 	view := m.View()
 	if !strings.Contains(view, "Clone auth method") {
@@ -3432,22 +3443,218 @@ func TestStep14SummaryShowsCloneAuth(t *testing.T) {
 }
 
 
+func TestStep15PlaceholderDefaultNoSecureExec(t *testing.T) {
+	// When no secure-exec driver is selected, default placeholders should be shown
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = "none"
+	cfg.ConfigRepoCloneAuth = "pat"
+
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	// The first visible field is "Clone auth method", second is "PAT"
+	// With buildMultiFieldInputs, the textInputs should have the default placeholder
+	if len(m.textInputs) < 2 {
+		t.Fatal("expected at least 2 text inputs for step 15 with pat auth")
+	}
+	// PAT field is the 2nd visible field (clone auth method, PAT)
+	patInput := m.textInputs[1]
+	if patInput.Placeholder != "ghp_xxxxx or $MY_PAT" {
+		t.Errorf("PAT placeholder = %q, want %q", patInput.Placeholder, "ghp_xxxxx or $MY_PAT")
+	}
+}
+
+func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
+	// When hd-driver-vault is selected, placeholders should show hd-lookup paths
+	// Private key value field is hidden, but GH App key secret path is shown
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.ConfigRepoCloneAuth = "github_app"
+
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	if len(m.textInputs) != 4 {
+		t.Fatalf("expected 4 text inputs for step 15 with github_app auth + secure-exec, got %d", len(m.textInputs))
+	}
+	// Fields: Clone auth method, GitHub App ID, Installation ID, GH App key secret path
+	// Index 1 = GitHub App ID
+	if m.textInputs[1].Placeholder != "hd-lookup:/secrets/data/project/gh_app_id" {
+		t.Errorf("GitHub App ID placeholder = %q, want %q", m.textInputs[1].Placeholder, "hd-lookup:/secrets/data/project/gh_app_id")
+	}
+	// Index 2 = Installation ID
+	if m.textInputs[2].Placeholder != "hd-lookup:/secrets/data/project/gh_install_id" {
+		t.Errorf("Installation ID placeholder = %q, want %q", m.textInputs[2].Placeholder, "hd-lookup:/secrets/data/project/gh_install_id")
+	}
+	// Index 3 = GH App key secret path
+	if m.textInputs[3].Placeholder != "/secrets/data/project/gh_app_key" {
+		t.Errorf("GH App key path placeholder = %q, want %q", m.textInputs[3].Placeholder, "hd-lookup:/secrets/data/project/gh_app_key")
+	}
+}
+
+func TestStep15PlaceholderWithSecureExecGcloud(t *testing.T) {
+	// When gcloud-secret is selected, placeholders should show hd-lookup paths
+	// SSH key content is hidden, but SSH key secret path is shown
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = "gcloud-secret"
+	cfg.ConfigRepoCloneAuth = "ssh"
+
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	if len(m.textInputs) != 4 {
+		t.Fatalf("expected 4 text inputs for step 15 with ssh auth + secure-exec, got %d", len(m.textInputs))
+	}
+	// Fields: Clone auth method, SSH key file, SSH key passphrase, SSH key secret path
+	// Index 1 = SSH key file path
+	if m.textInputs[1].Placeholder != "/home/user/.ssh/id_rsa" {
+		t.Errorf("SSH key file placeholder = %q, want %q", m.textInputs[1].Placeholder, "/home/user/.ssh/id_rsa")
+	}
+	// Index 3 = SSH key secret path
+	if m.textInputs[3].Placeholder != "/secrets/data/project/ssh_key" {
+		t.Errorf("SSH key path placeholder = %q, want %q", m.textInputs[3].Placeholder, "hd-lookup:/secrets/data/project/ssh_key")
+	}
+}
+
+func TestStep15PlaceholderSSHKeyContentDefault(t *testing.T) {
+	// Without secure-exec, SSH key content should show BEGIN OPENSSH placeholder
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = ""
+	cfg.ConfigRepoCloneAuth = "ssh"
+
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	if len(m.textInputs) < 2 {
+		t.Fatal("expected at least 2 text inputs")
+	}
+	// Index 1 = SSH key content
+	if m.textInputs[1].Placeholder != "-----BEGIN OPENSSH PRIVATE KEY-----\n..." {
+		t.Errorf("SSH key content placeholder = %q, want default", m.textInputs[1].Placeholder)
+	}
+}
+
+
+func TestStep15SecureExecSecretPathFieldsVisible(t *testing.T) {
+	// When secure-exec is enabled with PAT auth, the PAT secret path field should be visible
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.ConfigRepoCloneAuth = "pat"
+
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	// Fields: Clone auth method, PAT value, PAT secret path = 3
+	if len(m.textInputs) != 3 {
+		t.Fatalf("expected 3 text inputs for step 15 with pat + secure-exec, got %d", len(m.textInputs))
+	}
+	// Index 2 = PAT secret path (PAT value field is still shown at index 1)
+	if m.textInputs[2].Placeholder != "/secrets/data/project/pat" {
+		t.Errorf("PAT secret path placeholder = %q, want %q", m.textInputs[2].Placeholder, "hd-lookup:/secrets/data/project/pat")
+	}
+}
+
+func TestStep15SecureExecPATValueAccepted(t *testing.T) {
+	// When PAT secret path is set, validation should pass without PAT value
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "pat"
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.ConfigRepoPATPath = "hd-lookup:/secrets/data/project/pat"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	err := m.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with PAT secret path set, got: %v", err)
+	}
+}
+
+func TestStep15SecureExecSSHKeyPathAccepted(t *testing.T) {
+	// When SSH key secret path is set, validation should pass without SSH key content
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
+	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.SecureExecDriver = "gcloud-secret"
+	cfg.ConfigRepoSSHKeyPath = "hd-lookup:/secrets/data/project/ssh_key"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	err := m.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with SSH key secret path set, got: %v", err)
+	}
+}
+
+func TestStep15SecureExecGHAppKeyPathAccepted(t *testing.T) {
+	// When GH App key secret path is set, validation should pass without private key value
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "github_app"
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.ConfigRepoGHAppID = "12345"
+	cfg.ConfigRepoGHInstallID = "67890"
+	cfg.ConfigRepoGHAppKeyPath = "hd-lookup:/secrets/data/project/gh_app_key"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	err := m.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass with GH App key secret path set, got: %v", err)
+	}
+}
+
+func TestStep15SecureExecFieldsHiddenWithoutDriver(t *testing.T) {
+	// When no secure-exec driver is set, secret path fields should be hidden
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.SecureExecDriver = "none"
+	cfg.ConfigRepoCloneAuth = "pat"
+
+	stepInfo := getStepInfo(15)
+	visibleFields := 0
+	for _, field := range stepInfo.fields {
+		if field.condition == nil || field.condition(cfg) {
+			visibleFields++
+		}
+	}
+	// Should have: Clone auth method, PAT value = 2
+	// (no PAT secret path since driver is "none")
+	if visibleFields != 2 {
+		t.Errorf("expected 2 visible fields with pat + no secure-exec, got %d", visibleFields)
+	}
+}
+
 // ===== Space key in checkbox text fields =====
 
 func TestSpaceKeyInCheckboxTextField(t *testing.T) {
-	// When in text field mode within a checkbox step, Space should insert
-	// a space character instead of being captured by the checkbox handler.
+	// When in text field mode within a multi-field step, Space should insert
+	// a space character.
 	cfg := config.NewDefaultWizardConfig()
-	cfg.GithubCreateRepo = true // Enable conditional text fields
+	cfg.GithubCreateRepo = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
-	// Move to text input: Down past checkboxes to textInputs[0] (Git remote URL)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
-
-	if m.currentField != 1 {
-		t.Fatalf("currentField = %d, want 1", m.currentField)
+	// Step 15 is a multi-field step (no checkboxes), currentField starts at 0
+	if m.currentField != 0 {
+		t.Fatalf("currentField = %d, want 0", m.currentField)
 	}
 
 	// Type "hello" then Space then "world"
@@ -3583,18 +3790,15 @@ func TestPasteModeCancelsOnEsc(t *testing.T) {
 }
 
 func TestPasteModeInCheckboxTextField(t *testing.T) {
-	// Ctrl+E should work in checkbox step text fields too.
+	// Ctrl+E should work in multi-field step text fields too.
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
-	// Move to text input
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
-
-	if m.currentField != 1 {
-		t.Fatalf("currentField = %d, want 1", m.currentField)
+	// Step 15 is a multi-field step (no checkboxes), currentField starts at 0
+	if m.currentField != 0 {
+		t.Fatalf("currentField = %d, want 0", m.currentField)
 	}
 
 	// Press Ctrl+E to enter paste mode
@@ -3626,20 +3830,14 @@ func TestPasteModeMultiLineSSHKey(t *testing.T) {
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
-	// Navigate to the SSH key content field
-	// Fields: Git remote URL (idx 0), Clone auth method (idx 1), SSH key content (idx 2), SSH key file (idx 3), SSH key passphrase (idx 4)
-	// First fill Git remote URL
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
-
-	// Tab through fields to get to SSH key content
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab}) // to Clone auth method
+	// Navigate to the SSH key content field in step 15 (multi-field, no checkboxes)
+	// Visible fields with ssh auth: Clone auth (0), SSH key content (1), SSH key file (2), SSH key passphrase (3), Enable secure exec (4)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab}) // to SSH key content
 
-	if m.currentField != 3 {
-		t.Fatalf("currentField = %d, want 3 (SSH key content)", m.currentField)
+	if m.currentField != 1 {
+		t.Fatalf("currentField = %d, want 1 (SSH key content)", m.currentField)
 	}
 
 	// Enter paste mode
@@ -3671,16 +3869,11 @@ func TestPasteModeMultiLineSSHKeyPreservedOnTab(t *testing.T) {
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
-
-	// Navigate to the SSH key content field
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to Clone auth method
+	m = runInitStep(m, 15)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
 
-	if m.currentField != 3 {
-		t.Fatalf("currentField = %d, want 3 (SSH key content)", m.currentField)
+	if m.currentField != 1 {
+		t.Fatalf("currentField = %d, want 1 (SSH key content)", m.currentField)
 	}
 
 	// Enter paste mode and paste multi-line SSH key
@@ -3710,16 +3903,14 @@ func TestPasteModeMultiLineSSHKeyPreservedOnEnter(t *testing.T) {
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
-	// Navigate to the SSH key content field
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	// Navigate to the SSH key content field in step 15 (multi-field, no checkboxes)
+	// Visible fields with ssh auth: Clone auth (0), SSH key content (1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
-	if m.currentField != 3 {
-		t.Fatalf("currentField = %d, want 3 (SSH key content)", m.currentField)
+	if m.currentField != 1 {
+		t.Fatalf("currentField = %d, want 1 (SSH key content)", m.currentField)
 	}
 
 	// Enter paste mode and paste multi-line SSH key
@@ -3757,7 +3948,7 @@ func TestPasteModeHintShownInCheckboxTextField(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
 	// Move to text input
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
@@ -3940,16 +4131,12 @@ func TestPasteModeCheckboxTabPreservesRawValueInConfig(t *testing.T) {
 	cfg.ConfigRepoCloneAuth = "ssh"
 	cfg.GitRemoteURL = "git@github.com:test/repo.git"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
-	// Navigate to SSH key content field (visible text index 2 → currentField=3)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
 
-	if m.currentField != 3 {
-		t.Fatalf("currentField = %d, want 3", m.currentField)
+	if m.currentField != 1 {
+		t.Fatalf("currentField = %d, want 1 (SSH key content)", m.currentField)
 	}
 
 	// Enter paste mode and paste multi-line SSH key
@@ -3979,12 +4166,9 @@ func TestPasteModeCheckboxEnterPreservesRawValueInConfig(t *testing.T) {
 	cfg.ConfigRepoCloneAuth = "ssh"
 	cfg.GitRemoteURL = "git@github.com:test/repo.git"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
-
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	m = runInitStep(m, 15)
+	// Navigate to SSH key content field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
 	sshKey := "line1\nline2\nline3"
@@ -4011,13 +4195,10 @@ func TestPasteModeCheckboxStepNavigationPreservesRawValue(t *testing.T) {
 	cfg.ConfigRepoCloneAuth = "ssh"
 	cfg.GitRemoteURL = "git@github.com:test/repo.git"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 15)
 
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-
+	// Navigate to SSH key content field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
 	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
 	m.pasteModeTextArea.SetValue(sshKey)

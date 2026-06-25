@@ -17,7 +17,7 @@ type WizardConfig struct {
 	// Project settings
 	ProjectName    string `yaml:"project_name"`
 	ConfigDir      string `yaml:"config_dir"`
-	ConfigDirAbs   string `yaml:"-"`               // Absolute path of ConfigDir, computed during generation
+	ConfigDirAbs   string `yaml:"-"`                 // Absolute path of ConfigDir, computed during generation
 	DeploymentMode string `yaml:"deployment_mode"` // docker, source, kubernetes
 
 	// Essentials repo
@@ -96,7 +96,17 @@ type WizardConfig struct {
 	ConfigRepoSSHKey        string            `yaml:"config_repo_ssh_key"`                   // inline SSH key content
 	ConfigRepoSSHFile       string            `yaml:"config_repo_ssh_file"`                  // path to SSH key file
 	ConfigRepoSSHKeyPassEnv string            `yaml:"config_repo_ssh_key_pass_env"`          // env var name for key passphrase
+	ConfigRepoPATPath       string            `yaml:"config_repo_pat_path"`                  // hd-lookup path for PAT (secure-exec mode)
+	ConfigRepoGHAppKeyPath  string            `yaml:"config_repo_gh_app_key_path"`           // hd-lookup path for GH App private key (secure-exec mode)
+	ConfigRepoSSHKeyPath    string            `yaml:"config_repo_ssh_key_path"`              // hd-lookup path for SSH key (secure-exec mode)
 	ConfigRepoCloneEnvVars  map[string]string `yaml:"config_repo_clone_env_vars,omitempty"`  // derived, for template
+
+	// Secure execution settings
+	SecureExecDriver     string `yaml:"secure_exec_driver,omitempty"`      // none, hd-driver-vault, gcloud-secret
+	SecureExecVaultAddr  string `yaml:"secure_exec_vault_addr,omitempty"`   // VAULT_ADDR for vault driver
+
+	// Secure exec env vars map for docker-compose template (derived from the fields above)
+	SecureExecEnvVars map[string]string `yaml:"secure_exec_env_vars,omitempty"` // derived, for template
 
 	// Dev mode env vars tracks which HD_* variables are referenced during the wizard.
 	// Used by the docker-compose template to pass them into the container.
@@ -124,6 +134,7 @@ func NewDefaultWizardConfig() *WizardConfig {
 		K8sRepoStrategy:              "clone",
 		SourceBranch:                 "v4",
 		ConfigRepoCloneAuth:          "none",
+		SecureExecDriver:             "none",
 		AIModel:                      "gpt-4o",
 		AIBaseURL:                    "https://api.openai.com/v1",
 		AIEngineName:                 "default",
@@ -132,16 +143,33 @@ func NewDefaultWizardConfig() *WizardConfig {
 
 // BuildConfigRepoCloneEnvVars returns a map of env var names to their placeholder
 // values for the selected config repo clone authentication method.
+// hd-lookup prefix handling: For PAT values starting with "$HD_", the value is
+// treated as an hd-lookup reference and passed through directly.
 func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 	if c == nil {
 		return nil
 	}
 	switch c.ConfigRepoCloneAuth {
 	case "pat":
+		// When secure-exec is enabled, use the secret path instead of raw value
+		if strings.TrimSpace(c.ConfigRepoPATPath) != "" {
+			return map[string]string{
+				"DIPPER_PASS_ENV": c.ConfigRepoPATPath,
+			}
+		}
 		patVal := strings.TrimSpace(c.ConfigRepoPATValue)
 		if strings.HasPrefix(patVal, "$") {
-			// Env var reference: $MY_PAT -> DIPPER_PASS_ENV=MY_PAT
-			// Also pass through the env var itself so the value is available in the container.
+			// Check if this is an hd-lookup reference ($HD_*)
+			if strings.HasPrefix(patVal, "$HD_") {
+				// hd-lookup reference: pass through the value as-is
+				// The daemon will resolve it at runtime
+				envVarName := patVal[1:] // strip "$"
+				return map[string]string{
+					"HD_LOOKUP_PREFIX": envVarName,
+					envVarName:          patVal,
+				}
+			}
+			// Regular env var reference: $MY_PAT -> DIPPER_PASS_ENV=MY_PAT
 			envVarName := patVal[1:]
 			return map[string]string{
 				"DIPPER_PASS_ENV": envVarName,
@@ -154,15 +182,22 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 			"DIPPER_GITHUB_PAT": patVal,
 		}
 	case "github_app":
-		return map[string]string{
+		m := map[string]string{
 			"GH_APP_TOKEN_SOURCE": "github",
 			"GH_APP_ID":           c.ConfigRepoGHAppID,
 			"GH_INSTALLATION_ID":  c.ConfigRepoGHInstallID,
-			"GH_APP_KEY":          c.ConfigRepoGHAppKey,
 		}
+		if strings.TrimSpace(c.ConfigRepoGHAppKeyPath) != "" {
+			m["GH_APP_KEY"] = c.ConfigRepoGHAppKeyPath
+		} else {
+			m["GH_APP_KEY"] = c.ConfigRepoGHAppKey
+		}
+		return m
 	case "ssh":
 		m := map[string]string{}
-		if c.ConfigRepoSSHKey != "" {
+		if strings.TrimSpace(c.ConfigRepoSSHKeyPath) != "" {
+			m["DIPPER_SSH_KEY"] = c.ConfigRepoSSHKeyPath
+		} else if c.ConfigRepoSSHKey != "" {
 			m["DIPPER_SSH_KEY"] = c.ConfigRepoSSHKey
 		}
 		if c.ConfigRepoSSHFile != "" {
@@ -180,6 +215,34 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 	}
 }
 
+// BuildSecureExecEnvVars returns a map of environment variables for secure execution.
+// When a secure-exec driver is selected, these vars configure the daemon's security policy.
+// The output uses the exact env var names required by the daemon:
+//   - HD_SECURE_LOADER: path to the secure-exec driver
+//   - VAULT_ADDR: vault server address (for hd-driver-vault)
+//   - VAULT_ROLE_ID: docker-secret-file://role_id (hardcoded for vault driver)
+//   - VAULT_SECRET_ID: docker-secret-file://secret_id (hardcoded for vault driver)
+func (c *WizardConfig) BuildSecureExecEnvVars() map[string]string {
+	if c == nil || c.SecureExecDriver == "" || c.SecureExecDriver == "none" {
+		return nil
+	}
+	m := map[string]string{}
+	switch c.SecureExecDriver {
+	case "hd-driver-vault":
+		m["HD_SECURE_LOADER"] = "./hd-driver-vault"
+		if c.SecureExecVaultAddr != "" {
+			m["VAULT_ADDR"] = c.SecureExecVaultAddr
+		}
+		m["VAULT_ROLE_ID"] = "docker-secret-file://role_id"
+		m["VAULT_SECRET_ID"] = "docker-secret-file://secret_id"
+	case "gcloud-secret":
+		m["HD_SECURE_LOADER"] = "./gcloud-secret"
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	return m
+}
 
 // CollectDevEnvVars scans the wizard config for all $HD_* env var references
 // used in dev mode and returns a deduplicated list of variable names (with HD_ prefix).

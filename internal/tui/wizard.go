@@ -80,7 +80,7 @@ type WizardModel struct {
 }
 
 // stepCount is the total number of wizard steps (used for progress).
-const stepCount = 15
+const stepCount = 16
 
 // NewWizard creates a new wizard model starting at step 1.
 func NewWizard(cfg *config.WizardConfig) *WizardModel {
@@ -175,7 +175,11 @@ func (m *WizardModel) buildMultiFieldInputs(stepInfo *stepInfo) {
 	m.textInputs = make([]textinput.Model, len(visibleFields))
 	for i, field := range visibleFields {
 		ti := textinput.New()
-		ti.Placeholder = field.placeholder
+		if field.placeholderFunc != nil {
+					ti.Placeholder = field.placeholderFunc(m.config)
+				} else {
+					ti.Placeholder = field.placeholder
+				}
 		ti.Width = 60
 		ti.Prompt = ""
 		ti.SetValue(field.getValue(m.config))
@@ -202,7 +206,11 @@ func (m *WizardModel) buildCheckboxTextInputs(stepInfo *stepInfo) {
 	m.textInputs = make([]textinput.Model, len(visibleFields))
 	for i, field := range visibleFields {
 		ti := textinput.New()
-		ti.Placeholder = field.placeholder
+		if field.placeholderFunc != nil {
+					ti.Placeholder = field.placeholderFunc(m.config)
+				} else {
+					ti.Placeholder = field.placeholder
+				}
 		ti.Width = 60
 		ti.Prompt = ""
 		ti.SetValue(field.getValue(m.config))
@@ -222,7 +230,11 @@ func (m *WizardModel) buildRadioTextInputs(stepInfo *stepInfo) {
 	m.textInputs = make([]textinput.Model, len(visibleFields))
 	for i, field := range visibleFields {
 		ti := textinput.New()
-		ti.Placeholder = field.placeholder
+		if field.placeholderFunc != nil {
+					ti.Placeholder = field.placeholderFunc(m.config)
+				} else {
+					ti.Placeholder = field.placeholder
+				}
 		ti.Width = 60
 		ti.Prompt = ""
 		ti.SetValue(field.getValue(m.config))
@@ -297,10 +309,6 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
-	}
-
-	if m.done {
-		return m.handleDone(msg)
 	}
 
 	return m.handleStepInput(msg)
@@ -474,33 +482,6 @@ func (m *WizardModel) enterPasteMode() {
 }
 
 // handleDone handles input on the summary/confirmation screen.
-func (m *WizardModel) handleDone(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "enter":
-			m.err = m.generateConfig()
-			return m, tea.Quit
-		case "s":
-			// Refinement 2: Save answers to YAML file, then generate config (same as Enter)
-			if err := m.saveAnswersFile(); err != nil {
-				m.validationErr = fmt.Sprintf("failed to save answers: %v", err)
-				return m, nil
-			}
-			m.err = m.generateConfig()
-			return m, tea.Quit
-		case "ctrl+q":
-			// Quit without generating config
-			m.quit = true
-			return m, tea.Quit
-		case "esc", "backspace":
-			m.done = false
-			m.step = prevStep(stepCount, m.config)
-			return m, m.initStep(m.step)
-		}
-	}
-	return m, nil
-}
 
 // handleStepInput dispatches input handling based on the current step.
 func (m *WizardModel) handleStepInput(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -1094,15 +1075,6 @@ func (m *WizardModel) View() string {
 	b.WriteString(ProgressBar(m.step, m.total))
 	b.WriteString("\n\n")
 
-	if m.done {
-		// Refinement 1: When done, show the confirmation prompt (summary already shown in step 15)
-		b.WriteString(ConfirmStyle.Render("  Press Enter to confirm and generate configs."))
-		b.WriteString("\n")
-		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • ctrl+q=quit"))
-		b.WriteString("\n")
-		return b.String()
-	}
-
 	stepInfo := getStepInfo(m.step)
 
 	// Render step content
@@ -1213,14 +1185,12 @@ func (m *WizardModel) renderStepContent() string {
 	case 1:
 		b.WriteString(renderWelcome(m))
 		return b.String()
-	case 15:
-		// Refinement 1: Show the summary directly when entering step 15
-		b.WriteString(renderStepTitle("Step 15: Summary & Confirm"))
+	case 16:
+		// Show the summary on step 16 (the summary step)
+		b.WriteString(renderStepTitle("Step 16: Summary & Confirm"))
 		b.WriteString(m.renderSummary())
 		b.WriteString("\n")
 		b.WriteString(ConfirmStyle.Render("  Press Enter to generate configs."))
-		b.WriteString("\n")
-		b.WriteString(HelpStyle.Render("  s=save answers & generate • esc=back • ctrl+q=quit"))
 		return b.String()
 	}
 
@@ -1307,6 +1277,9 @@ func (m *WizardModel) renderStepContent() string {
 				// Determine the label, placeholder, and help for this field
 				fieldLabel := field.label
 				fieldPlaceholder := field.placeholder
+				if field.placeholderFunc != nil {
+					fieldPlaceholder = field.placeholderFunc(m.config)
+				}
 				fieldHelp := field.help
 				// Override labels for Slack secret fields based on secrets backend
 				if m.step == 9 {
@@ -1422,6 +1395,9 @@ func (m *WizardModel) renderStepContent() string {
 				// Determine the label, placeholder, and help for this field
 				fieldLabel := field.label
 				fieldPlaceholder := field.placeholder
+				if field.placeholderFunc != nil {
+					fieldPlaceholder = field.placeholderFunc(m.config)
+				}
 				fieldHelp := field.help
 				// Override labels for GitHub secret fields based on secrets backend
 				if m.step == 8 {
@@ -1494,7 +1470,11 @@ func (m *WizardModel) renderNavigation(stepInfo *stepInfo) string {
 				hints = append(hints, "esc=back")
 			}
 		case modeNavigate:
-			hints = append(hints, "enter=next")
+			if m.step >= m.total {
+				hints = append(hints, "enter=generate")
+			} else {
+				hints = append(hints, "enter=next")
+			}
 			if m.step > 1 {
 				hints = append(hints, "esc=back")
 			}
@@ -1561,6 +1541,16 @@ func (m *WizardModel) renderSummary() string {
 		items = append(items, "  AI agent: disabled")
 	}
 	items = append(items, fmt.Sprintf("  GitHub repo creation: %v", cfg.GithubCreateRepo))
+	switch cfg.SecureExecDriver {
+	case "hd-driver-vault":
+		items = append(items, "  Secure exec: hd-driver-vault")
+		items = append(items, fmt.Sprintf("  Vault address: %s", cfg.SecureExecVaultAddr))
+		items = append(items, "  Vault auth: docker secrets (VAULT_ROLE_ID, VAULT_SECRET_ID)")
+	case "gcloud-secret":
+		items = append(items, "  Secure exec: gcloud-secret")
+	default:
+		items = append(items, "  Secure exec: disabled")
+	}
 	if cfg.GithubCreateRepo && !cfg.UseLocalCopy && cfg.ConfigRepoCloneAuth != "" && cfg.ConfigRepoCloneAuth != "none" {
 		items = append(items, fmt.Sprintf("  Clone auth method: %s", cfg.ConfigRepoCloneAuth))
 	}
@@ -1668,36 +1658,50 @@ func (m *WizardModel) validateCurrentStep() error {
 			if strings.TrimSpace(m.config.GitRemoteURL) == "" {
 				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
 			}
-			// Validate clone auth method (only when not using local copy)
-			if !m.config.UseLocalCopy {
-				auth := strings.TrimSpace(m.config.ConfigRepoCloneAuth)
-				switch auth {
-				case "none":
-					// No additional auth needed
-				case "pat":
-					if strings.TrimSpace(m.config.ConfigRepoPATValue) == "" {
-						return fmt.Errorf("PAT is required when clone auth is 'pat'")
-					}
-				case "github_app":
-					if strings.TrimSpace(m.config.ConfigRepoGHAppID) == "" {
-						return fmt.Errorf("GitHub App ID is required when clone auth is 'github_app'")
-					}
-					if strings.TrimSpace(m.config.ConfigRepoGHInstallID) == "" {
-						return fmt.Errorf("installation ID is required when clone auth is 'github_app'")
-					}
-					if strings.TrimSpace(m.config.ConfigRepoGHAppKey) == "" {
-						return fmt.Errorf("private key is required when clone auth is 'github_app'")
-					}
-				case "ssh":
-					if !strings.HasPrefix(m.config.GitRemoteURL, "git@") {
-						return fmt.Errorf("SSH remote URL must start with 'git@'")
-					}
-					if strings.TrimSpace(m.config.ConfigRepoSSHKey) == "" && strings.TrimSpace(m.config.ConfigRepoSSHFile) == "" {
-						return fmt.Errorf("either SSH key content or SSH key file path is required when clone auth is 'ssh'")
-					}
-				default:
-					return fmt.Errorf("invalid clone auth method %q (must be one of: none, pat, github_app, ssh)", auth)
+		}
+		if m.config.GithubCreateRepo && !m.config.UseLocalCopy {
+			driver := strings.TrimSpace(m.config.SecureExecDriver)
+			switch driver {
+			case "none":
+				// no secure-exec, no additional fields needed
+			case "hd-driver-vault":
+				if strings.TrimSpace(m.config.SecureExecVaultAddr) == "" {
+					return fmt.Errorf("vault server address is required when using hd-driver-vault")
 				}
+			case "gcloud-secret":
+			default:
+				return fmt.Errorf("invalid secure-exec driver %q (must be one of: none, hd-driver-vault, gcloud-secret)", driver)
+			}
+		}
+	case 15:
+		if m.config.GithubCreateRepo && !m.config.UseLocalCopy {
+			auth := strings.TrimSpace(m.config.ConfigRepoCloneAuth)
+			switch auth {
+			case "none":
+				// No additional auth needed
+			case "pat":
+				if strings.TrimSpace(m.config.ConfigRepoPATValue) == "" && strings.TrimSpace(m.config.ConfigRepoPATPath) == "" {
+					return fmt.Errorf("PAT value or secret path is required when clone auth is 'pat'")
+				}
+			case "github_app":
+				if strings.TrimSpace(m.config.ConfigRepoGHAppID) == "" {
+					return fmt.Errorf("GitHub App ID is required when clone auth is 'github_app'")
+				}
+				if strings.TrimSpace(m.config.ConfigRepoGHInstallID) == "" {
+					return fmt.Errorf("installation ID is required when clone auth is 'github_app'")
+				}
+				if strings.TrimSpace(m.config.ConfigRepoGHAppKey) == "" && strings.TrimSpace(m.config.ConfigRepoGHAppKeyPath) == "" {
+					return fmt.Errorf("private key or secret path is required when clone auth is 'github_app'")
+				}
+			case "ssh":
+				if !strings.HasPrefix(m.config.GitRemoteURL, "git@") {
+					return fmt.Errorf("SSH remote URL must start with 'git@'")
+				}
+				if strings.TrimSpace(m.config.ConfigRepoSSHKey) == "" && strings.TrimSpace(m.config.ConfigRepoSSHFile) == "" && strings.TrimSpace(m.config.ConfigRepoSSHKeyPath) == "" {
+					return fmt.Errorf("either SSH key content, SSH key file path, or secret path is required when clone auth is 'ssh'")
+				}
+			default:
+				return fmt.Errorf("invalid clone auth method %q (must be one of: none, pat, github_app, ssh)", auth)
 			}
 		}
 	}
