@@ -104,9 +104,6 @@ type WizardConfig struct {
 	// Secure execution settings
 	SecureExecDriver     string `yaml:"secure_exec_driver,omitempty"`      // none, hd-driver-vault, gcloud-secret
 	SecureExecVaultAddr  string `yaml:"secure_exec_vault_addr,omitempty"`   // VAULT_ADDR for vault driver
-	SecureExecVaultRoleID string `yaml:"secure_exec_vault_role_id,omitempty"` // VAULT_ROLE_ID for vault driver
-	SecureExecVaultSecretID string `yaml:"secure_exec_vault_secret_id,omitempty"` // VAULT_SECRET_ID for vault driver
-	SecureExecGcloudProjectID string `yaml:"secure_exec_gcloud_project_id,omitempty"` // GCP project ID for gcloud-secret driver
 
 	// Secure exec env vars map for docker-compose template (derived from the fields above)
 	SecureExecEnvVars map[string]string `yaml:"secure_exec_env_vars,omitempty"` // derived, for template
@@ -223,9 +220,8 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 // The output uses the exact env var names required by the daemon:
 //   - HD_SECURE_LOADER: path to the secure-exec driver
 //   - VAULT_ADDR: vault server address (for hd-driver-vault)
-//   - VAULT_ROLE_ID: vault role ID (for hd-driver-vault)
-//   - VAULT_SECRET_ID: vault secret ID (for hd-driver-vault)
-//   - GCLOUD_PROJECT_ID: GCP project ID (for gcloud-secret)
+//   - VAULT_ROLE_ID: docker-secret-file://role_id (hardcoded for vault driver)
+//   - VAULT_SECRET_ID: docker-secret-file://secret_id (hardcoded for vault driver)
 func (c *WizardConfig) BuildSecureExecEnvVars() map[string]string {
 	if c == nil || c.SecureExecDriver == "" || c.SecureExecDriver == "none" {
 		return nil
@@ -237,17 +233,10 @@ func (c *WizardConfig) BuildSecureExecEnvVars() map[string]string {
 		if c.SecureExecVaultAddr != "" {
 			m["VAULT_ADDR"] = c.SecureExecVaultAddr
 		}
-		if c.SecureExecVaultRoleID != "" {
-			m["VAULT_ROLE_ID"] = c.SecureExecVaultRoleID
-		}
-		if c.SecureExecVaultSecretID != "" {
-			m["VAULT_SECRET_ID"] = c.SecureExecVaultSecretID
-		}
+		m["VAULT_ROLE_ID"] = "docker-secret-file://role_id"
+		m["VAULT_SECRET_ID"] = "docker-secret-file://secret_id"
 	case "gcloud-secret":
 		m["HD_SECURE_LOADER"] = "./gcloud-secret"
-		if c.SecureExecGcloudProjectID != "" {
-			m["GCLOUD_PROJECT_ID"] = c.SecureExecGcloudProjectID
-		}
 	}
 	if len(m) == 0 {
 		return nil

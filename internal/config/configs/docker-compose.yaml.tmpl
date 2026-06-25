@@ -57,6 +57,11 @@ services:
       - {{ .ConfigDirAbs }}:/etc/honeydipper/config
 {{- end }}
 
+{{- if eq .SecureExecDriver "hd-driver-vault" }}
+    secrets:
+      - vault_role_id
+      - vault_secret_id
+{{- end }}
 {{- if eq .RedisMode "local" }}
     depends_on:
       - redis
@@ -76,6 +81,14 @@ services:
 
 volumes:
   redis-data:
+{{- end }}
+
+{{- if eq .SecureExecDriver "hd-driver-vault" }}
+secrets:
+  vault_role_id:
+    environment: VAULT_ROLE_ID
+  vault_secret_id:
+    environment: VAULT_SECRET_ID
 {{- end }}
 
 networks:

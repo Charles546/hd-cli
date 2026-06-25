@@ -147,12 +147,7 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.SecureExecDriver = value
 		case "secure_exec_vault_addr":
 			cfg.SecureExecVaultAddr = value
-		case "secure_exec_vault_role_id":
-			cfg.SecureExecVaultRoleID = value
-		case "secure_exec_vault_secret_id":
-			cfg.SecureExecVaultSecretID = value
-		case "secure_exec_gcloud_project_id":
-			cfg.SecureExecGcloudProjectID = value
+
 		}
 	case 15:
 		switch key {
