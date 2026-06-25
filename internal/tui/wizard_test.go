@@ -3491,7 +3491,7 @@ func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
 		t.Errorf("Installation ID placeholder = %q, want %q", m.textInputs[2].Placeholder, "hd-lookup:/secrets/data/project/gh_install_id")
 	}
 	// Index 3 = GH App key secret path
-	if m.textInputs[3].Placeholder != "hd-lookup:/secrets/data/project/gh_app_key" {
+	if m.textInputs[3].Placeholder != "/secrets/data/project/gh_app_key" {
 		t.Errorf("GH App key path placeholder = %q, want %q", m.textInputs[3].Placeholder, "hd-lookup:/secrets/data/project/gh_app_key")
 	}
 }
@@ -3517,7 +3517,7 @@ func TestStep15PlaceholderWithSecureExecGcloud(t *testing.T) {
 		t.Errorf("SSH key file placeholder = %q, want %q", m.textInputs[1].Placeholder, "/home/user/.ssh/id_rsa")
 	}
 	// Index 3 = SSH key secret path
-	if m.textInputs[3].Placeholder != "hd-lookup:/secrets/data/project/ssh_key" {
+	if m.textInputs[3].Placeholder != "/secrets/data/project/ssh_key" {
 		t.Errorf("SSH key path placeholder = %q, want %q", m.textInputs[3].Placeholder, "hd-lookup:/secrets/data/project/ssh_key")
 	}
 }
@@ -3559,7 +3559,7 @@ func TestStep15SecureExecSecretPathFieldsVisible(t *testing.T) {
 		t.Fatalf("expected 3 text inputs for step 15 with pat + secure-exec, got %d", len(m.textInputs))
 	}
 	// Index 2 = PAT secret path (PAT value field is still shown at index 1)
-	if m.textInputs[2].Placeholder != "hd-lookup:/secrets/data/project/pat" {
+	if m.textInputs[2].Placeholder != "/secrets/data/project/pat" {
 		t.Errorf("PAT secret path placeholder = %q, want %q", m.textInputs[2].Placeholder, "hd-lookup:/secrets/data/project/pat")
 	}
 }

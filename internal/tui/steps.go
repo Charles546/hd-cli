@@ -169,11 +169,11 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 		case "config_repo_ssh_key_pass_env":
 			cfg.ConfigRepoSSHKeyPassEnv = value
 		case "config_repo_pat_path":
-			cfg.ConfigRepoPATPath = value
+			cfg.ConfigRepoPATPath = prependHDLookup(value)
 		case "config_repo_gh_app_key_path":
-			cfg.ConfigRepoGHAppKeyPath = value
+			cfg.ConfigRepoGHAppKeyPath = prependHDLookup(value)
 		case "config_repo_ssh_key_path":
-			cfg.ConfigRepoSSHKeyPath = value
+			cfg.ConfigRepoSSHKeyPath = prependHDLookup(value)
 		}
 	}
 
@@ -241,6 +241,17 @@ func StepHelp(step int) string {
 		return h
 	}
 	return ""
+}
+
+// prependHDLookup prepends "hd-lookup:" to a value if it doesn't already
+// have the prefix. This allows users to type just the secret path while
+// the code stores the full hd-lookup: reference.
+func prependHDLookup(value string) string {
+	v := strings.TrimSpace(value)
+	if v == "" || strings.HasPrefix(v, "hd-lookup:") {
+		return v
+	}
+	return "hd-lookup:" + v
 }
 
 // ValidateStepComplete checks if a step has all required data.
