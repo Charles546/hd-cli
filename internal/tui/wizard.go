@@ -1568,11 +1568,67 @@ func (m *WizardModel) validateCurrentStep() error {
 		if strings.TrimSpace(m.config.ProjectName) == "" {
 			return fmt.Errorf("project name is required")
 		}
-	case 3:
 		if strings.TrimSpace(m.config.ConfigDir) == "" {
 			return fmt.Errorf("config directory is required")
 		}
+	case 3:
+		if m.config.DeploymentMode == "" {
+			return fmt.Errorf("deployment mode is required")
+		}
+		if m.config.DeploymentMode != "docker" && m.config.DeploymentMode != "source" && m.config.DeploymentMode != "kubernetes" {
+			return fmt.Errorf("invalid deployment mode: %s", m.config.DeploymentMode)
+		}
+	case 4:
+		if m.config.GithubCreateRepo {
+			if strings.TrimSpace(m.config.GitRemoteURL) == "" {
+				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
+			}
+		}
+	case 5:
+		if m.config.GithubCreateRepo && !m.config.UseLocalCopy {
+			driver := strings.TrimSpace(m.config.SecureExecDriver)
+			switch driver {
+			case "none":
+			case "hd-driver-vault":
+				if strings.TrimSpace(m.config.SecureExecVaultAddr) == "" {
+					return fmt.Errorf("vault server address is required when using hd-driver-vault")
+				}
+			case "gcloud-secret":
+			default:
+				return fmt.Errorf("invalid secure-exec driver %q (must be one of: none, hd-driver-vault, gcloud-secret)", driver)
+			}
+		}
 	case 6:
+		if m.config.GithubCreateRepo && !m.config.UseLocalCopy {
+			auth := strings.TrimSpace(m.config.ConfigRepoCloneAuth)
+			switch auth {
+			case "none":
+			case "pat":
+				if strings.TrimSpace(m.config.ConfigRepoPATValue) == "" && strings.TrimSpace(m.config.ConfigRepoPATPath) == "" {
+					return fmt.Errorf("PAT is required when clone auth is 'pat'")
+				}
+			case "github_app":
+				if strings.TrimSpace(m.config.ConfigRepoGHAppID) == "" {
+					return fmt.Errorf("GitHub App ID is required when clone auth is 'github_app'")
+				}
+				if strings.TrimSpace(m.config.ConfigRepoGHInstallID) == "" {
+					return fmt.Errorf("installation ID is required when clone auth is 'github_app'")
+				}
+				if strings.TrimSpace(m.config.ConfigRepoGHAppKey) == "" && strings.TrimSpace(m.config.ConfigRepoGHAppKeyPath) == "" {
+					return fmt.Errorf("private key is required when clone auth is 'github_app'")
+				}
+			case "ssh":
+				if !strings.HasPrefix(m.config.GitRemoteURL, "git@") {
+					return fmt.Errorf("SSH remote URL must start with 'git@'")
+				}
+				if strings.TrimSpace(m.config.ConfigRepoSSHKey) == "" && strings.TrimSpace(m.config.ConfigRepoSSHFile) == "" && strings.TrimSpace(m.config.ConfigRepoSSHKeyPath) == "" {
+					return fmt.Errorf("either SSH key content or SSH key file path is required when clone auth is 'ssh'")
+				}
+			default:
+				return fmt.Errorf("invalid clone auth method %q (must be one of: none, pat, github_app, ssh)", auth)
+			}
+		}
+	case 7:
 		if m.config.SecretsBackend == "" {
 			return fmt.Errorf("secrets backend selection is required")
 		}

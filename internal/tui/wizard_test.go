@@ -841,9 +841,9 @@ func TestDoneScreenEscGoesBack(t *testing.T) {
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-	// Esc on step 15 (summary) should go back to step 14
-	if m.step != 4 {
-		t.Errorf("should be on step 14 after esc on step 15, got %d", m.step)
+	// Esc on step 15 (summary) should go back to step 12 (docker mode)
+	if m.step != 12 {
+		t.Errorf("should be on step 12 after esc on step 15, got %d", m.step)
 	}
 }
 
@@ -2368,17 +2368,10 @@ func TestStep14TextInputModeTabNavigation(t *testing.T) {
 		m, _ = updateWizard(m, msg)
 	}
 
-	// Tab to secure-exec driver field
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-
-	// Tab to clone auth (default is "none" so no need to type)
-	// Actually, the clone auth field is on step 11, not step 4.
-	// Step 14 has: git remote URL, secure-exec driver, and vault/gcloud fields (conditional).
-	// With default "none" driver, only git remote URL and secure-exec driver are visible.
-	// Press Enter on last field — should advance.
+	// Press Enter on the text input - should advance to step 5
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 15 {
-		t.Errorf("step = %d, want 15", m.step)
+	if m.step != 5 {
+		t.Errorf("step = %d, want 5", m.step)
 	}
 	if m.validationErr != "" {
 		t.Errorf("expected no validation error, got: %s", m.validationErr)
@@ -2417,8 +2410,8 @@ func TestStep14NoCheckboxesNoAdvance(t *testing.T) {
 
 	// Initially only 1 visible checkbox: "Create GitHub repo" (checkbox 0)
 	// "Use local copy" is hidden because GithubCreateRepo is false
-	if m.visibleCheckboxCount(getStepInfo(14)) != 1 {
-		t.Fatalf("visibleCheckboxCount = %d, want 1", m.visibleCheckboxCount(getStepInfo(14)))
+	if m.visibleCheckboxCount(getStepInfo(4)) != 1 {
+		t.Fatalf("visibleCheckboxCount = %d, want 1", m.visibleCheckboxCount(getStepInfo(4)))
 	}
 
 	// Press Enter: toggles GithubCreateRepo on, moves to next checkbox
@@ -2493,9 +2486,9 @@ func TestStep14EscOnFirstCheckboxGoesBack(t *testing.T) {
 	// Press Esc
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-	// Should go back to previous required step (step 14 for docker mode)
-	if m.step != 11 {
-		t.Errorf("step = %d, want 11", m.step)
+	// Should go back to previous required step (step 3)
+	if m.step != 3 {
+		t.Errorf("step = %d, want 3", m.step)
 	}
 }
 
@@ -2512,15 +2505,12 @@ func TestStep14GitRemoteURLRequiredWhenCreateRepoAndNoLocalCopy(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
 
-	// Tab to clone auth field (still no values filled)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-
-	// Press Enter on last text field - should trigger validation error
+	// Press Enter on the text input - should trigger validation error
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	// Should NOT advance - should show validation error for empty git remote URL
 	if m.step != 4 {
-		t.Errorf("step = %d, want 14 (should not advance with empty git remote URL)", m.step)
+		t.Errorf("step = %d, want 4 (should not advance with empty git remote URL)", m.step)
 	}
 	if m.validationErr == "" {
 		t.Error("expected validation error for empty git remote URL")
@@ -2548,13 +2538,10 @@ func TestStep14GitRemoteURLValidationPasses(t *testing.T) {
 		m, _ = updateWizard(m, msg)
 	}
 
-	// Tab to clone auth (default is "none" so no need to type)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-
-	// Press Enter — should advance
+	// Press Enter — should advance to step 5
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 15 {
-		t.Errorf("step = %d, want 15", m.step)
+	if m.step != 5 {
+		t.Errorf("step = %d, want 5", m.step)
 	}
 	if m.validationErr != "" {
 		t.Errorf("expected no validation error, got: %s", m.validationErr)
@@ -2713,8 +2700,8 @@ func TestStep14TabNavigatesBetweenCheckboxes(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
 	// Since only 1 checkbox is visible and no text inputs, Tab should advance
-	if m.step != 15 {
-		t.Errorf("step = %d, want 15 (Tab on single checkbox with no text inputs should advance)", m.step)
+	if m.step != 5 {
+		t.Errorf("step = %d, want 5 (Tab on single checkbox with no text inputs should advance)", m.step)
 	}
 }
 
@@ -2806,8 +2793,8 @@ func TestStep6EnterOnVaultSwitchesToTextInput(t *testing.T) {
 	if m.mode != modeTextInput {
 		t.Errorf("mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
 	}
-	if m.step != 6 {
-		t.Errorf("step = %d, want 6 (should not advance)", m.step)
+	if m.step != 7 {
+		t.Errorf("step = %d, want 7 (should not advance)", m.step)
 	}
 	if !m.textInput.Focused() {
 		t.Error("text input should be focused after switching to text input mode")
@@ -2826,9 +2813,9 @@ func TestStep6EnterOnDevAdvances(t *testing.T) {
 	// Press Enter
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	// Should have advanced to step 11
-	if m.step != 7 {
-		t.Errorf("step = %d, want 7", m.step)
+	// Should have advanced to step 8
+	if m.step != 8 {
+		t.Errorf("step = %d, want 8", m.step)
 	}
 }
 
@@ -2839,8 +2826,8 @@ func TestStep6RadioRebuildsOnArrowKey(t *testing.T) {
 	m = runInitStep(m, 7)
 
 	// Default "vault" (index 0) — 2 text inputs
-	if len(m.textInputs) != 1 {
-		t.Errorf("default textInputs count = %d, want 1", len(m.textInputs))
+	if len(m.textInputs) != 2 {
+		t.Errorf("default textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Move down to "dev" (index 1)
@@ -2851,8 +2838,8 @@ func TestStep6RadioRebuildsOnArrowKey(t *testing.T) {
 
 	// Move back up to "vault" (index 0)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
-	if len(m.textInputs) != 1 {
-		t.Errorf("after back to vault textInputs count = %d, want 1", len(m.textInputs))
+	if len(m.textInputs) != 2 {
+		t.Errorf("after back to vault textInputs count = %d, want 2", len(m.textInputs))
 	}
 }
 
@@ -3028,8 +3015,8 @@ func TestStep10EnterOnYesSwitchesToTextInput(t *testing.T) {
 	if m.mode != modeTextInput {
 		t.Errorf("mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
 	}
-	if m.step != 10 {
-		t.Errorf("step = %d, want 10 (should not advance)", m.step)
+	if m.step != 11 {
+		t.Errorf("step = %d, want 11 (should not advance)", m.step)
 	}
 	if !m.textInput.Focused() {
 		t.Error("text input should be focused after switching to text input mode")
@@ -3045,9 +3032,9 @@ func TestStep10EnterOnNoAdvances(t *testing.T) {
 	// Default is "no" (index 1), press Enter
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	// Should have advanced to next required step (step 14 for docker mode)
-	if m.step != 11 {
-		t.Errorf("step = %d, want 11", m.step)
+	// Should have advanced to next required step (step 12 for docker mode)
+	if m.step != 12 {
+		t.Errorf("step = %d, want 12", m.step)
 	}
 }
 
@@ -3139,8 +3126,8 @@ func TestStep10ConditionalFieldTabNavigation(t *testing.T) {
 
 	// Press Enter on last field — should advance to next step
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 11 {
-		t.Errorf("step = %d, want 11", m.step)
+	if m.step != 12 {
+		t.Errorf("step = %d, want 12", m.step)
 	}
 
 	// Verify all values were saved
@@ -3198,7 +3185,7 @@ func TestStep15CloneAuthPAT(t *testing.T) {
 	// Now set the PAT value (env var reference)
 	cfg.ConfigRepoPATValue = "$MY_PAT"
 	m2 := NewWizard(cfg)
-	m2 = runInitStep(m2, 15)
+	m2 = runInitStep(m2, 6)
 
 	err = m2.validateCurrentStep()
 	if err != nil {
@@ -3208,7 +3195,7 @@ func TestStep15CloneAuthPAT(t *testing.T) {
 	// Also test with raw PAT value
 	cfg.ConfigRepoPATValue = "ghp_xxxxx"
 	m3 := NewWizard(cfg)
-	m3 = runInitStep(m3, 15)
+	m3 = runInitStep(m3, 6)
 
 	err = m3.validateCurrentStep()
 	if err != nil {
@@ -3234,7 +3221,7 @@ func TestStep15CloneAuthGitHubApp(t *testing.T) {
 	// Set ID but missing others
 	cfg.ConfigRepoGHAppID = "12345"
 	m2 := NewWizard(cfg)
-	m2 = runInitStep(m2, 15)
+	m2 = runInitStep(m2, 6)
 	err = m2.validateCurrentStep()
 	if err == nil {
 		t.Error("validateCurrentStep should fail without Installation ID")
@@ -3243,7 +3230,7 @@ func TestStep15CloneAuthGitHubApp(t *testing.T) {
 	// Set ID and Installation ID but missing key
 	cfg.ConfigRepoGHInstallID = "67890"
 	m3 := NewWizard(cfg)
-	m3 = runInitStep(m3, 15)
+	m3 = runInitStep(m3, 6)
 	err = m3.validateCurrentStep()
 	if err == nil {
 		t.Error("validateCurrentStep should fail without Private Key")
@@ -3252,7 +3239,7 @@ func TestStep15CloneAuthGitHubApp(t *testing.T) {
 	// Set all fields
 	cfg.ConfigRepoGHAppKey = "fake-key-content"
 	m4 := NewWizard(cfg)
-	m4 = runInitStep(m4, 14)
+	m4 = runInitStep(m4, 6)
 	err = m4.validateCurrentStep()
 	if err != nil {
 		t.Errorf("validateCurrentStep should pass with all github_app fields, got: %v", err)
@@ -3281,7 +3268,7 @@ func TestStep15CloneAuthSSH(t *testing.T) {
 	// Fix URL but no key or file
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	m2 := NewWizard(cfg)
-	m2 = runInitStep(m2, 15)
+	m2 = runInitStep(m2, 6)
 	err = m2.validateCurrentStep()
 	if err == nil {
 		t.Error("validateCurrentStep should fail without SSH key or file")
@@ -3290,7 +3277,7 @@ func TestStep15CloneAuthSSH(t *testing.T) {
 	// Set SSH key content
 	cfg.ConfigRepoSSHKey = "fake-ssh-key"
 	m3 := NewWizard(cfg)
-	m3 = runInitStep(m3, 15)
+	m3 = runInitStep(m3, 6)
 	err = m3.validateCurrentStep()
 	if err != nil {
 		t.Errorf("validateCurrentStep should pass with SSH key, got: %v", err)
@@ -3300,7 +3287,7 @@ func TestStep15CloneAuthSSH(t *testing.T) {
 	cfg.ConfigRepoSSHKey = ""
 	cfg.ConfigRepoSSHFile = "/home/user/.ssh/id_rsa"
 	m4 := NewWizard(cfg)
-	m4 = runInitStep(m4, 14)
+	m4 = runInitStep(m4, 6)
 	err = m4.validateCurrentStep()
 	if err != nil {
 		t.Errorf("validateCurrentStep should pass with SSH key file, got: %v", err)
@@ -3313,6 +3300,7 @@ func TestStep15CloneAuthInvalid(t *testing.T) {
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.GithubCreateRepo = true
 	cfg.ConfigRepoCloneAuth = "invalid_auth"
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
@@ -3369,7 +3357,7 @@ func TestStep15CloneAuthConditionalFieldsVisible(t *testing.T) {
 	m = runInitStep(m, 6)
 
 	// The clone auth field and PAT field should be visible
-	stepInfo := getStepInfo(15)
+	stepInfo := getStepInfo(6)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
 		if field.condition == nil || field.condition(m.config) {
@@ -3393,7 +3381,7 @@ func TestStep15CloneAuthSSHFieldsVisible(t *testing.T) {
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
 
-	stepInfo := getStepInfo(15)
+	stepInfo := getStepInfo(6)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
 		if field.condition == nil || field.condition(m.config) {
@@ -3417,7 +3405,7 @@ func TestStep15CloneAuthHiddenForLocalCopy(t *testing.T) {
 	m := NewWizard(cfg)
 	m = runInitStep(m, 4)
 
-	stepInfo := getStepInfo(14)
+	stepInfo := getStepInfo(4)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
 		if field.condition == nil || field.condition(m.config) {
@@ -3631,7 +3619,7 @@ func TestStep15SecureExecFieldsHiddenWithoutDriver(t *testing.T) {
 	cfg.SecureExecDriver = "none"
 	cfg.ConfigRepoCloneAuth = "pat"
 
-	stepInfo := getStepInfo(15)
+	stepInfo := getStepInfo(6)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
 		if field.condition == nil || field.condition(cfg) {
