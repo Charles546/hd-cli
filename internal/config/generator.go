@@ -21,6 +21,13 @@ import (
 	"github.com/Charles546/hd-cli/internal/util"
 )
 
+// Essentials repo constants (hardcoded, no longer user-configurable in wizard)
+const (
+	essentialsRepoURL      = "https://github.com/honeydipper/honeydipper-config-essentials.git"
+	essentialsBranch       = "v4-rc"
+	essentialsCloneType    = "none"
+)
+
 // Generator renders Honeydipper config files from templates using a WizardConfig.
 type Generator struct {
 	templates *template.Template
@@ -85,6 +92,12 @@ func (g *Generator) Generate(cfg *WizardConfig, outputDir string, dryRun bool) e
 
 	// Apply defaults for any missing values
 	applyDefaults(cfg)
+
+	// Hardcode essentials repo config (no longer user-configurable)
+	cfg.EssentialsRepoURL = essentialsRepoURL
+	cfg.EssentialsBranch = essentialsBranch
+	cfg.EssentialsCloneType = essentialsCloneType
+	cfg.BootstrapCloneCredentialType = essentialsCloneType
 
 	// Populate DevEnvVars for dev mode docker-compose env passthrough
 	if cfg.SecretsBackend == "dev" {
@@ -298,17 +311,8 @@ func applyDefaults(cfg *WizardConfig) {
 	if cfg.DeploymentMode == "" {
 		cfg.DeploymentMode = def.DeploymentMode
 	}
-	if cfg.EssentialsRepoURL == "" {
-		cfg.EssentialsRepoURL = def.EssentialsRepoURL
-	}
-	if cfg.EssentialsBranch == "" {
-		cfg.EssentialsBranch = def.EssentialsBranch
-	}
 	if cfg.BootstrapCloneCredentialType == "" {
 		cfg.BootstrapCloneCredentialType = def.BootstrapCloneCredentialType
-	}
-	if cfg.EssentialsCloneType == "" {
-		cfg.EssentialsCloneType = def.EssentialsCloneType
 	}
 	if cfg.SecretsBackend == "" {
 		cfg.SecretsBackend = def.SecretsBackend

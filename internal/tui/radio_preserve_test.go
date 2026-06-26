@@ -20,22 +20,22 @@ import (
 func TestRadioSelectionPreservedOnReenter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 4)
+	m = runInitStep(m, 3)
 
 	if m.radioIndex != 0 {
 		t.Fatalf("initial radioIndex = %d, want 0 (docker)", m.radioIndex)
 	}
 
-	// Advance to step 5
+	// Advance to step 4
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 5 {
-		t.Fatalf("after Enter: step = %d, want 5", m.step)
+	if m.step != 4 {
+		t.Fatalf("after Enter: step = %d, want 4", m.step)
 	}
 
-	// Go back to step 4
+	// Go back to step 3
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.step != 4 {
-		t.Fatalf("after Esc: step = %d, want 4", m.step)
+	if m.step != 3 {
+		t.Fatalf("after Esc: step = %d, want 3", m.step)
 	}
 
 	if m.radioIndex != 0 {
@@ -51,7 +51,7 @@ func TestRadioSelectionPreservedOnReenter(t *testing.T) {
 func TestRadioSelectionChangePreservedOnReenter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 4)
+	m = runInitStep(m, 3)
 
 	// Change to "source" (index 1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
@@ -59,16 +59,16 @@ func TestRadioSelectionChangePreservedOnReenter(t *testing.T) {
 		t.Fatalf("after Down: radioIndex = %d, want 1 (source)", m.radioIndex)
 	}
 
-	// Advance to step 5
+	// Advance to step 4
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 5 {
-		t.Fatalf("after Enter: step = %d, want 5", m.step)
+	if m.step != 4 {
+		t.Fatalf("after Enter: step = %d, want 4", m.step)
 	}
 
-	// Go back to step 4
+	// Go back to step 3
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.step != 4 {
-		t.Fatalf("after Esc: step = %d, want 4", m.step)
+	if m.step != 3 {
+		t.Fatalf("after Esc: step = %d, want 3", m.step)
 	}
 
 	if m.radioIndex != 1 {
@@ -84,7 +84,7 @@ func TestRadioSelectionChangePreservedOnReenter(t *testing.T) {
 func TestRadioSelectionRevertedOnEsc(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	// Default is "vault" (index 0)
 	if m.radioIndex != 0 {
@@ -102,8 +102,8 @@ func TestRadioSelectionRevertedOnEsc(t *testing.T) {
 
 	// Press Esc without committing — should revert to "vault"
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.step != 5 {
-		t.Fatalf("after Esc: step = %d, want 5", m.step)
+	if m.step != 6 {
+		t.Fatalf("after Esc: step = %d, want 6", m.step)
 	}
 
 	// Config should be reverted
@@ -111,13 +111,14 @@ func TestRadioSelectionRevertedOnEsc(t *testing.T) {
 		t.Errorf("after Esc: SecretsBackend = %q, want %q (reverted)", m.config.SecretsBackend, "vault")
 	}
 
-	// Navigate forward through step 5 (multi-field: 3 visible fields) to reach step 6
-	// Step 5 has fields: EssentialsRepoURL, Branch, EssentialsCloneType (3 visible with default "none")
-	for m.step == 5 {
+	// Navigate forward through step 6 (clone auth) to reach step 7
+	// Step 6 has fields visible when GithubCreateRepo && !UseLocalCopy
+	// With default config (GithubCreateRepo=false), no fields are visible
+	for m.step == 6 {
 		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 	}
-	if m.step != 6 {
-		t.Fatalf("after navigating through step 5: step = %d, want 6", m.step)
+	if m.step != 7 {
+		t.Fatalf("after navigating through step 6: step = %d, want 7", m.step)
 	}
 
 	// Selection should be "vault" (the original value)
@@ -134,7 +135,7 @@ func TestRadioSelectionRevertedOnEsc(t *testing.T) {
 func TestRadioSelectionCommittedOnEnter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	// Default is "vault" (index 0)
 	if m.radioIndex != 0 {
@@ -147,19 +148,19 @@ func TestRadioSelectionCommittedOnEnter(t *testing.T) {
 		t.Fatalf("after Down: radioIndex = %d, want 1 (dev)", m.radioIndex)
 	}
 
-	// Press Enter to commit — "dev" has no conditional fields, advances to step 7
+	// Press Enter to commit — "dev" has no conditional fields, advances to step 8
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 7 {
-		t.Fatalf("after Enter: step = %d, want 7", m.step)
+	if m.step != 8 {
+		t.Fatalf("after Enter: step = %d, want 8", m.step)
 	}
 	if m.config.SecretsBackend != "dev" {
 		t.Fatalf("after Enter: SecretsBackend = %q, want %q", m.config.SecretsBackend, "dev")
 	}
 
-	// Go back to step 6
+	// Go back to step 7
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.step != 6 {
-		t.Fatalf("after Esc: step = %d, want 6", m.step)
+	if m.step != 7 {
+		t.Fatalf("after Esc: step = %d, want 7", m.step)
 	}
 
 	// Selection should be "dev" (committed)
@@ -176,18 +177,18 @@ func TestRadioSelectionCommittedOnEnter(t *testing.T) {
 func TestStep6RadioDevAdvancesThenEscPreserves(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	if m.step != 7 {
-		t.Fatalf("expected step 7, got %d", m.step)
+	if m.step != 8 {
+		t.Fatalf("expected step 8, got %d", m.step)
 	}
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.step != 6 {
-		t.Fatalf("expected step 6, got %d", m.step)
+	if m.step != 7 {
+		t.Fatalf("expected step 7, got %d", m.step)
 	}
 
 	if m.radioIndex != 1 {
@@ -203,7 +204,7 @@ func TestStep6RadioDevAdvancesThenEscPreserves(t *testing.T) {
 func TestStep10RadioSelectionPreservedOnReenter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 10)
+	m = runInitStep(m, 11)
 
 	if m.radioIndex != 1 {
 		t.Fatalf("initial radioIndex = %d, want 1 (no)", m.radioIndex)
@@ -212,8 +213,8 @@ func TestStep10RadioSelectionPreservedOnReenter(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-	if m.step != 10 {
-		t.Fatalf("expected step 10, got %d", m.step)
+	if m.step != 11 {
+		t.Fatalf("expected step 11, got %d", m.step)
 	}
 	if m.radioIndex != 1 {
 		t.Errorf("radioIndex = %d, want 1 (no)", m.radioIndex)
@@ -225,7 +226,7 @@ func TestStep10RadioSelectionPreservedOnReenter(t *testing.T) {
 func TestStep14CheckboxStatePreservedOnReenter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Default: GithubCreateRepo=false, checkboxIndex=0, mode=modeCheckboxSelect
 	if m.config.GithubCreateRepo {
@@ -257,14 +258,14 @@ func TestStep14CheckboxStatePreservedOnReenter(t *testing.T) {
 
 	// Tab to advance to next step
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	if m.step != 15 {
-		t.Fatalf("expected step 15, got %d", m.step)
+	if m.step != 5 {
+		t.Fatalf("expected step 5, got %d", m.step)
 	}
 
-	// Go back to step 14
+	// Go back to step 4
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.step != 14 {
-		t.Fatalf("expected step 14, got %d", m.step)
+	if m.step != 4 {
+		t.Fatalf("expected step 4, got %d", m.step)
 	}
 
 	// Checkbox state should be preserved
@@ -281,7 +282,7 @@ func TestStep14CheckboxStatePreservedOnReenter(t *testing.T) {
 func TestStep14CheckboxVisibleInTextInputModeFromRadioPreserve(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
@@ -314,7 +315,7 @@ func TestStep14CheckboxVisibleInTextInputModeFromRadioPreserve(t *testing.T) {
 func TestStep14AllConditionalFieldsRenderAsInputs(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
@@ -351,7 +352,7 @@ func TestStep14AllConditionalFieldsRenderAsInputs(t *testing.T) {
 func TestRadioSelectionChangeThenAdvanceMultipleStepsAndReturn(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 4)
+	m = runInitStep(m, 3)
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
@@ -361,8 +362,8 @@ func TestRadioSelectionChangeThenAdvanceMultipleStepsAndReturn(t *testing.T) {
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	if m.step > 4 {
-		for m.step > 4 {
+	if m.step > 3 {
+		for m.step > 3 {
 			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 		}
 	}
@@ -380,7 +381,7 @@ func TestRadioSelectionChangeThenAdvanceMultipleStepsAndReturn(t *testing.T) {
 func TestStep6VaultFieldsFilledThenNavigateBackAndForth(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	// Select vault and switch to text input
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
@@ -398,14 +399,14 @@ func TestStep6VaultFieldsFilledThenNavigateBackAndForth(t *testing.T) {
 
 	// Advance
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 7 {
-		t.Fatalf("expected step 7, got %d", m.step)
+	if m.step != 8 {
+		t.Fatalf("expected step 8, got %d", m.step)
 	}
 
 	// Go back
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.step != 6 {
-		t.Fatalf("expected step 6, got %d", m.step)
+	if m.step != 7 {
+		t.Fatalf("expected step 7, got %d", m.step)
 	}
 
 	if m.radioIndex != 0 {
@@ -424,7 +425,7 @@ func TestStep6VaultFieldsFilledThenNavigateBackAndForth(t *testing.T) {
 func TestStep6RadioViewShowsSelectionOnReenter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
@@ -442,7 +443,7 @@ func TestStep6RadioViewShowsSelectionOnReenter(t *testing.T) {
 func TestStep10RadioChangeToYesThenBackPreserves(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 10)
+	m = runInitStep(m, 11)
 
 	// Change from "no" to "yes"
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
@@ -474,14 +475,14 @@ func TestStep10RadioChangeToYesThenBackPreserves(t *testing.T) {
 
 	// Advance
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 11 {
-		t.Fatalf("expected step 11, got %d", m.step)
+	if m.step != 12 {
+		t.Fatalf("expected step 12, got %d", m.step)
 	}
 
 	// Go back
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.step != 10 {
-		t.Fatalf("expected step 10, got %d", m.step)
+	if m.step != 11 {
+		t.Fatalf("expected step 11, got %d", m.step)
 	}
 
 	if m.radioIndex != 0 {
@@ -497,7 +498,7 @@ func TestStep10RadioChangeToYesThenBackPreserves(t *testing.T) {
 func TestRadioSelectionChangeOnReenter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 4)
+	m = runInitStep(m, 3)
 
 	// Advance and come back
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
@@ -523,7 +524,7 @@ func TestRadioSelectionChangeOnReenter(t *testing.T) {
 func TestStep7RadioSelectionPreservedOnReenter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 7)
+	m = runInitStep(m, 8)
 
 	// Default is "local" (index 0)
 	if m.radioIndex != 0 {
@@ -536,8 +537,8 @@ func TestStep7RadioSelectionPreservedOnReenter(t *testing.T) {
 	// Go back
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-	if m.step != 7 {
-		t.Fatalf("expected step 7, got %d", m.step)
+	if m.step != 8 {
+		t.Fatalf("expected step 8, got %d", m.step)
 	}
 	if m.radioIndex != 0 {
 		t.Errorf("radioIndex = %d, want 0 (local)", m.radioIndex)
@@ -550,7 +551,7 @@ func TestStep7RadioSelectionPreservedOnReenter(t *testing.T) {
 func TestStep7RadioChangeToExternalThenBack(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 7)
+	m = runInitStep(m, 8)
 
 	// Change to "external"
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
@@ -570,14 +571,14 @@ func TestStep7RadioChangeToExternalThenBack(t *testing.T) {
 
 	// Advance
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 8 {
-		t.Fatalf("expected step 8, got %d", m.step)
+	if m.step != 9 {
+		t.Fatalf("expected step 9, got %d", m.step)
 	}
 
 	// Go back
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.step != 7 {
-		t.Fatalf("expected step 7, got %d", m.step)
+	if m.step != 8 {
+		t.Fatalf("expected step 8, got %d", m.step)
 	}
 
 	if m.radioIndex != 1 {
@@ -597,7 +598,7 @@ func TestStep7RadioChangeToExternalThenBack(t *testing.T) {
 func TestRadioEscRevertThenReenterOriginal(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	// Verify initial: "vault" (index 0)
 	if m.radioIndex != 0 {
@@ -612,8 +613,8 @@ func TestRadioEscRevertThenReenterOriginal(t *testing.T) {
 
 	// Press Esc to go back (reverts config)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.step != 5 {
-		t.Fatalf("after Esc: step = %d, want 5", m.step)
+	if m.step != 6 {
+		t.Fatalf("after Esc: step = %d, want 6", m.step)
 	}
 
 	// Config should be reverted to "vault"
@@ -621,12 +622,12 @@ func TestRadioEscRevertThenReenterOriginal(t *testing.T) {
 		t.Errorf("config.SecretsBackend = %q, want %q (reverted)", m.config.SecretsBackend, "vault")
 	}
 
-	// Navigate forward through step 5 (multi-field) to reach step 6
-	for m.step == 5 {
+	// Navigate forward through step 6 (clone auth) to reach step 7
+	for m.step == 6 {
 		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 	}
-	if m.step != 6 {
-		t.Fatalf("after navigating through step 5: step = %d, want 6", m.step)
+	if m.step != 7 {
+		t.Fatalf("after navigating through step 6: step = %d, want 7", m.step)
 	}
 
 	// Selection should be "vault" (the original value)
@@ -646,7 +647,7 @@ func TestRadioEscRevertThenReenterOriginal(t *testing.T) {
 func TestRadioMultipleArrowPressesThenEscRevert(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 4)
+	m = runInitStep(m, 3)
 
 	// Default is "docker" (index 0)
 	if m.radioIndex != 0 {
@@ -669,10 +670,15 @@ func TestRadioMultipleArrowPressesThenEscRevert(t *testing.T) {
 		t.Errorf("after Esc: DeploymentMode = %q, want %q (reverted)", m.config.DeploymentMode, "docker")
 	}
 
-	// Navigate forward again
+	// Navigate forward again (step 2 is now multi-field: 2 fields with defaults)
+	// Press Enter to move through both fields
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 4 {
-		t.Fatalf("after Enter: step = %d, want 4", m.step)
+	if m.step == 2 {
+		// Still on step 2, press Enter again for second field
+		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	}
+	if m.step != 3 {
+		t.Fatalf("after Enter: step = %d, want 3", m.step)
 	}
 
 	// Selection should be "docker" (the original value)
@@ -689,7 +695,7 @@ func TestRadioMultipleArrowPressesThenEscRevert(t *testing.T) {
 func TestStep10RadioSelectionVisibleAfterEnter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 10)
+	m = runInitStep(m, 11)
 
 	// Default is "no" (index 1)
 	if m.radioIndex != 1 {
@@ -728,12 +734,12 @@ func TestStep10RadioSelectionVisibleAfterEnter(t *testing.T) {
 	}
 }
 
-// TestStep6RadioSelectionVisibleAfterEnter verifies that on step 6 (vault),
+// TestStep7SecretsRadioSelectionVisibleAfterEnter verifies that on step 7 (vault),
 // pressing Enter to switch to text input mode preserves the radio display.
-func TestStep6RadioSelectionVisibleAfterEnter(t *testing.T) {
+func TestStep7SecretsRadioSelectionVisibleAfterEnter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	// Default is "vault" (index 0)
 	if m.radioIndex != 0 {
@@ -763,10 +769,10 @@ func TestStep6RadioSelectionVisibleAfterEnter(t *testing.T) {
 func TestStep10RadioSelectionPreservedAfterEnterAndReturn(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 10)
+	m = runInitStep(m, 11)
 
 	// Select "yes"
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = updateWizard(m, tea.KeyMsg{Type:tea.KeyUp})
 	if m.radioIndex != 0 {
 		t.Fatalf("radioIndex = %d, want 0 (yes)", m.radioIndex)
 	}
@@ -777,7 +783,7 @@ func TestStep10RadioSelectionPreservedAfterEnterAndReturn(t *testing.T) {
 		t.Fatalf("expected modeTextInput, got %d", m.mode)
 	}
 
-	// Fill in the 4 conditional fields and advance to step 11
+	// Fill in the 4 conditional fields and advance to step 12
 	m.textInput.SetValue("/path/to/key")
 	m.textInputs[0] = m.textInput
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
@@ -793,16 +799,16 @@ func TestStep10RadioSelectionPreservedAfterEnterAndReturn(t *testing.T) {
 	m.textInput.SetValue("default")
 	m.textInputs[3] = m.textInput
 
-	// Advance to step 11
+	// Advance to step 12
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 11 {
-		t.Fatalf("expected step 11, got %d", m.step)
+	if m.step != 12 {
+		t.Fatalf("expected step 12, got %d", m.step)
 	}
 
-	// Go back to step 10
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-	if m.step != 10 {
-		t.Fatalf("expected step 10, got %d", m.step)
+	// Go back to step 11
+	m, _ = updateWizard(m, tea.KeyMsg{Type:tea.KeyEsc})
+	if m.step != 11 {
+		t.Fatalf("expected step 11, got %d", m.step)
 	}
 
 	// Radio selection should be preserved
@@ -825,7 +831,7 @@ func TestStep10RadioSelectionPreservedAfterEnterAndReturn(t *testing.T) {
 func TestStep7RadioSelectionVisibleAfterEnter(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 7)
+	m = runInitStep(m, 8)
 
 	// Default is "local" (index 0)
 	if m.radioIndex != 0 {
@@ -861,7 +867,7 @@ func TestStep7RadioSelectionVisibleAfterEnter(t *testing.T) {
 func TestStep10AllConditionalFieldsRenderAsInputs(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 10)
+	m = runInitStep(m, 11)
 
 	// Select "yes"
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
@@ -903,7 +909,7 @@ func TestStep10AllConditionalFieldsRenderAsInputs(t *testing.T) {
 func TestStep6AllConditionalFieldsRenderAsInputs(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	// Default is "vault" which has conditional fields
 	// Press Enter to switch to text input mode

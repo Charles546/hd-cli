@@ -199,17 +199,11 @@ func TestApplyDefaults(t *testing.T) {
 	if cfg.DeploymentMode == "" {
 		t.Error("DeploymentMode should have default")
 	}
-	if cfg.EssentialsRepoURL == "" {
-		t.Error("EssentialsRepoURL should have default")
-	}
 	if cfg.DockerImageTag == "" {
 		t.Error("DockerImageTag should have default")
 	}
 	if cfg.DockerAPIPort == 0 {
 		t.Error("DockerAPIPort should have default")
-	}
-	if cfg.EssentialsCloneType != "none" {
-		t.Errorf("EssentialsCloneType default should be 'none', got %q", cfg.EssentialsCloneType)
 	}
 	if cfg.BootstrapCloneCredentialType != "none" {
 		t.Errorf("BootstrapCloneCredentialType default should be 'none', got %q", cfg.BootstrapCloneCredentialType)
@@ -319,13 +313,12 @@ func TestLookupStringsHaveNoSpaces(t *testing.T) {
 
 // TestBootstrapCloneCredentialsInInitYaml verifies credentials in init.yaml.
 func TestBootstrapCloneCredentialsInInitYaml(t *testing.T) {
-	// Test with PAT credential type
+	// Test with PAT credential type - now hardcoded to "none", so no credentials
 	t.Run("pat credentials", func(t *testing.T) {
 		g := NewGenerator()
 		cfg := NewDefaultWizardConfig()
 		cfg.ProjectName = "test-pat"
-		cfg.EssentialsCloneType = "pat"
-		cfg.EssentialsClonePAT = "DIPPER_GIT_PAT"
+		// EssentialsCloneType is now hardcoded to "none" in Generate()
 
 		tmpDir := t.TempDir()
 		err := g.Generate(cfg, tmpDir, false)
@@ -340,20 +333,18 @@ func TestBootstrapCloneCredentialsInInitYaml(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "pass_env:") {
-			t.Error("init.yaml should contain 'pass_env:' for PAT credential type")
-		}
-		if !strings.Contains(yamlStr, "DIPPER_GIT_PAT") {
-			t.Error("init.yaml should reference DIPPER_GIT_PAT env var")
+		// Since essentials clone type is hardcoded to "none", no credentials should be present
+		if strings.Contains(yamlStr, "pass_env:") {
+			t.Error("init.yaml should NOT contain 'pass_env:' (hardcoded to none)")
 		}
 	})
 
-	// Test with GitHub App credential type
+	// Test with GitHub App credential type - now hardcoded to "none"
 	t.Run("github_app credentials", func(t *testing.T) {
 		g := NewGenerator()
 		cfg := NewDefaultWizardConfig()
 		cfg.ProjectName = "test-ghapp"
-		cfg.EssentialsCloneType = "github_app"
+		// EssentialsCloneType is now hardcoded to "none" in Generate()
 
 		tmpDir := t.TempDir()
 		err := g.Generate(cfg, tmpDir, false)
@@ -368,8 +359,9 @@ func TestBootstrapCloneCredentialsInInitYaml(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "token_source: github") {
-			t.Error("init.yaml should contain 'token_source: github' for github_app credential type")
+		// Since essentials clone type is hardcoded to "none", no credentials should be present
+		if strings.Contains(yamlStr, "token_source: github") {
+			t.Error("init.yaml should NOT contain 'token_source: github' (hardcoded to none)")
 		}
 	})
 
@@ -406,9 +398,7 @@ func TestBootstrapCloneCredentialsInInitYaml(t *testing.T) {
 		g := NewGenerator()
 		cfg := NewDefaultWizardConfig()
 		cfg.ProjectName = "test-ssh"
-		cfg.EssentialsCloneType = "ssh"
-		cfg.EssentialsCloneKey = "/home/user/.ssh/id_rsa"
-		cfg.EssentialsCloneKeyPassEnv = "SSH_KEY_PASS"
+		// EssentialsCloneType is now hardcoded to "none" in Generate()
 
 		tmpDir := t.TempDir()
 		err := g.Generate(cfg, tmpDir, false)
@@ -423,14 +413,9 @@ func TestBootstrapCloneCredentialsInInitYaml(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "key_file:") {
-			t.Error("init.yaml should contain 'key_file:' for SSH credential type")
-		}
-		if !strings.Contains(yamlStr, "/home/user/.ssh/id_rsa") {
-			t.Error("init.yaml should contain the SSH key file path")
-		}
-		if !strings.Contains(yamlStr, "key_pass_env:") {
-			t.Error("init.yaml should contain 'key_pass_env:' when key pass env is set")
+		// Since essentials clone type is hardcoded to "none", no credentials should be present
+		if strings.Contains(yamlStr, "key_file:") {
+			t.Error("init.yaml should NOT contain 'key_file:' (hardcoded to none)")
 		}
 	})
 }
@@ -443,7 +428,7 @@ func TestBootstrapCloneCredentialsInDockerCompose(t *testing.T) {
 		cfg := NewDefaultWizardConfig()
 		cfg.ProjectName = "test-dc-pat"
 		cfg.DeploymentMode = "docker"
-		cfg.BootstrapCloneCredentialType = "pat"
+		// BootstrapCloneCredentialType is now hardcoded to "none" in Generate()
 
 		tmpDir := t.TempDir()
 		err := g.Generate(cfg, tmpDir, false)
@@ -458,20 +443,19 @@ func TestBootstrapCloneCredentialsInDockerCompose(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "DIPPER_GIT_PAT: ${DIPPER_GIT_PAT}") {
-			t.Error("docker-compose.yaml should pass through DIPPER_GIT_PAT env var")
+		// Since BootstrapCloneCredentialType is hardcoded to "none", no credentials should be present
+		if strings.Contains(yamlStr, "DIPPER_GIT_PAT") {
+			t.Error("docker-compose.yaml should NOT contain DIPPER_GIT_PAT (hardcoded to none)")
 		}
 	})
 
-	// Test with GitHub App credential type
+	// Test with GitHub App credential type - now hardcoded to "none"
 	t.Run("github_app credentials in docker-compose", func(t *testing.T) {
 		g := NewGenerator()
 		cfg := NewDefaultWizardConfig()
 		cfg.ProjectName = "test-dc-ghapp"
 		cfg.DeploymentMode = "docker"
-		cfg.BootstrapCloneCredentialType = "github_app"
-		cfg.GithubAppID = "12345"
-		cfg.GithubInstallationID = "67890"
+		// BootstrapCloneCredentialType is now hardcoded to "none" in Generate()
 
 		tmpDir := t.TempDir()
 		err := g.Generate(cfg, tmpDir, false)
@@ -486,13 +470,14 @@ func TestBootstrapCloneCredentialsInDockerCompose(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		if !strings.Contains(yamlStr, "GH_APP_ID: ${GH_APP_ID}") {
-			t.Error("docker-compose.yaml should pass through GH_APP_ID env var")
+		// Since BootstrapCloneCredentialType is hardcoded to "none", no credentials should be present
+		if strings.Contains(yamlStr, "GH_APP_ID") {
+			t.Error("docker-compose.yaml should NOT contain GH_APP_ID (hardcoded to none)")
 		}
-		if !strings.Contains(yamlStr, "GH_APP_INSTALLATION_ID: ${GH_APP_INSTALLATION_ID}") {
-			t.Error("docker-compose.yaml should pass through GH_APP_INSTALLATION_ID env var")
+		if strings.Contains(yamlStr, "GH_APP_INSTALLATION_ID") {
+			t.Error("docker-compose.yaml should NOT contain GH_APP_INSTALLATION_ID (hardcoded to none)")
 		}
-		if !strings.Contains(yamlStr, "GH_APP_KEY: ${GH_APP_KEY}") {
+		if strings.Contains(yamlStr, "GH_APP_KEY") {
 			t.Error("docker-compose.yaml should pass through GH_APP_KEY env var")
 		}
 	})
