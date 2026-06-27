@@ -221,6 +221,7 @@ func getStepInfo(step int) *stepInfo {
 					setValue:    func(c *config.WizardConfig, v string) { c.SecureExecVaultAddr = v },
 					condition:   func(c *config.WizardConfig) bool { return c.SecureExecDriver == "hd-driver-vault" },
 				},
+
 			},
 		}
 	case 6:

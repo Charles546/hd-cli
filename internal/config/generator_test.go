@@ -2367,3 +2367,55 @@ func TestEnvFileGenerated_SSHMultiLine(t *testing.T) {
 		t.Errorf(".env should NOT contain DIPPER_SSH_FILE, got:\n%s", envStr)
 	}
 }
+
+// TestVAULTTokenHardcoded verifies VAULT_TOKEN is always set for hd-driver-vault.
+func TestVAULTTokenHardcoded(t *testing.T) {
+	t.Run("VAULT_TOKEN always present with vault driver", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.SecureExecDriver = "hd-driver-vault"
+		cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
+		m := cfg.BuildSecureExecEnvVars()
+		if m["VAULT_TOKEN"] != "docker-secret-file://vault_token" {
+			t.Errorf("VAULT_TOKEN = %q, want %q", m["VAULT_TOKEN"], "docker-secret-file://vault_token")
+		}
+	})
+
+	t.Run("VAULT_TOKEN not present without vault driver", func(t *testing.T) {
+		cfg := NewDefaultWizardConfig()
+		cfg.SecureExecDriver = "none"
+		m := cfg.BuildSecureExecEnvVars()
+		if m != nil {
+			t.Errorf("expected nil env vars for none driver, got %v", m)
+		}
+	})
+
+	t.Run("vault_token secret always in docker-compose", func(t *testing.T) {
+		g := NewGenerator()
+		cfg := NewDefaultWizardConfig()
+		cfg.ProjectName = "test-vault-hardcoded"
+		cfg.DeploymentMode = "docker"
+		cfg.SecureExecDriver = "hd-driver-vault"
+		cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
+
+		tmpDir := t.TempDir()
+		err := g.Generate(cfg, tmpDir, false)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+
+		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
+		content, err := os.ReadFile(composePath)
+		if err != nil {
+			t.Fatalf("failed to read docker-compose.yaml: %v", err)
+		}
+		yamlStr := string(content)
+
+		// vault_token should always be present
+		if !strings.Contains(yamlStr, "vault_token") {
+			t.Errorf("docker-compose.yaml should always contain vault_token secret with vault driver")
+		}
+		if !strings.Contains(yamlStr, "VAULT_TOKEN") {
+			t.Errorf("docker-compose.yaml should always contain VAULT_TOKEN env var with vault driver")
+		}
+	})
+}

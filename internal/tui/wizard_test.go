@@ -4459,3 +4459,46 @@ func TestStep6MultiFieldNoCorruptionAfterRebuild(t *testing.T) {
 		t.Errorf("config.ConfigRepoGHInstallID = %q, want %q", m.config.ConfigRepoGHInstallID, "5624523")
 	}
 }
+
+// TestSummaryShowsVaultTokenAlways verifies that the summary always shows
+// VAULT_TOKEN for hd-driver-vault (hardcoded, no user input).
+func TestSummaryShowsVaultTokenAlways(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecureExecDriver = "hd-driver-vault"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 15)
+
+	view := m.View()
+	if !strings.Contains(view, "VAULT_TOKEN") {
+		t.Errorf("Summary should always mention VAULT_TOKEN for vault driver, got: %s", view)
+	}
+	// Should NOT show "Vault token: configured" (that was the user-input approach)
+	if strings.Contains(view, "Vault token: configured") {
+		t.Errorf("Summary should NOT show 'Vault token: configured' (no user input anymore)")
+	}
+	// Should show the hardcoded auth line
+	if !strings.Contains(view, "VAULT_ROLE_ID, VAULT_SECRET_ID, VAULT_TOKEN") {
+		t.Errorf("Summary should show all three vault secrets, got: %s", view)
+	}
+}
+
+// TestStep5VaultAddrOnlyField verifies step 5 only has Vault address field (no token field).
+func TestStep5VaultAddrOnlyField(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecureExecDriver = "hd-driver-vault"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 5)
+
+	// Press Enter to confirm hd-driver-vault and switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Should have only 1 text input (Vault address only, no Vault token)
+	if len(m.textInputs) != 1 {
+		t.Errorf("Step 5 hd-driver-vault textInputs count = %d, want 1 (Vault address only)", len(m.textInputs))
+	}
+
+	// The remaining field should be Vault address
+	if !strings.Contains(m.textInputs[0].Placeholder, "vault") {
+		t.Errorf("Remaining field should be Vault address, got placeholder: %s", m.textInputs[0].Placeholder)
+	}
+}
