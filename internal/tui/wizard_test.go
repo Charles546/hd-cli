@@ -4459,3 +4459,195 @@ func TestStep6MultiFieldNoCorruptionAfterRebuild(t *testing.T) {
 		t.Errorf("config.ConfigRepoGHInstallID = %q, want %q", m.config.ConfigRepoGHInstallID, "5624523")
 	}
 }
+
+// ===== Step 5 VAULT_TOKEN field tests =====
+
+func TestStep5VaultTokenFieldVisibleWhenVaultDriver(t *testing.T) {
+	// When hd-driver-vault is confirmed, both Vault address and Vault token fields should be visible
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecureExecDriver = "hd-driver-vault"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 5)
+
+	// With SecureExecDriver="hd-driver-vault", radioIndex=1 and 2 text inputs are pre-built
+	if m.radioIndex != 1 {
+		t.Fatalf("radioIndex = %d, want 1 (hd-driver-vault)", m.radioIndex)
+	}
+
+	// Press Enter to confirm and switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// After confirming hd-driver-vault, should be in text input mode with 2 fields
+	if m.mode != modeTextInput {
+		t.Fatalf("mode = %d, want modeTextInput", m.mode)
+	}
+	if len(m.textInputs) != 2 {
+		t.Errorf("Step 5 hd-driver-vault textInputs count = %d, want 2 (Vault addr + Vault token)", len(m.textInputs))
+	}
+}
+
+func TestStep5VaultTokenFieldNotVisibleWhenNoDriver(t *testing.T) {
+	// When "none" is confirmed, no conditional fields should be visible
+	cfg := config.NewDefaultWizardConfig()
+	// Default SecureExecDriver is "none"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 5)
+
+	// Select "none" and press Enter — no text inputs since no conditional fields
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // Confirm "none"
+
+	// With "none" selected, pressing Enter should advance to next step
+	if m.step == 5 {
+		t.Errorf("step = %d, should have advanced from step 5 with 'none' selected", m.step)
+	}
+}
+
+func TestStep5VaultTokenFieldPlaceholderWithSecureExec(t *testing.T) {
+	// When hd-driver-vault is selected, the vault token field placeholder should show hd-lookup path
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecureExecDriver = "hd-driver-vault"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 5)
+
+	// Press Enter to confirm hd-driver-vault (already at index 1) and switch to text input
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// After selecting hd-driver-vault, there should be 2 text inputs
+	if len(m.textInputs) != 2 {
+		t.Fatalf("expected 2 text inputs, got %d", len(m.textInputs))
+	}
+
+	// The second text input is the Vault token field, its placeholder should be the hd-lookup path
+	if m.textInputs[1].Placeholder != "hd-lookup:/secrets/data/project/vault_token" {
+		t.Errorf("Vault token placeholder = %q, want %q", m.textInputs[1].Placeholder, "hd-lookup:/secrets/data/project/vault_token")
+	}
+}
+
+func TestStep5VaultTokenFieldPlaceholderNoDriver(t *testing.T) {
+	// Test the secureExecPlaceholder function directly for the vault token field
+	cfg := &config.WizardConfig{SecureExecDriver: "none"}
+	result := secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/vault_token", "s.xxxxxxxxxxxxxxxxxxxxxxxx")
+	if result != "s.xxxxxxxxxxxxxxxxxxxxxxxx" {
+		t.Errorf("secureExecPlaceholder with no driver = %q, want %q", result, "s.xxxxxxxxxxxxxxxxxxxxxxxx")
+	}
+
+	cfg2 := &config.WizardConfig{SecureExecDriver: "hd-driver-vault"}
+	result2 := secureExecPlaceholder(cfg2, "hd-lookup:/secrets/data/project/vault_token", "s.xxxxxxxxxxxxxxxxxxxxxxxx")
+	if result2 != "hd-lookup:/secrets/data/project/vault_token" {
+		t.Errorf("secureExecPlaceholder with vault driver = %q, want %q", result2, "hd-lookup:/secrets/data/project/vault_token")
+	}
+}
+
+func TestStep5VaultTokenValueSavingViaTextInput(t *testing.T) {
+	// Type a vault token value in step 5 and verify it's saved to config
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 5)
+
+	// Press Enter to confirm hd-driver-vault and switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // Confirm selection
+
+	// Should be in text input mode with 2 fields
+	if m.mode != modeTextInput {
+		t.Fatalf("mode = %d, want modeTextInput", m.mode)
+	}
+	if len(m.textInputs) != 2 {
+		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
+	}
+
+	// Field 0 has vault address with default value, tab to field 1 (vault token)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	if m.currentField != 1 {
+		t.Fatalf("currentField = %d, want 1", m.currentField)
+	}
+
+	// Type a vault token value
+	for _, ch := range "s.mysupersecrettoken" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Verify the text input value
+	if m.textInput.Value() != "s.mysupersecrettoken" {
+		t.Errorf("textInput.Value() = %q, want %q", m.textInput.Value(), "s.mysupersecrettoken")
+	}
+}
+
+func TestStep5VaultTokenOptionalValidation(t *testing.T) {
+	// VAULT_TOKEN is optional — validation should pass even when empty
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
+	// SecureExecVaultToken is empty — should be OK
+	m := NewWizard(cfg)
+	m = runInitStep(m, 5)
+
+	err := m.validateCurrentStep()
+	if err != nil {
+		t.Errorf("validateCurrentStep should pass without Vault token (it's optional), got: %v", err)
+	}
+}
+
+func TestStep5VaultTokenViewContainsLabel(t *testing.T) {
+	// When hd-driver-vault is selected and in text input mode, the view should show "Vault token"
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 5)
+
+	// Press Enter to confirm hd-driver-vault and switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	view := m.View()
+	if !strings.Contains(view, "Vault token") {
+		t.Errorf("Step 5 view should contain 'Vault token' label when hd-driver-vault is selected, got: %s", view)
+	}
+}
+
+func TestStep5VaultTokenSavedToConfig(t *testing.T) {
+	// After typing a vault token and pressing Enter/Tab, the config should have the value
+	cfg := config.NewDefaultWizardConfig()
+	cfg.SecureExecDriver = "hd-driver-vault"
+	cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 5)
+
+	// Press Enter to confirm hd-driver-vault and switch to text input mode
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Field 0 has vault address, tab to field 1 (vault token)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+
+	// Type a vault token
+	for _, ch := range "s.mytoken123" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Save current field value by triggering a save
+	m.saveCurrentFieldValue(getStepInfo(5))
+
+	// Verify config has the token value
+	if m.config.SecureExecVaultToken != "s.mytoken123" {
+		t.Errorf("SecureExecVaultToken = %q, want %q", m.config.SecureExecVaultToken, "s.mytoken123")
+	}
+}
+
+func TestUpdateStep5VaultToken(t *testing.T) {
+	// Test that UpdateStep correctly handles secure_exec_vault_token
+	m := NewWizard(nil)
+	err := UpdateStep(m, 5, "secure_exec_vault_token", "s.mytoken456")
+	if err != nil {
+		t.Fatalf("UpdateStep error: %v", err)
+	}
+	if m.config.SecureExecVaultToken != "s.mytoken456" {
+		t.Errorf("SecureExecVaultToken = %q, want %q", m.config.SecureExecVaultToken, "s.mytoken456")
+	}
+}

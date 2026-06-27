@@ -104,6 +104,7 @@ type WizardConfig struct {
 	// Secure execution settings
 	SecureExecDriver     string `yaml:"secure_exec_driver,omitempty"`      // none, hd-driver-vault, gcloud-secret
 	SecureExecVaultAddr  string `yaml:"secure_exec_vault_addr,omitempty"`   // VAULT_ADDR for vault driver
+	SecureExecVaultToken string `yaml:"secure_exec_vault_token,omitempty"` // VAULT_TOKEN for vault driver (optional)
 
 	// Secure exec env vars map for docker-compose template (derived from the fields above)
 	SecureExecEnvVars map[string]string `yaml:"secure_exec_env_vars,omitempty"` // derived, for template
@@ -219,6 +220,7 @@ func (c *WizardConfig) BuildConfigRepoCloneEnvVars() map[string]string {
 //   - VAULT_ADDR: vault server address (for hd-driver-vault)
 //   - VAULT_ROLE_ID: docker-secret-file://role_id (hardcoded for vault driver)
 //   - VAULT_SECRET_ID: docker-secret-file://secret_id (hardcoded for vault driver)
+//   - VAULT_TOKEN: vault token (optional, only when SecureExecVaultToken is set)
 func (c *WizardConfig) BuildSecureExecEnvVars() map[string]string {
 	if c == nil || c.SecureExecDriver == "" || c.SecureExecDriver == "none" {
 		return nil
@@ -232,6 +234,9 @@ func (c *WizardConfig) BuildSecureExecEnvVars() map[string]string {
 		}
 		m["VAULT_ROLE_ID"] = "docker-secret-file://role_id"
 		m["VAULT_SECRET_ID"] = "docker-secret-file://secret_id"
+		if strings.TrimSpace(c.SecureExecVaultToken) != "" {
+			m["VAULT_TOKEN"] = c.SecureExecVaultToken
+		}
 	case "gcloud-secret":
 		m["HD_SECURE_LOADER"] = "./gcloud-secret"
 	}

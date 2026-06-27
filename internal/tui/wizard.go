@@ -1585,6 +1585,9 @@ func (m *WizardModel) renderSummary() string {
 		items = append(items, "  Secure exec: hd-driver-vault")
 		items = append(items, fmt.Sprintf("  Vault address: %s", cfg.SecureExecVaultAddr))
 		items = append(items, "  Vault auth: docker secrets (VAULT_ROLE_ID, VAULT_SECRET_ID)")
+		if strings.TrimSpace(cfg.SecureExecVaultToken) != "" {
+			items = append(items, "  Vault token: configured")
+		}
 	case "gcloud-secret":
 		items = append(items, "  Secure exec: gcloud-secret")
 	default:

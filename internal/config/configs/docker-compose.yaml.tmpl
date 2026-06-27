@@ -61,6 +61,9 @@ services:
     secrets:
       - vault_role_id
       - vault_secret_id
+{{- if .SecureExecVaultToken }}
+      - vault_token
+{{- end }}
 {{- end }}
 {{- if eq .RedisMode "local" }}
     depends_on:
@@ -89,6 +92,10 @@ secrets:
     environment: VAULT_ROLE_ID
   vault_secret_id:
     environment: VAULT_SECRET_ID
+{{- if .SecureExecVaultToken }}
+  vault_token:
+    environment: VAULT_TOKEN
+{{- end }}
 {{- end }}
 
 networks:
