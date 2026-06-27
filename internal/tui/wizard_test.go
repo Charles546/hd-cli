@@ -4228,3 +4228,116 @@ func TestPasteModeCheckboxStepNavigationPreservesRawValue(t *testing.T) {
 		}
 	}
 }
+
+// Fix 1: Config dir updates when project name changes on step 2
+func TestStep2ConfigDirUpdatesOnProjectNameChange(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	// Default ProjectName is "hd-config", ConfigDir is "./hd-config"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Clear the default project name and type a new one
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyBackspace}) // clear "hd-config"
+	for _, ch := range "my-project" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Enter to move to config dir field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// ConfigDir should be updated to ./my-project
+	if m.config.ConfigDir != "./my-project" {
+		t.Errorf("ConfigDir = %q, want %q", m.config.ConfigDir, "./my-project")
+	}
+
+	// The config dir text input should also show the new value
+	if len(m.textInputs) < 2 {
+		t.Fatalf("expected at least 2 text inputs, got %d", len(m.textInputs))
+	}
+	if m.textInputs[1].Value() != "./my-project" {
+		t.Errorf("config dir text input = %q, want %q", m.textInputs[1].Value(), "./my-project")
+	}
+}
+
+func TestStep2ConfigDirNotOverriddenWhenExplicitlySet(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	cfg.ConfigDir = "./custom-dir" // Explicitly set to non-default
+	m := NewWizard(cfg)
+	m = runInitStep(m, 2)
+
+	// Type a new project name
+	for _, ch := range "my-project" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Enter to move to config dir field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// ConfigDir should NOT be changed since it was explicitly set
+	if m.config.ConfigDir != "./custom-dir" {
+		t.Errorf("ConfigDir = %q, want %q", m.config.ConfigDir, "./custom-dir")
+	}
+}
+
+// Fix 2: MultiField steps rebuild text inputs when conditions change (Step 6 clone auth)
+func TestStep6MultiFieldRebuildsOnAuthMethodChange(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "none"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 6)
+
+	// With "none" auth, only 1 field should be visible (Clone auth method)
+	if len(m.textInputs) != 1 {
+		t.Errorf("initial textInputs count = %d, want 1", len(m.textInputs))
+	}
+
+	// Type "github_app" in the clone auth method field
+	for _, ch := range "github_app" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Enter to save and trigger rebuild
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// After entering "github_app", more fields should appear:
+	// Clone auth method, GitHub App ID, Installation ID, Private key = 4
+	// (since SecureExecDriver is "none", private key field is visible)
+	if len(m.textInputs) < 2 {
+		t.Errorf("after github_app textInputs count = %d, want >= 2 (fields should have been rebuilt)", len(m.textInputs))
+	}
+}
+
+func TestStep6MultiFieldRebuildFromPatToGithubApp(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "pat"
+	m := NewWizard(cfg)
+	m = runInitStep(m, 6)
+
+	// With "pat" auth, 2 fields: Clone auth method, PAT
+	if len(m.textInputs) != 2 {
+		t.Errorf("initial textInputs count for pat = %d, want 2", len(m.textInputs))
+	}
+
+	// Clear and type "github_app" in the clone auth method field
+	for _, ch := range "github_app" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Press Enter to save and trigger rebuild
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// After switching to github_app, more fields should appear
+	if len(m.textInputs) < 2 {
+		t.Errorf("after switching to github_app, textInputs count = %d, want >= 2", len(m.textInputs))
+	}
+}

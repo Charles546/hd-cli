@@ -511,7 +511,51 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 			return m, nil
 		case "enter", "tab":
 			// Save current field value
+			// For step 2 (project name), capture old project name before saving
+			// so we can update ConfigDir if it tracks the old default.
+			oldProjectName := ""
+			if m.step == 2 && m.currentField == 0 {
+				oldProjectName = m.config.ProjectName
+			}
 			m.saveCurrentFieldValue(stepInfo)
+
+			// Fix 1: On step 2, after saving the project name field, update
+			// ConfigDir to "./<newProjectName>" if it was still tracking the
+			// old default (./<oldProjectName>).
+			if m.step == 2 && m.currentField == 0 && oldProjectName != "" {
+				if m.config.ConfigDir == "./"+oldProjectName {
+					m.config.ConfigDir = "./" + m.config.ProjectName
+					// Update the config dir text input to reflect the new value
+					if len(m.textInputs) > 1 {
+						m.textInputs[1].SetValue(m.config.ConfigDir)
+					}
+				}
+			}
+
+			// Fix 2: For MultiField steps, rebuild text inputs after saving
+			// a field value, since the saved value may change which conditional
+		// fields are visible. This mirrors what handleRadioSelect and
+			// handleCheckboxSelect already do.
+			if stepInfo.stepType == stepTypeMultiField {
+				oldLen := len(m.textInputs)
+				m.buildMultiFieldInputs(stepInfo)
+				newLen := len(m.textInputs)
+				if newLen != oldLen {
+					// Fields changed: adjust currentField and textInput
+					m.textInput.Blur()
+					m.textInputs[m.currentField] = m.textInput
+					// Keep the same field index if possible, but clamp to new range
+					if m.currentField >= newLen {
+						m.currentField = newLen - 1
+					}
+					m.textInput = m.textInputs[m.currentField]
+					m.textInput.Focus()
+					m.textInputs[m.currentField] = m.textInput
+					// Re-populate raw field values for the new field set
+					m.populateRawFieldValuesFromConfig(stepInfo)
+					return m, nil
+				}
+			}
 
 			if m.currentField < len(m.textInputs)-1 {
 				// Move to next field within the step
