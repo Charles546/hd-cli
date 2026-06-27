@@ -4341,3 +4341,121 @@ func TestStep6MultiFieldRebuildFromPatToGithubApp(t *testing.T) {
 		t.Errorf("after switching to github_app, textInputs count = %d, want >= 2", len(m.textInputs))
 	}
 }
+
+// Regression test: MultiField text input corruption after rebuild (issue #42)
+//
+// When a user types "github_app" in the Clone auth method field (field 0) and
+// presses Enter, buildMultiFieldInputs() creates new text input objects for all
+// 4 visible fields. Before the fix, the code then did:
+//
+//	m.textInputs[m.currentField] = m.textInput
+//
+// After buildMultiFieldInputs(), m.textInput points to m.textInputs[0] (the auth
+// method field with value "github_app"). When currentField > 0, this line
+// overwrites the textinput at the current index with the one from index 0,
+// corrupting all other fields with the value "github_app".
+func TestStep6MultiFieldNoCorruptionAfterRebuild(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = true
+	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.ConfigRepoCloneAuth = "none"
+	cfg.SecureExecDriver = "" // empty so private key field is visible
+	m := NewWizard(cfg)
+	m = runInitStep(m, 6)
+
+	// With "none" auth, only 1 field: Clone auth method
+	if len(m.textInputs) != 1 {
+		t.Fatalf("initial textInputs count = %d, want 1", len(m.textInputs))
+	}
+
+	// Step 1: Type "github_app" in field 0 (Clone auth method)
+	for _, ch := range "github_app" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Verify field 0 has "github_app"
+	if m.textInputs[0].Value() != "github_app" {
+		t.Errorf("field 0 after typing = %q, want %q", m.textInputs[0].Value(), "github_app")
+	}
+
+	// Step 2: Press Enter to save and trigger rebuild
+	// This changes ConfigRepoCloneAuth from "none" to "github_app", causing
+	// buildMultiFieldInputs to create 4 fields: auth method, App ID, Installation ID, Private key
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// After rebuild, should have 4 fields
+	if len(m.textInputs) != 4 {
+		t.Fatalf("after github_app rebuild, textInputs count = %d, want 4", len(m.textInputs))
+	}
+
+	// The auth method field (index 0) should still be "github_app"
+	if m.textInputs[0].Value() != "github_app" {
+		t.Errorf("field 0 after rebuild = %q, want %q", m.textInputs[0].Value(), "github_app")
+	}
+
+	// Step 3: Tab to field 1 (App ID) and type a value
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	if m.currentField != 1 {
+		t.Fatalf("currentField after Tab = %d, want 1", m.currentField)
+	}
+
+	for _, ch := range "123423" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Step 4: Press Tab to move to field 2 (Installation ID)
+	// This triggers saveCurrentFieldValue which saves "123423" to config,
+	// then buildMultiFieldInputs which rebuilds the text inputs.
+	// Before the fix, the line m.textInputs[m.currentField] = m.textInput
+	// would overwrite field 1 with field 0's value ("github_app").
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	if m.currentField != 2 {
+		t.Fatalf("currentField after second Tab = %d, want 2", m.currentField)
+	}
+
+	// Verify field 1 (App ID) still has "123423" — NOT "github_app"
+	gotField1 := m.textInputs[1].Value()
+	if gotField1 != "123423" {
+		t.Errorf("field 1 (App ID) after Tab to field 2 = %q, want %q (BUG: value was corrupted by rebuild)", gotField1, "123423")
+	}
+
+	// Step 5: Type in field 2 (Installation ID)
+	for _, ch := range "5624523" {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
+		m, _ = updateWizard(m, msg)
+	}
+
+	// Step 6: Press Tab to move to field 3 (Private key)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	if m.currentField != 3 {
+		t.Fatalf("currentField after third Tab = %d, want 3", m.currentField)
+	}
+
+	// Verify all previous fields still have correct values
+	gotField0 := m.textInputs[0].Value()
+	if gotField0 != "github_app" {
+		t.Errorf("field 0 (auth method) = %q, want %q", gotField0, "github_app")
+	}
+	gotField1 = m.textInputs[1].Value()
+	if gotField1 != "123423" {
+		t.Errorf("field 1 (App ID) = %q, want %q (BUG: value was corrupted)", gotField1, "123423")
+	}
+	gotField2 := m.textInputs[2].Value()
+	if gotField2 != "5624523" {
+		t.Errorf("field 2 (Installation ID) = %q, want %q (BUG: value was corrupted)", gotField2, "5624523")
+	}
+
+	// Also verify config values were saved correctly
+	if m.config.ConfigRepoCloneAuth != "github_app" {
+		t.Errorf("config.ConfigRepoCloneAuth = %q, want %q", m.config.ConfigRepoCloneAuth, "github_app")
+	}
+	if m.config.ConfigRepoGHAppID != "123423" {
+		t.Errorf("config.ConfigRepoGHAppID = %q, want %q", m.config.ConfigRepoGHAppID, "123423")
+	}
+	if m.config.ConfigRepoGHInstallID != "5624523" {
+		t.Errorf("config.ConfigRepoGHInstallID = %q, want %q", m.config.ConfigRepoGHInstallID, "5624523")
+	}
+}
