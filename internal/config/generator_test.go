@@ -2375,8 +2375,8 @@ func TestVAULTTokenHardcoded(t *testing.T) {
 		cfg.SecureExecDriver = "hd-driver-vault"
 		cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
 		m := cfg.BuildSecureExecEnvVars()
-		if m["VAULT_TOKEN"] != "docker-secret-file://token" {
-			t.Errorf("VAULT_TOKEN = %q, want %q", m["VAULT_TOKEN"], "docker-secret-file://token")
+		if m["VAULT_TOKEN"] != "docker-secret-file://vault_token" {
+			t.Errorf("VAULT_TOKEN = %q, want %q", m["VAULT_TOKEN"], "docker-secret-file://vault_token")
 		}
 	})
 

@@ -231,9 +231,9 @@ func (c *WizardConfig) BuildSecureExecEnvVars() map[string]string {
 		if c.SecureExecVaultAddr != "" {
 			m["VAULT_ADDR"] = c.SecureExecVaultAddr
 		}
-		m["VAULT_ROLE_ID"] = "docker-secret-file://role_id"
-		m["VAULT_SECRET_ID"] = "docker-secret-file://secret_id"
-		m["VAULT_TOKEN"] = "docker-secret-file://token"
+		m["VAULT_ROLE_ID"] = "docker-secret-file://vault_role_id"
+		m["VAULT_SECRET_ID"] = "docker-secret-file://vault_secret_id"
+		m["VAULT_TOKEN"] = "docker-secret-file://vault_token"
 	case "gcloud-secret":
 		m["HD_SECURE_LOADER"] = "./gcloud-secret"
 	}
