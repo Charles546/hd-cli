@@ -221,16 +221,7 @@ func getStepInfo(step int) *stepInfo {
 					setValue:    func(c *config.WizardConfig, v string) { c.SecureExecVaultAddr = v },
 					condition:   func(c *config.WizardConfig) bool { return c.SecureExecDriver == "hd-driver-vault" },
 				},
-				{
-					label: "Vault token",
-					placeholderFunc: func(cfg *config.WizardConfig) string {
-						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/vault_token", "s.xxxxxxxxxxxxxxxxxxxxxxxx")
-					},
-					help:      "VAULT_TOKEN - Vault token for authentication (optional, omit to use default token auth)",
-					getValue:  func(c *config.WizardConfig) string { return c.SecureExecVaultToken },
-					setValue:  func(c *config.WizardConfig, v string) { c.SecureExecVaultToken = v },
-					condition: func(c *config.WizardConfig) bool { return c.SecureExecDriver == "hd-driver-vault" },
-				},
+
 			},
 		}
 	case 6:

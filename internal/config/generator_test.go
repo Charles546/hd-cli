@@ -2368,63 +2368,34 @@ func TestEnvFileGenerated_SSHMultiLine(t *testing.T) {
 	}
 }
 
-// ===== VAULT_TOKEN support tests =====
-
-func TestBuildSecureExecEnvVarsWithVaultToken(t *testing.T) {
-	t.Run("vault driver with token includes VAULT_TOKEN", func(t *testing.T) {
+// TestVAULTTokenHardcoded verifies VAULT_TOKEN is always set for hd-driver-vault.
+func TestVAULTTokenHardcoded(t *testing.T) {
+	t.Run("VAULT_TOKEN always present with vault driver", func(t *testing.T) {
 		cfg := NewDefaultWizardConfig()
 		cfg.SecureExecDriver = "hd-driver-vault"
 		cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
-		cfg.SecureExecVaultToken = "s.mysupersecrettoken"
 		m := cfg.BuildSecureExecEnvVars()
-		if m["VAULT_TOKEN"] != "s.mysupersecrettoken" {
-			t.Errorf("VAULT_TOKEN = %q, want %q", m["VAULT_TOKEN"], "s.mysupersecrettoken")
+		if m["VAULT_TOKEN"] != "docker-secret-file://token" {
+			t.Errorf("VAULT_TOKEN = %q, want %q", m["VAULT_TOKEN"], "docker-secret-file://token")
 		}
 	})
 
-	t.Run("vault driver without token does not include VAULT_TOKEN", func(t *testing.T) {
+	t.Run("VAULT_TOKEN not present without vault driver", func(t *testing.T) {
 		cfg := NewDefaultWizardConfig()
-		cfg.SecureExecDriver = "hd-driver-vault"
-		cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
-		// SecureExecVaultToken is empty
+		cfg.SecureExecDriver = "none"
 		m := cfg.BuildSecureExecEnvVars()
-		if _, ok := m["VAULT_TOKEN"]; ok {
-			t.Error("VAULT_TOKEN should not be present when SecureExecVaultToken is empty")
+		if m != nil {
+			t.Errorf("expected nil env vars for none driver, got %v", m)
 		}
 	})
 
-	t.Run("vault driver with whitespace-only token does not include VAULT_TOKEN", func(t *testing.T) {
-		cfg := NewDefaultWizardConfig()
-		cfg.SecureExecDriver = "hd-driver-vault"
-		cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
-		cfg.SecureExecVaultToken = "   "
-		m := cfg.BuildSecureExecEnvVars()
-		if _, ok := m["VAULT_TOKEN"]; ok {
-			t.Error("VAULT_TOKEN should not be present when SecureExecVaultToken is whitespace-only")
-		}
-	})
-
-	t.Run("vault driver with hd-lookup token includes VAULT_TOKEN", func(t *testing.T) {
-		cfg := NewDefaultWizardConfig()
-		cfg.SecureExecDriver = "hd-driver-vault"
-		cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
-		cfg.SecureExecVaultToken = "hd-lookup:/secrets/data/project/vault_token"
-		m := cfg.BuildSecureExecEnvVars()
-		if m["VAULT_TOKEN"] != "hd-lookup:/secrets/data/project/vault_token" {
-			t.Errorf("VAULT_TOKEN = %q, want %q", m["VAULT_TOKEN"], "hd-lookup:/secrets/data/project/vault_token")
-		}
-	})
-}
-
-func TestDockerComposeVaultTokenSecret(t *testing.T) {
-	t.Run("vault token secret included when token is set", func(t *testing.T) {
+	t.Run("vault_token secret always in docker-compose", func(t *testing.T) {
 		g := NewGenerator()
 		cfg := NewDefaultWizardConfig()
-		cfg.ProjectName = "test-vault-token"
+		cfg.ProjectName = "test-vault-hardcoded"
 		cfg.DeploymentMode = "docker"
 		cfg.SecureExecDriver = "hd-driver-vault"
 		cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
-		cfg.SecureExecVaultToken = "s.mysupersecrettoken"
 
 		tmpDir := t.TempDir()
 		err := g.Generate(cfg, tmpDir, false)
@@ -2439,61 +2410,12 @@ func TestDockerComposeVaultTokenSecret(t *testing.T) {
 		}
 		yamlStr := string(content)
 
-		// Should include vault_token in the secrets section
+		// vault_token should always be present
 		if !strings.Contains(yamlStr, "vault_token") {
-			t.Errorf("docker-compose.yaml should contain vault_token secret, got:\n%s", yamlStr)
+			t.Errorf("docker-compose.yaml should always contain vault_token secret with vault driver")
 		}
-		// Should include VAULT_TOKEN in the environment section
-		if !strings.Contains(yamlStr, "VAULT_TOKEN:") {
-			t.Errorf("docker-compose.yaml should contain VAULT_TOKEN env var, got:\n%s", yamlStr)
-		}
-	})
-
-	t.Run("vault token secret not included when token is empty", func(t *testing.T) {
-		g := NewGenerator()
-		cfg := NewDefaultWizardConfig()
-		cfg.ProjectName = "test-no-vault-token"
-		cfg.DeploymentMode = "docker"
-		cfg.SecureExecDriver = "hd-driver-vault"
-		cfg.SecureExecVaultAddr = "https://vault.example.com:8200"
-		// SecureExecVaultToken is empty
-
-		tmpDir := t.TempDir()
-		err := g.Generate(cfg, tmpDir, false)
-		if err != nil {
-			t.Fatalf("Generate failed: %v", err)
-		}
-
-		composePath := filepath.Join(tmpDir, "docker-compose.yaml")
-		content, err := os.ReadFile(composePath)
-		if err != nil {
-			t.Fatalf("failed to read docker-compose.yaml: %v", err)
-		}
-		yamlStr := string(content)
-
-		// Should NOT include vault_token in the secrets definition section
-		// But the service-level secrets section may still reference vault_role_id and vault_secret_id
-		// We check the bottom-level secrets: block
-		lines := strings.Split(yamlStr, "\n")
-		inSecretsBlock := false
-		for _, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "secrets:" {
-				inSecretsBlock = true
-				continue
-			}
-			if inSecretsBlock {
-				// Check for vault_token entry in secrets block
-				if strings.HasPrefix(trimmed, "vault_token:") {
-					t.Errorf("docker-compose.yaml should NOT contain vault_token secret definition when token is empty, got:\n%s", yamlStr)
-				}
-				// End of secrets block detection (next top-level key)
-				if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") && trimmed != "" && !strings.HasPrefix(trimmed, "#") {
-					inSecretsBlock = false
-				}
-			}
+		if !strings.Contains(yamlStr, "VAULT_TOKEN") {
+			t.Errorf("docker-compose.yaml should always contain VAULT_TOKEN env var with vault driver")
 		}
 	})
 }
-
-

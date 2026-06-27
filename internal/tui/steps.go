@@ -50,8 +50,6 @@ func UpdateStep(m *WizardModel, step int, key string, value string) error {
 			cfg.SecureExecDriver = value
 		case "secure_exec_vault_addr":
 			cfg.SecureExecVaultAddr = value
-		case "secure_exec_vault_token":
-			cfg.SecureExecVaultToken = value
 		}
 	case 6:
 		switch key {
