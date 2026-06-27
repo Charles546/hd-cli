@@ -1569,7 +1569,7 @@ func (m *WizardModel) validateCurrentStep() error {
 			return fmt.Errorf("project name is required")
 		}
 		if strings.TrimSpace(m.config.ConfigDir) == "" {
-			return fmt.Errorf("config directory is required")
+			m.config.ConfigDir = "./" + strings.TrimSpace(m.config.ProjectName)
 		}
 	case 3:
 		if m.config.DeploymentMode == "" {
