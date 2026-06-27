@@ -80,7 +80,7 @@ type WizardModel struct {
 }
 
 // stepCount is the total number of wizard steps (used for progress).
-const stepCount = 16
+const stepCount = 15
 
 // NewWizard creates a new wizard model starting at step 1.
 func NewWizard(cfg *config.WizardConfig) *WizardModel {
@@ -141,12 +141,8 @@ func (m *WizardModel) initStep(s int) tea.Cmd {
 	case stepTypeSingleField:
 		m.mode = modeTextInput
 		m.populateRawFieldValuesFromConfig(stepInfo)
-		// Fix 1: For step 3 (Config Directory), default to ./<project-name>
 		placeholder := stepInfo.fields[0].placeholder
 		defaultValue := stepInfo.fields[0].getValue(m.config)
-		if s == 3 && m.config.ProjectName != "" {
-			defaultValue = "./" + m.config.ProjectName
-		}
 		ti := textinput.New()
 		ti.Placeholder = placeholder
 		ti.Width = 60
@@ -1185,9 +1181,9 @@ func (m *WizardModel) renderStepContent() string {
 	case 1:
 		b.WriteString(renderWelcome(m))
 		return b.String()
-	case 16:
-		// Show the summary on step 16 (the summary step)
-		b.WriteString(renderStepTitle("Step 16: Summary & Confirm"))
+	case 15:
+		// Show the summary on step 15 (the summary step)
+		b.WriteString(renderStepTitle("Step 15: Summary & Confirm"))
 		b.WriteString(m.renderSummary())
 		b.WriteString("\n")
 		b.WriteString(ConfirmStyle.Render("  Press Enter to generate configs."))
@@ -1282,7 +1278,7 @@ func (m *WizardModel) renderStepContent() string {
 				}
 				fieldHelp := field.help
 				// Override labels for Slack secret fields based on secrets backend
-				if m.step == 9 {
+				if m.step == 10 {
 					secretKey := slackSecretFieldKey(field.label)
 					if secretKey != "" {
 						fieldLabel, fieldPlaceholder, fieldHelp = slackSecretLabels(m.config, secretKey)
@@ -1376,7 +1372,7 @@ func (m *WizardModel) renderStepContent() string {
 		// Render conditional text fields
 		if len(m.textInputs) > 0 {
 			// Use "Secret paths:" for step 8 in vault mode, "Secret values:" in dev mode, generic label otherwise
-			if m.step == 8 {
+			if m.step == 9 {
 				if isDevMode(m.config) {
 					b.WriteString(LabelStyle.Render("Secret values:"))
 				} else {
@@ -1400,7 +1396,7 @@ func (m *WizardModel) renderStepContent() string {
 				}
 				fieldHelp := field.help
 				// Override labels for GitHub secret fields based on secrets backend
-				if m.step == 8 {
+				if m.step == 9 {
 					secretKey := ghSecretFieldKey(field.label)
 					if secretKey != "" {
 						fieldLabel, fieldPlaceholder, fieldHelp = ghSecretLabels(m.config, secretKey)
@@ -1497,7 +1493,6 @@ func (m *WizardModel) renderSummary() string {
 	items = append(items, fmt.Sprintf("  Config dir: %s", cfg.ConfigDir))
 	items = append(items, fmt.Sprintf("  Deployment: %s", cfg.DeploymentMode))
 	items = append(items, fmt.Sprintf("  Essentials repo: %s (%s)", cfg.EssentialsRepoURL, cfg.EssentialsBranch))
-	items = append(items, fmt.Sprintf("  Clone credentials: %s", cfg.EssentialsCloneType))
 	items = append(items, fmt.Sprintf("  Secrets backend: %s", cfg.SecretsBackend))
 	items = append(items, fmt.Sprintf("  Redis: %s", cfg.RedisMode))
 
@@ -1573,18 +1568,74 @@ func (m *WizardModel) validateCurrentStep() error {
 		if strings.TrimSpace(m.config.ProjectName) == "" {
 			return fmt.Errorf("project name is required")
 		}
-	case 3:
 		if strings.TrimSpace(m.config.ConfigDir) == "" {
 			return fmt.Errorf("config directory is required")
 		}
+	case 3:
+		if m.config.DeploymentMode == "" {
+			return fmt.Errorf("deployment mode is required")
+		}
+		if m.config.DeploymentMode != "docker" && m.config.DeploymentMode != "source" && m.config.DeploymentMode != "kubernetes" {
+			return fmt.Errorf("invalid deployment mode: %s", m.config.DeploymentMode)
+		}
+	case 4:
+		if m.config.GithubCreateRepo {
+			if strings.TrimSpace(m.config.GitRemoteURL) == "" {
+				return fmt.Errorf("git remote URL is required when creating a GitHub repo")
+			}
+		}
+	case 5:
+		if m.config.GithubCreateRepo && !m.config.UseLocalCopy {
+			driver := strings.TrimSpace(m.config.SecureExecDriver)
+			switch driver {
+			case "none":
+			case "hd-driver-vault":
+				if strings.TrimSpace(m.config.SecureExecVaultAddr) == "" {
+					return fmt.Errorf("vault server address is required when using hd-driver-vault")
+				}
+			case "gcloud-secret":
+			default:
+				return fmt.Errorf("invalid secure-exec driver %q (must be one of: none, hd-driver-vault, gcloud-secret)", driver)
+			}
+		}
 	case 6:
+		if m.config.GithubCreateRepo && !m.config.UseLocalCopy {
+			auth := strings.TrimSpace(m.config.ConfigRepoCloneAuth)
+			switch auth {
+			case "none":
+			case "pat":
+				if strings.TrimSpace(m.config.ConfigRepoPATValue) == "" && strings.TrimSpace(m.config.ConfigRepoPATPath) == "" {
+					return fmt.Errorf("PAT is required when clone auth is 'pat'")
+				}
+			case "github_app":
+				if strings.TrimSpace(m.config.ConfigRepoGHAppID) == "" {
+					return fmt.Errorf("GitHub App ID is required when clone auth is 'github_app'")
+				}
+				if strings.TrimSpace(m.config.ConfigRepoGHInstallID) == "" {
+					return fmt.Errorf("installation ID is required when clone auth is 'github_app'")
+				}
+				if strings.TrimSpace(m.config.ConfigRepoGHAppKey) == "" && strings.TrimSpace(m.config.ConfigRepoGHAppKeyPath) == "" {
+					return fmt.Errorf("private key is required when clone auth is 'github_app'")
+				}
+			case "ssh":
+				if !strings.HasPrefix(m.config.GitRemoteURL, "git@") {
+					return fmt.Errorf("SSH remote URL must start with 'git@'")
+				}
+				if strings.TrimSpace(m.config.ConfigRepoSSHKey) == "" && strings.TrimSpace(m.config.ConfigRepoSSHFile) == "" && strings.TrimSpace(m.config.ConfigRepoSSHKeyPath) == "" {
+					return fmt.Errorf("either SSH key content or SSH key file path is required when clone auth is 'ssh'")
+				}
+			default:
+				return fmt.Errorf("invalid clone auth method %q (must be one of: none, pat, github_app, ssh)", auth)
+			}
+		}
+	case 7:
 		if m.config.SecretsBackend == "" {
 			return fmt.Errorf("secrets backend selection is required")
 		}
-	case 8:
+	case 9:
 		if m.config.HasGitHubAppIntegration {
 			if strings.TrimSpace(m.config.GithubAppID) == "" {
-				return fmt.Errorf("github App ID is required when GitHub App integration is enabled")
+				return fmt.Errorf("GitHub App ID is required when GitHub App integration is enabled")
 			}
 			if strings.TrimSpace(m.config.GithubInstallationID) == "" {
 				return fmt.Errorf("GitHub Installation ID is required when GitHub App integration is enabled")
@@ -1610,7 +1661,7 @@ func (m *WizardModel) validateCurrentStep() error {
 				return fmt.Errorf("webhook secret: %s", err)
 			}
 		}
-	case 9:
+	case 10:
 		// Validate dev mode secret fields for Slack
 		if isDevMode(m.config) {
 			if err := validateDevSecretValue(m.config.SlackBotTokenPath); err != "" {
@@ -1626,7 +1677,7 @@ func (m *WizardModel) validateCurrentStep() error {
 				return fmt.Errorf("slash command token: %s", err)
 			}
 		}
-	case 11:
+case 11:
 		if m.config.DeploymentMode != "docker" {
 			return nil
 		}

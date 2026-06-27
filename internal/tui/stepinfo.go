@@ -120,7 +120,6 @@ func slackSecretLabels(cfg *config.WizardConfig, field string) (label, placehold
 	return "", "", ""
 }
 
-
 // secureExecPlaceholder returns a placeholder string that adapts based on
 // whether a secure-exec driver is enabled. When SecureExecDriver is set to
 // a non-"none" value, the placeholder shows an hd-lookup path example.
@@ -131,6 +130,7 @@ func secureExecPlaceholder(cfg *config.WizardConfig, secureExample, defaultPlace
 	}
 	return defaultPlaceholder
 }
+
 // getStepInfo returns the stepInfo for a given step number.
 func getStepInfo(step int) *stepInfo {
 	switch step {
@@ -140,9 +140,10 @@ func getStepInfo(step int) *stepInfo {
 			stepType: stepTypeNavigate,
 		}
 	case 2:
+		// Merged old step 2 (project name) + old step 3 (config dir)
 		return &stepInfo{
-			title:    "Step 2: Project Name",
-			stepType: stepTypeSingleField,
+			title:    "Step 2: Project Settings",
+			stepType: stepTypeMultiField,
 			fields: []fieldDescriptor{
 				{
 					label:       "Project name",
@@ -151,78 +152,188 @@ func getStepInfo(step int) *stepInfo {
 					getValue:    func(c *config.WizardConfig) string { return c.ProjectName },
 					setValue:    func(c *config.WizardConfig, v string) { c.ProjectName = v },
 				},
-			},
-		}
-	case 3:
-		return &stepInfo{
-			title:    "Step 3: Config Directory",
-			stepType: stepTypeSingleField,
-			fields: []fieldDescriptor{
 				{
 					label:       "Config directory",
-					placeholder: "Path where config files will be written",
-					help:        "The path where config files will be written. Use absolute or relative path. Defaults to the project name.",
+					placeholder: "./<project-name>",
+					help:        "The path where config files will be written. Use absolute or relative path. Defaults to ./<project-name>.",
 					getValue:    func(c *config.WizardConfig) string { return c.ConfigDir },
 					setValue:    func(c *config.WizardConfig, v string) { c.ConfigDir = v },
 				},
 			},
 		}
-	case 4:
+	case 3:
+		// Was step 4 (deployment mode)
 		return &stepInfo{
-			title:        "Step 4: Deployment Mode",
+			title:        "Step 3: Deployment Mode",
 			stepType:     stepTypeRadio,
 			radioLabel:   "Deployment mode",
 			radioOptions: []string{"docker", "source", "kubernetes"},
 			radioGetter:  func(c *config.WizardConfig) string { return c.DeploymentMode },
 			radioSetter:  func(c *config.WizardConfig, v string) { c.DeploymentMode = v },
 		}
-	case 5:
+	case 4:
+		// Was step 14 (repo creation)
 		return &stepInfo{
-			title:    "Step 5: Config Repo Setup",
-			stepType: stepTypeMultiField,
+			title:       "Step 4: GitHub Repo Creation",
+			stepType:    stepTypeCheckbox,
+			checkboxLabel: "Create GitHub repo",
+			checkboxes: []checkboxOption{
+				{
+					label:    "Create GitHub repo",
+					help:     "Create a new GitHub repository for the generated config",
+					getValue: func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
+					setValue: func(c *config.WizardConfig, v bool) { c.GithubCreateRepo = v },
+				},
+				{
+					label:    "Use local copy instead of clone",
+					help:     "Skip git clone and use the local config directory as the REPO (only when creating repo)",
+					getValue: func(c *config.WizardConfig) bool { return c.UseLocalCopy },
+					setValue: func(c *config.WizardConfig, v bool) { c.UseLocalCopy = v },
+					condition: func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
+				},
+			},
 			fields: []fieldDescriptor{
 				{
-					label:       "Essentials repo URL",
-					placeholder: "Honeydipper essentials config repo",
-					help:        "The essentials config repo provides baseline workflows and definitions.",
-					getValue:    func(c *config.WizardConfig) string { return c.EssentialsRepoURL },
-					setValue:    func(c *config.WizardConfig, v string) { c.EssentialsRepoURL = v },
+					label:       "Git remote URL",
+					placeholder: "git@github.com:user/repo.git or https://github.com/user/repo.git",
+					help:        "Git remote URL for the config repository (required, used as REPO env var in docker-compose)",
+					getValue:    func(c *config.WizardConfig) string { return c.GitRemoteURL },
+					setValue:    func(c *config.WizardConfig, v string) { c.GitRemoteURL = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
 				},
+			},
+		}
+	case 5:
+		// Was part of old step 15 (secure-exec driver selection)
+		return &stepInfo{
+			title:        "Step 5: Secure Execution",
+			stepType:     stepTypeRadio,
+			radioLabel:   "Secure-exec driver",
+			radioOptions: []string{"none", "hd-driver-vault", "gcloud-secret"},
+			radioGetter:  func(c *config.WizardConfig) string { return c.SecureExecDriver },
+			radioSetter:  func(c *config.WizardConfig, v string) { c.SecureExecDriver = v },
+			fields: []fieldDescriptor{
 				{
-					label:       "Branch",
-					placeholder: "Branch to use",
-					help:        "Branch of the essentials repo to use.",
-					getValue:    func(c *config.WizardConfig) string { return c.EssentialsBranch },
-					setValue:    func(c *config.WizardConfig, v string) { c.EssentialsBranch = v },
-				},
-				{
-					label:       "Clone credential type",
-					placeholder: "none, pat, ssh, or github_app",
-					help:        "Credential type for cloning private repos. Use 'none' for public repos.",
-					getValue:    func(c *config.WizardConfig) string { return c.EssentialsCloneType },
-					setValue:    func(c *config.WizardConfig, v string) { c.EssentialsCloneType = v },
-				},
-				{
-					label:       "Token env var name",
-					placeholder: "Environment variable containing the token/password",
-					help:        "Name of env var that holds the token (for pat type). Will be passed to Docker container.",
-					getValue:    func(c *config.WizardConfig) string { return c.EssentialsClonePAT },
-					setValue:    func(c *config.WizardConfig, v string) { c.EssentialsClonePAT = v },
-					condition:   func(c *config.WizardConfig) bool { return c.EssentialsCloneType == "pat" },
-				},
-				{
-					label:       "Username",
-					placeholder: "Git username (optional, defaults to x-access-token)",
-					help:        "Username for git authentication (only used with pat type).",
-					getValue:    func(c *config.WizardConfig) string { return c.EssentialsCloneKey },
-					setValue:    func(c *config.WizardConfig, v string) { c.EssentialsCloneKey = v },
-					condition:   func(c *config.WizardConfig) bool { return c.EssentialsCloneType == "pat" },
+					label:       "Vault server address",
+					placeholder: "https://vault.example.com:8200",
+					help:        "VAULT_ADDR - Vault server address for the secure-exec driver",
+					getValue:    func(c *config.WizardConfig) string { return c.SecureExecVaultAddr },
+					setValue:    func(c *config.WizardConfig, v string) { c.SecureExecVaultAddr = v },
+					condition:   func(c *config.WizardConfig) bool { return c.SecureExecDriver == "hd-driver-vault" },
 				},
 			},
 		}
 	case 6:
+		// Was part of old step 15 (clone auth)
 		return &stepInfo{
-			title:        "Step 6: Secrets Backend",
+			title:    "Step 6: Clone Auth",
+			stepType: stepTypeMultiField,
+			fields: []fieldDescriptor{
+				{
+					label:       "Clone auth method",
+					placeholder: "none, pat, github_app, or ssh",
+					help:        "Authentication method for cloning the config repository (required when creating repo without local copy)",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoCloneAuth },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoCloneAuth = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy },
+				},
+				{
+					label: "PAT",
+					placeholderFunc: func(cfg *config.WizardConfig) string {
+						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/pat", "ghp_xxxxx or $MY_PAT")
+					},
+					help:        "Personal Access Token value, or $ENV_VAR reference to an environment variable holding the PAT",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoPATValue },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoPATValue = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "pat" },
+				},
+				{
+					label: "GitHub App ID",
+					placeholderFunc: func(cfg *config.WizardConfig) string {
+						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/gh_app_id", "12345")
+					},
+					help:        "GitHub App ID for authentication",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHAppID },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHAppID = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "github_app" },
+				},
+				{
+					label: "Installation ID",
+					placeholderFunc: func(cfg *config.WizardConfig) string {
+						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/gh_install_id", "67890")
+					},
+					help:        "GitHub App Installation ID",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHInstallID },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHInstallID = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "github_app" },
+				},
+				{
+					label: "Private key",
+					placeholderFunc: func(cfg *config.WizardConfig) string {
+						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/gh_private_key", "-----BEGIN RSA PRIVATE KEY-----\n...")
+					},
+					help:        "GitHub App private key content",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHAppKey },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHAppKey = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "github_app" && (c.SecureExecDriver == "none" || c.SecureExecDriver == "") },
+				},
+				{
+					label: "SSH key content",
+					placeholderFunc: func(cfg *config.WizardConfig) string {
+						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/ssh_key", "-----BEGIN OPENSSH PRIVATE KEY-----\n...")
+					},
+					help:        "SSH private key content (used as DIPPER_SSH_KEY)",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoSSHKey },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHKey = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" && (c.SecureExecDriver == "none" || c.SecureExecDriver == "") },
+				},
+				{
+					label:       "SSH key file path",
+					placeholder: "/home/user/.ssh/id_rsa",
+					help:        "Path to SSH private key file (used as DIPPER_SSH_FILE, alternative to inline key)",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoSSHFile },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHFile = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" },
+				},
+				{
+					label:       "SSH key passphrase env var",
+					placeholder: "e.g. SSH_KEY_PASS",
+					help:        "Environment variable name for SSH key passphrase (optional)",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoSSHKeyPassEnv },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHKeyPassEnv = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" },
+				},
+				// Secure-exec secret path fields (shown when a secure-exec driver is active)
+				{
+					label:       "PAT secret path (hd-lookup: prepended automatically)",
+					placeholder: "/secrets/data/project/pat",
+					help:        "Secret path for the PAT when using secure-exec driver (hd-lookup: prefix will be added automatically)",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoPATPath },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoPATPath = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "pat" && c.SecureExecDriver != "none" && c.SecureExecDriver != "" },
+				},
+				{
+					label:       "GitHub App key secret path (hd-lookup: prepended automatically)",
+					placeholder: "/secrets/data/project/gh_app_key",
+					help:        "Secret path for the GitHub App private key when using secure-exec driver (hd-lookup: prefix will be added automatically)",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHAppKeyPath },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHAppKeyPath = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "github_app" && c.SecureExecDriver != "none" && c.SecureExecDriver != "" },
+				},
+				{
+					label:       "SSH key secret path (hd-lookup: prepended automatically)",
+					placeholder: "/secrets/data/project/ssh_key",
+					help:        "Secret path for the SSH key when using secure-exec driver (hd-lookup: prefix will be added automatically)",
+					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoSSHKeyPath },
+					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHKeyPath = v },
+					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" && c.SecureExecDriver != "none" && c.SecureExecDriver != "" },
+				},
+			},
+		}
+	case 7:
+		// Was step 6 (secrets backend)
+		return &stepInfo{
+			title:        "Step 7: Secrets Backend",
 			stepType:     stepTypeRadio,
 			radioLabel:   "Secrets backend",
 			radioOptions: []string{"vault", "dev"},
@@ -247,9 +358,10 @@ func getStepInfo(step int) *stepInfo {
 				},
 			},
 		}
-	case 7:
+	case 8:
+		// Was step 7 (redis)
 		return &stepInfo{
-			title:        "Step 7: Redis",
+			title:        "Step 8: Redis",
 			stepType:     stepTypeRadio,
 			radioLabel:   "Redis mode",
 			radioOptions: []string{"local", "external"},
@@ -266,9 +378,10 @@ func getStepInfo(step int) *stepInfo {
 				},
 			},
 		}
-	case 8:
+	case 9:
+		// Was step 8 (GitHub integration)
 		return &stepInfo{
-			title:       "Step 8: GitHub Integration",
+			title:       "Step 9: GitHub Integration",
 			stepType:    stepTypeCheckbox,
 			checkboxLabel: "GitHub integration type",
 			checkboxes: []checkboxOption{
@@ -328,9 +441,10 @@ func getStepInfo(step int) *stepInfo {
 				},
 			},
 		}
-	case 9:
+	case 10:
+		// Was step 9 (Slack)
 		return &stepInfo{
-			title:    "Step 9: Slack Integration",
+			title:    "Step 10: Slack Integration",
 			stepType: stepTypeMultiField,
 			fields: []fieldDescriptor{
 				{
@@ -363,9 +477,10 @@ func getStepInfo(step int) *stepInfo {
 				},
 			},
 		}
-	case 10:
+	case 11:
+		// Was step 10 (AI agent)
 		return &stepInfo{
-			title:        "Step 10: AI Agent",
+			title:        "Step 11: AI Agent",
 			stepType:     stepTypeRadio,
 			radioLabel:   "Enable AI agent",
 			radioOptions: []string{"yes", "no"},
@@ -406,9 +521,10 @@ func getStepInfo(step int) *stepInfo {
 				},
 			},
 		}
-	case 11:
+	case 12:
+		// Was step 11 (Docker)
 		return &stepInfo{
-			title:    "Step 11: Docker Configuration",
+			title:    "Step 12: Docker Configuration",
 			stepType: stepTypeMultiField,
 			fields: []fieldDescriptor{
 				{
@@ -441,9 +557,10 @@ func getStepInfo(step int) *stepInfo {
 				},
 			},
 		}
-	case 12:
+	case 13:
+		// Was step 12 (Kubernetes)
 		return &stepInfo{
-			title:    "Step 12: Kubernetes Configuration",
+			title:    "Step 13: Kubernetes Configuration",
 			stepType: stepTypeMultiField,
 			fields: []fieldDescriptor{
 				{
@@ -462,9 +579,10 @@ func getStepInfo(step int) *stepInfo {
 				},
 			},
 		}
-	case 13:
+	case 14:
+		// Was step 13 (Source)
 		return &stepInfo{
-			title:    "Step 13: Source Configuration",
+			title:    "Step 14: Source Configuration",
 			stepType: stepTypeMultiField,
 			fields: []fieldDescriptor{
 				{
@@ -483,162 +601,10 @@ func getStepInfo(step int) *stepInfo {
 				},
 			},
 		}
-	case 14:
-		return &stepInfo{
-			title:       "Step 14: GitHub Repo Creation",
-			stepType:    stepTypeCheckbox,
-			checkboxLabel: "Create GitHub repo",
-			checkboxes: []checkboxOption{
-				{
-					label:    "Create GitHub repo",
-					help:     "Create a new GitHub repository for the generated config",
-					getValue: func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
-					setValue: func(c *config.WizardConfig, v bool) { c.GithubCreateRepo = v },
-				},
-				{
-					label:    "Use local copy instead of clone",
-					help:     "Skip git clone and use the local config directory as the REPO (only when creating repo)",
-					getValue: func(c *config.WizardConfig) bool { return c.UseLocalCopy },
-					setValue: func(c *config.WizardConfig, v bool) { c.UseLocalCopy = v },
-					condition: func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
-				},
-			},
-			fields: []fieldDescriptor{
-				{
-					label:       "Git remote URL",
-					placeholder: "git@github.com:user/repo.git or https://github.com/user/repo.git",
-					help:        "Git remote URL for the config repository (required, used as REPO env var in docker-compose)",
-					getValue:    func(c *config.WizardConfig) string { return c.GitRemoteURL },
-					setValue:    func(c *config.WizardConfig, v string) { c.GitRemoteURL = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo },
-				},
-				{
-					label:       "Secure-exec driver",
-					placeholder: "none, hd-driver-vault, or gcloud-secret",
-					help:        "Secure execution driver: none (disabled), hd-driver-vault (Vault secrets), or gcloud-secret (Google Cloud Secret Manager)",
-					getValue:    func(c *config.WizardConfig) string { return c.SecureExecDriver },
-					setValue:    func(c *config.WizardConfig, v string) { c.SecureExecDriver = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy },
-				},
-				{
-					label:       "Vault server address",
-					placeholder: "https://vault.example.com:8200",
-					help:        "VAULT_ADDR - Vault server address for the secure-exec driver",
-					getValue:    func(c *config.WizardConfig) string { return c.SecureExecVaultAddr },
-					setValue:    func(c *config.WizardConfig, v string) { c.SecureExecVaultAddr = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.SecureExecDriver == "hd-driver-vault" },
-				},
-			},
-		}
 	case 15:
+		// Was step 16 (summary)
 		return &stepInfo{
-			title:    "Step 15: Clone Auth",
-			stepType: stepTypeMultiField,
-			fields: []fieldDescriptor{
-				{
-					label:       "Clone auth method",
-					placeholder: "none, pat, github_app, or ssh",
-					help:        "Authentication method for cloning the config repository (required when creating repo without local copy)",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoCloneAuth },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoCloneAuth = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy },
-				},
-				{
-					label:       "PAT",
-					placeholderFunc: func(cfg *config.WizardConfig) string {
-						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/pat", "ghp_xxxxx or $MY_PAT")
-					},
-					help:        "Personal Access Token value, or $ENV_VAR reference to an environment variable holding the PAT",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoPATValue },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoPATValue = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "pat" },
-				},
-				{
-					label:       "GitHub App ID",
-					placeholderFunc: func(cfg *config.WizardConfig) string {
-						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/gh_app_id", "12345")
-					},
-					help:        "GitHub App ID for authentication",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHAppID },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHAppID = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "github_app" },
-				},
-				{
-					label:       "Installation ID",
-					placeholderFunc: func(cfg *config.WizardConfig) string {
-						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/gh_install_id", "67890")
-					},
-					help:        "GitHub App Installation ID",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHInstallID },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHInstallID = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "github_app" },
-				},
-				{
-					label:       "Private key",
-					placeholderFunc: func(cfg *config.WizardConfig) string {
-						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/gh_private_key", "-----BEGIN RSA PRIVATE KEY-----\n...")
-					},
-					help:        "GitHub App private key content",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHAppKey },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHAppKey = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "github_app" && (c.SecureExecDriver == "none" || c.SecureExecDriver == "") },
-				},
-				{
-					label:       "SSH key content",
-					placeholderFunc: func(cfg *config.WizardConfig) string {
-						return secureExecPlaceholder(cfg, "hd-lookup:/secrets/data/project/ssh_key", "-----BEGIN OPENSSH PRIVATE KEY-----\n...")
-					},
-					help:        "SSH private key content (used as DIPPER_SSH_KEY)",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoSSHKey },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHKey = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" && (c.SecureExecDriver == "none" || c.SecureExecDriver == "") },
-				},
-				{
-					label:       "SSH key file path",
-					placeholder: "/home/user/.ssh/id_rsa",
-					help:        "Path to SSH private key file (used as DIPPER_SSH_FILE, alternative to inline key)",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoSSHFile },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHFile = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" },
-				},
-				{
-					label:       "SSH key passphrase env var",
-					placeholder: "e.g. SSH_KEY_PASS",
-					help:        "Environment variable name for SSH key passphrase (optional)",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoSSHKeyPassEnv },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHKeyPassEnv = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" },
-				},
-				// Secure-exec secret path fields (shown when a secure-exec driver is active)
-				{
-					label:       "PAT secret path (hd-lookup: prepended automatically)",
-					placeholder: "/secrets/data/project/pat",
-					help:        "Secret path for the PAT when using secure-exec driver (hd-lookup: prefix will be added automatically)",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoPATPath },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoPATPath = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "pat" && c.SecureExecDriver != "none" && c.SecureExecDriver != "" },
-				},
-				{
-					label:       "GitHub App key secret path (hd-lookup: prepended automatically)",
-					placeholder: "/secrets/data/project/gh_app_key",
-					help:        "Secret path for the GitHub App private key when using secure-exec driver (hd-lookup: prefix will be added automatically)",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoGHAppKeyPath },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoGHAppKeyPath = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "github_app" && c.SecureExecDriver != "none" && c.SecureExecDriver != "" },
-				},
-				{
-					label:       "SSH key secret path (hd-lookup: prepended automatically)",
-					placeholder: "/secrets/data/project/ssh_key",
-					help:        "Secret path for the SSH key when using secure-exec driver (hd-lookup: prefix will be added automatically)",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoSSHKeyPath },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoSSHKeyPath = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy && c.ConfigRepoCloneAuth == "ssh" && c.SecureExecDriver != "none" && c.SecureExecDriver != "" },
-				},
-			},
-		}
-	case 16:
-		return &stepInfo{
-			title:    "Step 16: Summary & Confirm",
+			title:    "Step 15: Summary & Confirm",
 			stepType: stepTypeNavigate,
 		}
 	default:
@@ -647,15 +613,15 @@ func getStepInfo(step int) *stepInfo {
 }
 
 // isStepRequired returns whether the given step should be shown based on the
-// current configuration.  Steps 11 (Docker), 12 (Kubernetes), and 13 (Source)
+// current configuration.  Steps 12 (Docker), 13 (Kubernetes), and 14 (Source)
 // are deployment-mode-specific and are only required when the matching mode is selected.
 func isStepRequired(step int, cfg *config.WizardConfig) bool {
 	switch step {
-	case 11: // Docker configuration
+	case 12: // Docker configuration
 		return cfg.DeploymentMode == "docker"
-	case 12: // Kubernetes configuration
+	case 13: // Kubernetes configuration
 		return cfg.DeploymentMode == "kubernetes"
-	case 13: // Source configuration
+	case 14: // Source configuration
 		return cfg.DeploymentMode == "source"
 	default:
 		return true
@@ -721,9 +687,9 @@ func slackSecretFieldKey(label string) string {
 // a plain value or an $HD_* env var reference).
 func isDevSecretField(step int, label string) bool {
 	switch step {
-	case 8:
-		return ghSecretFieldKey(label) != ""
 	case 9:
+		return ghSecretFieldKey(label) != ""
+	case 10:
 		return slackSecretFieldKey(label) != ""
 	default:
 		return false

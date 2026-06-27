@@ -62,7 +62,7 @@ func TestUpdateStep(t *testing.T) {
 			},
 		},
 		{
-			step: 4, key: "deployment_mode", value: "kubernetes",
+			step: 3, key: "deployment_mode", value: "kubernetes",
 			check: func(c *config.WizardConfig) error {
 				if c.DeploymentMode != "kubernetes" {
 					return fmt.Errorf("DeploymentMode = %q", c.DeploymentMode)
@@ -71,7 +71,7 @@ func TestUpdateStep(t *testing.T) {
 			},
 		},
 		{
-			step: 6, key: "secrets_backend", value: "dev",
+			step: 7, key: "secrets_backend", value: "dev",
 			check: func(c *config.WizardConfig) error {
 				if c.SecretsBackend != "dev" {
 					return fmt.Errorf("SecretsBackend = %q", c.SecretsBackend)
@@ -80,7 +80,7 @@ func TestUpdateStep(t *testing.T) {
 			},
 		},
 		{
-			step: 10, key: "ai_enabled", value: "true",
+			step: 11, key: "ai_enabled", value: "true",
 			check: func(c *config.WizardConfig) error {
 				if !c.AIEnabled {
 					return fmt.Errorf("AIEnabled = false")
@@ -89,7 +89,7 @@ func TestUpdateStep(t *testing.T) {
 			},
 		},
 		{
-			step: 14, key: "use_local_copy", value: "true",
+			step: 4, key: "use_local_copy", value: "true",
 			check: func(c *config.WizardConfig) error {
 				if !c.UseLocalCopy {
 					return fmt.Errorf("UseLocalCopy = false")
@@ -125,31 +125,34 @@ func TestStepLabels(t *testing.T) {
 		t.Errorf("labels[1] = %q, want Welcome", labels[1])
 	}
 	// Verify new order
-	if labels[6] != "Secrets Backend" {
-		t.Errorf("labels[6] = %q, want Secrets Backend", labels[6])
+	if labels[6] != "Clone Auth" {
+		t.Errorf("labels[6] = %q, want Clone Auth", labels[6])
 	}
-	if labels[7] != "Redis" {
-		t.Errorf("labels[7] = %q, want Redis", labels[7])
+	if labels[7] != "Secrets Backend" {
+		t.Errorf("labels[7] = %q, want Secrets Backend", labels[7])
 	}
-	if labels[8] != "GitHub Integration" {
-		t.Errorf("labels[8] = %q, want GitHub Integration", labels[8])
+	if labels[8] != "Redis" {
+		t.Errorf("labels[8] = %q, want Redis", labels[8])
 	}
-	if labels[9] != "Slack Integration" {
-		t.Errorf("labels[9] = %q, want Slack Integration", labels[9])
+	if labels[9] != "GitHub Integration" {
+		t.Errorf("labels[9] = %q, want GitHub Integration", labels[9])
 	}
-	if labels[10] != "AI Agent" {
-		t.Errorf("labels[10] = %q, want AI Agent", labels[10])
+	if labels[10] != "Slack Integration" {
+		t.Errorf("labels[10] = %q, want Slack Integration", labels[10])
+	}
+	if labels[11] != "AI Agent" {
+		t.Errorf("labels[11] = %q, want AI Agent", labels[11])
 	}
 }
 
 func TestIsStepRequired(t *testing.T) {
-	requiredSteps := []int{2, 3, 4, 5, 6, 7, 10, 11, 12, 13}
+	requiredSteps := []int{2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14}
 	for _, step := range requiredSteps {
 		if !IsStepRequired(step) {
 			t.Errorf("step %d should be required", step)
 		}
 	}
-	optionalSteps := []int{1, 8, 9, 14, 15}
+	optionalSteps := []int{1, 9, 10, 15}
 	for _, step := range optionalSteps {
 		if IsStepRequired(step) {
 			t.Errorf("step %d should not be required", step)
@@ -191,50 +194,50 @@ func TestValidateStepComplete(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "step 4 with valid mode",
-			step:    4,
+			name:    "step 3 with valid mode",
+			step:    3,
 			setup:   func(c *config.WizardConfig) { c.DeploymentMode = "docker" },
 			wantErr: false,
 		},
 		{
-			name:    "step 4 with invalid mode",
-			step:    4,
+			name:    "step 3 with invalid mode",
+			step:    3,
 			setup:   func(c *config.WizardConfig) { c.DeploymentMode = "invalid" },
 			wantErr: true,
 		},
 		{
-			name:    "step 6 with secrets backend selected",
-			step:    6,
+			name:    "step 7 with secrets backend selected",
+			step:    7,
 			setup:   func(c *config.WizardConfig) { c.SecretsBackend = "vault" },
 			wantErr: false,
 		},
 		{
-			name:    "step 6 without secrets backend",
-			step:    6,
+			name:    "step 7 without secrets backend",
+			step:    7,
 			setup:   func(c *config.WizardConfig) { c.SecretsBackend = "" },
 			wantErr: true,
 		},
 		{
-			name:    "step 14 with yes and git remote URL",
-			step:    14,
+			name:    "step 4 with yes and git remote URL",
+			step:    4,
 			setup:   func(c *config.WizardConfig) { c.GithubCreateRepo = true; c.GitRemoteURL = "git@github.com:user/repo.git" },
 			wantErr: false,
 		},
 		{
-			name:    "step 14 with yes but no git remote URL",
-			step:    14,
+			name:    "step 4 with yes but no git remote URL",
+			step:    4,
 			setup:   func(c *config.WizardConfig) { c.GithubCreateRepo = true; c.GitRemoteURL = "" },
 			wantErr: true,
 		},
 		{
-			name:    "step 14 with yes and local copy (git remote URL still required)",
-			step:    14,
+			name:    "step 4 with yes and local copy (git remote URL still required)",
+			step:    4,
 			setup:   func(c *config.WizardConfig) { c.GithubCreateRepo = true; c.UseLocalCopy = true; c.GitRemoteURL = "" },
 			wantErr: true,
 		},
 		{
-			name:    "step 14 with no",
-			step:    14,
+			name:    "step 4 with no",
+			step:    4,
 			setup:   func(c *config.WizardConfig) { c.GithubCreateRepo = false },
 			wantErr: false,
 		},
@@ -287,47 +290,44 @@ func TestWizardModelInitStep(t *testing.T) {
 		t.Errorf("Step 1 mode = %d, want modeNavigate(%d)", m.mode, modeNavigate)
 	}
 
-	// Step 2 should be single field text input
+	// Step 2 should be multi-field text input (project name + config dir)
 	m = runInitStep(m, 2)
 	if m.mode != modeTextInput {
 		t.Errorf("Step 2 mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
 	}
-	if len(m.textInputs) != 1 {
-		t.Errorf("Step 2 textInputs count = %d, want 1", len(m.textInputs))
+	if len(m.textInputs) != 2 {
+		t.Errorf("Step 2 textInputs count = %d, want 2", len(m.textInputs))
 	}
 	if !m.textInput.Focused() {
 		t.Error("Step 2 text input should be focused")
 	}
 
 	// Step 4 should be radio select
-	m = runInitStep(m, 4)
+	m = runInitStep(m, 3)
 	if m.mode != modeRadioSelect {
 		t.Errorf("Step 4 mode = %d, want modeRadioSelect(%d)", m.mode, modeRadioSelect)
 	}
 
-	// Step 5 should be multi-field text input
+	// Step 5 should be radio select (secure-exec)
 	m = runInitStep(m, 5)
-	if m.mode != modeTextInput {
-		t.Errorf("Step 5 mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
-	}
-	if len(m.textInputs) != 3 {
-		t.Errorf("Step 5 textInputs count = %d, want 3", len(m.textInputs))
+	if m.mode != modeRadioSelect {
+		t.Errorf("Step 5 mode = %d, want modeRadioSelect(%d)", m.mode, modeRadioSelect)
 	}
 
-	// Step 6 should be radio select (Secrets Backend)
-	m = runInitStep(m, 6)
+	// Step 7 should be radio select (Secrets Backend)
+	m = runInitStep(m, 7)
 	if m.mode != modeRadioSelect {
-		t.Errorf("Step 6 mode = %d, want modeRadioSelect(%d)", m.mode, modeRadioSelect)
+		t.Errorf("Step 7 mode = %d, want modeRadioSelect(%d)", m.mode, modeRadioSelect)
 	}
 
 	// Step 8 should be checkbox select (GitHub Integration)
-	m = runInitStep(m, 8)
+	m = runInitStep(m, 9)
 	if m.mode != modeCheckboxSelect {
 		t.Errorf("Step 8 mode = %d, want modeCheckboxSelect(%d)", m.mode, modeCheckboxSelect)
 	}
 
 	// Step 9 should be multi-field text input (Slack Integration)
-	m = runInitStep(m, 9)
+	m = runInitStep(m, 10)
 	if m.mode != modeTextInput {
 		t.Errorf("Step 9 mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
 	}
@@ -384,14 +384,23 @@ func TestTextInputEnterCommitsValue(t *testing.T) {
 		m, _ = updateWizard(m, msg)
 	}
 
-	// Press Enter to commit
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	// Press Enter to move to next field (config dir)
+	m, _ = updateWizard(m, tea.KeyMsg{Type:tea.KeyEnter})
 
 	// Config should be updated
 	if m.config.ProjectName != "test-proj" {
 		t.Errorf("ProjectName = %q, want %q", m.config.ProjectName, "test-proj")
 	}
-	// Should have moved to step 3
+	// Should still be on step 2, field 1 (config dir)
+	if m.step != 2 {
+		t.Errorf("step = %d, want 2", m.step)
+	}
+	if m.currentField != 1 {
+		t.Errorf("currentField = %d, want 1", m.currentField)
+	}
+
+	// Press Enter again to advance to step 3
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.step != 3 {
 		t.Errorf("step = %d, want 3", m.step)
 	}
@@ -399,13 +408,8 @@ func TestTextInputEnterCommitsValue(t *testing.T) {
 
 func TestMultiFieldTabNavigation(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
-	cfg.EssentialsRepoURL = "" // Clear defaults for clean test
-	cfg.EssentialsBranch = ""
-	cfg.EssentialsCloneType = ""
-	cfg.EssentialsClonePAT = ""
-	cfg.EssentialsCloneKey = ""
 	m := NewWizard(cfg)
-	m = runInitStep(m, 5) // Config Repo Setup - 5 fields
+	m = runInitStep(m, 2) // Project Settings - 2 fields (project name + config dir)
 
 	// Type in first field
 	for _, ch := range "https://example.com" {
@@ -432,7 +436,7 @@ func TestMultiFieldTabNavigation(t *testing.T) {
 
 func TestMultiFieldEscBackNavigation(t *testing.T) {
 	m := NewWizard(nil)
-	m = runInitStep(m, 5) // 5 fields
+	m = runInitStep(m, 2) // Project Settings - 2 fields
 
 	// Move to second field
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
@@ -453,19 +457,19 @@ func TestMultiFieldEscBackNavigation(t *testing.T) {
 
 func TestMultiFieldEscOnFirstFieldGoesBack(t *testing.T) {
 	m := NewWizard(nil)
-	m = runInitStep(m, 5)
+	m = runInitStep(m, 2)
 
-	// Press Esc on first field - should go to previous step
+	// Press Esc on first field - should go to previous step (welcome)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-	if m.step != 4 {
-		t.Errorf("step = %d, want 4 (previous step)", m.step)
+	if m.step != 1 {
+		t.Errorf("step = %d, want 1 (previous step)", m.step)
 	}
 }
 
 func TestRadioSelectionDownArrow(t *testing.T) {
 	m := NewWizard(nil)
-	m = runInitStep(m, 4) // Deployment Mode
+	m = runInitStep(m, 3) // Deployment Mode
 
 	// Default should be "docker" (index 0)
 	if m.radioIndex != 0 {
@@ -496,7 +500,7 @@ func TestRadioSelectionDownArrow(t *testing.T) {
 
 func TestRadioSelectionUpArrow(t *testing.T) {
 	m := NewWizard(nil)
-	m = runInitStep(m, 4)
+	m = runInitStep(m, 3)
 
 	// Move down twice
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
@@ -531,7 +535,7 @@ func TestRadioSelectionEnterCommits(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.DeploymentMode = "docker"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 4)
+	m = runInitStep(m, 3)
 
 	// Move to "source" (index 1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
@@ -544,32 +548,32 @@ func TestRadioSelectionEnterCommits(t *testing.T) {
 		t.Errorf("DeploymentMode = %q, want %q", m.config.DeploymentMode, "source")
 	}
 	// Should advance to next step
-	if m.step != 5 {
-		t.Errorf("step = %d, want 5", m.step)
+	if m.step != 4 {
+		t.Errorf("step = %d, want 4", m.step)
 	}
 }
 
 func TestRadioSelectionEscGoesBack(t *testing.T) {
 	m := NewWizard(nil)
-	m = runInitStep(m, 4)
+	m = runInitStep(m, 3)
 
 	// Press Esc to go back
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-	if m.step != 3 {
-		t.Errorf("step = %d, want 3", m.step)
+	if m.step != 2 {
+		t.Errorf("step = %d, want 2", m.step)
 	}
 }
 
 func TestRadioSelectionBackspaceGoesBack(t *testing.T) {
 	m := NewWizard(nil)
-	m = runInitStep(m, 4)
+	m = runInitStep(m, 3)
 
 	// Press Backspace to go back
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyBackspace})
 
-	if m.step != 3 {
-		t.Errorf("step = %d, want 3", m.step)
+	if m.step != 2 {
+		t.Errorf("step = %d, want 2", m.step)
 	}
 }
 
@@ -620,20 +624,20 @@ func TestTextInputDefaultValue(t *testing.T) {
 func TestMultiFieldDefaultValue(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 5) // Config Repo Setup
+	m = runInitStep(m, 2) // Project Settings (project name + config dir)
 
-	if m.textInputs[0].Value() != "https://github.com/honeydipper/honeydipper-config-essentials.git" {
-		t.Errorf("field 0 = %q, want essentials URL", m.textInputs[0].Value())
+	if m.textInputs[0].Value() != "hd-config" {
+		t.Errorf("field 0 = %q, want %q", m.textInputs[0].Value(), "hd-config")
 	}
-	if m.textInputs[1].Value() != "v4-rc" {
-		t.Errorf("field 1 = %q, want %q", m.textInputs[1].Value(), "v4-rc")
+	if m.textInputs[1].Value() != "./hd-config" {
+		t.Errorf("field 1 = %q, want %q", m.textInputs[1].Value(), "./hd-config")
 	}
 }
 
 func TestRadioDefaultSelection(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 4) // Deployment Mode
+	m = runInitStep(m, 3) // Deployment Mode
 
 	// Default is "docker" which is index 0
 	if m.radioIndex != 0 {
@@ -646,8 +650,8 @@ func TestViewContainsStepTitle(t *testing.T) {
 	m = runInitStep(m, 2)
 
 	view := m.View()
-	if !strings.Contains(view, "Project Name") {
-		t.Errorf("View() should contain step title 'Project Name', got: %s", view)
+	if !strings.Contains(view, "Project name") {
+		t.Errorf("View() should contain step title 'Project name', got: %s", view)
 	}
 }
 
@@ -664,7 +668,7 @@ func TestViewContainsTextInput(t *testing.T) {
 
 func TestViewContainsRadioOptions(t *testing.T) {
 	m := NewWizard(nil)
-	m = runInitStep(m, 4)
+	m = runInitStep(m, 3)
 
 	view := m.View()
 	if !strings.Contains(view, "docker") {
@@ -703,16 +707,16 @@ func TestCtrlQInTextInputModeQuits(t *testing.T) {
 }
 
 func TestCtrlQOnDoneScreenQuits(t *testing.T) {
-	// Ctrl+Q on step 16 should quit without generating config
+	// Ctrl+Q on step 11 should quit without generating config
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 16)
+	m = runInitStep(m, 15)
 
 	// Press ctrl+q - should quit without generating
 	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
 
 	if cmd == nil {
-		t.Error("ctrl+q on step 16 should produce a quit command")
+		t.Error("ctrl+q on step 11 should produce a quit command")
 	}
 	// err should be nil (no config generation)
 	if m.err != nil {
@@ -721,9 +725,9 @@ func TestCtrlQOnDoneScreenQuits(t *testing.T) {
 }
 
 func TestViewSummaryScreen(t *testing.T) {
-	// The summary is shown on step 16 (navigate mode), not on a done screen.
+	// The summary is shown on step 11 (navigate mode), not on a done screen.
 	m := NewWizard(nil)
-	m = runInitStep(m, 16)
+	m = runInitStep(m, 15)
 
 	view := m.View()
 	// Step 16 should show the summary
@@ -739,7 +743,7 @@ func TestViewSummaryScreen(t *testing.T) {
 func TestStep15ShowsSummary(t *testing.T) {
 	// Step 16 should show the summary directly
 	m := NewWizard(nil)
-	m = runInitStep(m, 16)
+	m = runInitStep(m, 15)
 
 	view := m.View()
 	if !strings.Contains(view, "Configuration Summary") {
@@ -766,17 +770,17 @@ func TestStep15ShowsSummary(t *testing.T) {
 }
 
 func TestStep16EnterGeneratesDirectly(t *testing.T) {
-	// Fix 1: Pressing Enter on step 16 should generate config directly
+	// Fix 1: Pressing Enter on step 11 should generate config directly
 	// without going through the done/confirmation screen.
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 16) // Summary step (navigate mode)
+	m = runInitStep(m, 15) // Summary step (navigate mode)
 
 	// Press Enter - should trigger generateConfig and return quit
 	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if cmd == nil {
-		t.Error("expected quit command after enter on step 16")
+		t.Error("expected quit command after enter on step 11")
 	}
 	// Should NOT be in done state (direct generation, no intermediate done)
 	if m.done {
@@ -785,17 +789,17 @@ func TestStep16EnterGeneratesDirectly(t *testing.T) {
 }
 
 func TestStep16SaveAndGenerateDirectly(t *testing.T) {
-	// Fix 1: Pressing 's' on step 16 should save answers and generate directly.
+	// Fix 1: Pressing 's' on step 11 should save answers and generate directly.
 	cfg := config.NewDefaultWizardConfig()
 	cfg.ProjectName = "save-gen-test"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 16)
+	m = runInitStep(m, 15)
 
 	// Press 's' - should save and generate
 	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 
 	if cmd == nil {
-		t.Error("expected quit command after 's' on step 16")
+		t.Error("expected quit command after 's' on step 11")
 	}
 	if m.done {
 		t.Error("model should NOT be in done state")
@@ -803,27 +807,27 @@ func TestStep16SaveAndGenerateDirectly(t *testing.T) {
 }
 
 func TestStep15EscGoesBack(t *testing.T) {
-	// Pressing Esc on step 15 should go back to previous step
+	// Pressing Esc on step 11 should go back to previous step
 	m := NewWizard(nil)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 
 	if m.step == 15 {
-		t.Errorf("step = %d, should have gone back from step 15", m.step)
+		t.Errorf("step = %d, should have gone back from step 11", m.step)
 	}
 }
 
 func TestDoneScreenEnterConfirms(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 16)
+	m = runInitStep(m, 15)
 
 	// Press Enter - should trigger generateConfig and return a quit command
 	m, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if cmd == nil {
-		t.Error("expected quit command after enter on step 16")
+		t.Error("expected quit command after enter on step 11")
 	}
 	// Should NOT be in done state (direct generation, no intermediate done)
 	if m.done {
@@ -833,13 +837,13 @@ func TestDoneScreenEnterConfirms(t *testing.T) {
 
 func TestDoneScreenEscGoesBack(t *testing.T) {
 	m := NewWizard(nil)
-	m = runInitStep(m, 16)
+	m = runInitStep(m, 15)
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-	// Esc on step 16 should go back to step 15
-	if m.step != 15 {
-		t.Errorf("should be on step 15 after esc on step 16, got %d", m.step)
+	// Esc on step 15 (summary) should go back to step 12 (docker mode)
+	if m.step != 12 {
+		t.Errorf("should be on step 12 after esc on step 15, got %d", m.step)
 	}
 }
 
@@ -926,21 +930,20 @@ func TestStepOrder(t *testing.T) {
 		title string
 	}{
 		{1, "Welcome"},
-		{2, "Project Name"},
-		{3, "Config Directory"},
-		{4, "Deployment Mode"},
-		{5, "Config Repo Setup"},
-		{6, "Secrets Backend"},  // Moved up
-		{7, "Redis"},             // Moved up
-		{8, "GitHub Integration"}, // Moved down
-		{9, "Slack Integration"},  // Moved down
-		{10, "AI Agent"},          // Moved down
-		{11, "Docker Configuration"},
-		{12, "Kubernetes Configuration"},
-		{13, "Source Configuration"},
-		{14, "GitHub Repo Creation"},
-		{15, "Clone Auth"},
-		{16, "Summary & Confirm"},
+		{2, "Project Settings"},
+		{3, "Deployment Mode"},
+		{4, "GitHub Repo Creation"},
+		{5, "Secure Execution"},
+		{6, "Clone Auth"},
+		{7, "Secrets Backend"},
+		{8, "Redis"},
+		{9, "GitHub Integration"},
+		{10, "Slack Integration"},
+		{11, "AI Agent"},
+		{12, "Docker Configuration"},
+		{13, "Kubernetes Configuration"},
+		{14, "Source Configuration"},
+		{15, "Summary & Confirm"},
 	}
 
 	for _, expected := range expectedOrder {
@@ -996,7 +999,7 @@ func TestCtrlSSaveOnRadioStep(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.ProjectName = "radio-save-test"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 4) // Deployment Mode (radio)
+	m = runInitStep(m, 3) // Deployment Mode (radio)
 
 	// Press Ctrl+S
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlS})
@@ -1006,9 +1009,9 @@ func TestCtrlSSaveOnRadioStep(t *testing.T) {
 	if !strings.Contains(view, "Answers saved to") {
 		t.Errorf("View() should contain save confirmation, got: %s", view)
 	}
-	// Should still be on step 4
-	if m.step != 4 {
-		t.Errorf("step = %d, want 4", m.step)
+	// Should still be on step 3 (Ctrl+S saves but does not advance)
+	if m.step != 3 {
+		t.Errorf("step = %d, want 3", m.step)
 	}
 }
 
@@ -1064,7 +1067,7 @@ func TestCtrlSSavesCheckboxTextFieldValue(t *testing.T) {
 	cfg.ProjectName = "checkbox-save"
 	cfg.HasGitHubAppIntegration = true // Enable conditional text fields
 	m := NewWizard(cfg)
-	m = runInitStep(m, 8) // GitHub Integration (checkbox)
+	m = runInitStep(m, 9) // GitHub Integration (checkbox)
 
 	// Move to text field (past checkboxes)
 	m.currentField = 1
@@ -1242,16 +1245,16 @@ func TestCtrlCInTextInputModeQuits(t *testing.T) {
 }
 
 func TestCtrlQOnDoneScreenQuitsWithoutGenerating(t *testing.T) {
-	// Pressing ctrl+q on step 16 should quit without generating config
+	// Pressing ctrl+q on step 11 should quit without generating config
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 16)
+	m = runInitStep(m, 15)
 
 	// Press ctrl+q - should quit without generating
 	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
 
 	if cmd == nil {
-		t.Error("ctrl+q on step 16 should produce a quit command")
+		t.Error("ctrl+q on step 11 should produce a quit command")
 	}
 	// err should be nil (no config generation)
 	if m.err != nil {
@@ -1262,7 +1265,7 @@ func TestCtrlQOnDoneScreenQuitsWithoutGenerating(t *testing.T) {
 func TestCtrlQOnRadioStepQuits(t *testing.T) {
 	// Pressing ctrl+q on a radio select step should quit immediately
 	m := NewWizard(nil)
-	m = runInitStep(m, 4) // Deployment Mode (radio select)
+	m = runInitStep(m, 3) // Deployment Mode (radio select)
 
 	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
 
@@ -1274,7 +1277,7 @@ func TestCtrlQOnRadioStepQuits(t *testing.T) {
 func TestCtrlQOnCheckboxStepQuits(t *testing.T) {
 	// Pressing ctrl+q on a checkbox step should quit immediately
 	m := NewWizard(nil)
-	m = runInitStep(m, 8) // GitHub Integration (checkbox)
+	m = runInitStep(m, 9) // GitHub Integration (checkbox)
 
 	_, cmd := updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
 
@@ -1326,7 +1329,7 @@ func TestQInCheckboxTextFieldIsRegularChar(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.HasGitHubAppIntegration = true // Enable to get text fields
 	m := NewWizard(cfg)
-	m = runInitStep(m, 8) // GitHub Integration (checkbox)
+	m = runInitStep(m, 9) // GitHub Integration (checkbox)
 
 	// Move to text field (past checkboxes)
 	m.currentField = 1
@@ -1341,9 +1344,9 @@ func TestQInCheckboxTextFieldIsRegularChar(t *testing.T) {
 	if m.textInput.Value() != "q" {
 		t.Errorf("textInput.Value() = %q, want %q", m.textInput.Value(), "q")
 	}
-	// Should still be on step 8
-	if m.step != 8 {
-		t.Errorf("step = %d, want 8 (should not advance)", m.step)
+	// Should still be on step 9 (q is a regular character in text input)
+	if m.step != 9 {
+		t.Errorf("step = %d, want 9 (should not advance)", m.step)
 	}
 }
 
@@ -1366,7 +1369,7 @@ func TestQuitSetsQuitFlag(t *testing.T) {
 
 func TestQuitSetsQuitFlagOnRadioStep(t *testing.T) {
 	m := NewWizard(nil)
-	m = runInitStep(m, 4) // radio select
+	m = runInitStep(m, 3) // radio select
 
 	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
 
@@ -1377,7 +1380,7 @@ func TestQuitSetsQuitFlagOnRadioStep(t *testing.T) {
 
 func TestQuitSetsQuitFlagOnCheckboxStep(t *testing.T) {
 	m := NewWizard(nil)
-	m = runInitStep(m, 8) // checkbox
+	m = runInitStep(m, 9) // checkbox
 
 	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyCtrlQ})
 
@@ -1398,11 +1401,11 @@ func TestCtrlCSetsQuitFlag(t *testing.T) {
 }
 
 func TestCompleteDoesNotSetQuitFlag(t *testing.T) {
-	// When user completes the wizard (presses Enter on step 15),
+	// When user completes the wizard (presses Enter on step 11),
 	// quit should remain false.
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 16)
+	m = runInitStep(m, 15)
 
 	m, _ = updateWizardCmd(m, tea.KeyMsg{Type: tea.KeyEnter})
 
@@ -1620,7 +1623,7 @@ func TestStep8DevModeLabels(t *testing.T) {
 	cfg.HasGitHubAppIntegration = true
 	cfg.HasGithubPATIntegration = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 8)
+	m = runInitStep(m, 9)
 
 	view := m.View()
 
@@ -1651,7 +1654,7 @@ func TestStep8VaultModeLabels(t *testing.T) {
 	cfg.HasGitHubAppIntegration = true
 	cfg.HasGithubPATIntegration = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 8)
+	m = runInitStep(m, 9)
 
 	view := m.View()
 
@@ -1673,7 +1676,7 @@ func TestStep9DevModeLabels(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.SecretsBackend = "dev"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 9)
+	m = runInitStep(m, 10)
 
 	view := m.View()
 
@@ -1704,7 +1707,7 @@ func TestStep9VaultModeLabels(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.SecretsBackend = "vault"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 9)
+	m = runInitStep(m, 10)
 
 	view := m.View()
 
@@ -1721,7 +1724,7 @@ func TestSummaryDevModeSecretFormat(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.SecretsBackend = "dev"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 16)
+	m = runInitStep(m, 15)
 
 	view := m.View()
 
@@ -1738,7 +1741,7 @@ func TestSummaryVaultModeSecretFormat(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.SecretsBackend = "vault"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 16)
+	m = runInitStep(m, 15)
 
 	view := m.View()
 
@@ -1816,24 +1819,24 @@ func TestIsDevSecretField(t *testing.T) {
 		label    string
 		expected bool
 	}{
-		{8, "Private key secret path", true},
-		{8, "Private key value", true},
-		{8, "Token secret path", true},
-		{8, "Token value", true},
-		{8, "Webhook secret path", true},
-		{8, "Webhook secret value", true},
-		{8, "App ID", false},
-		{8, "Installation ID", false},
-		{9, "Bot token secret path", true},
-		{9, "Bot token value", true},
-		{9, "Signing secret path", true},
-		{9, "Signing secret value", true},
-		{9, "Interaction token", true},
-		{9, "Interaction token value", true},
-		{9, "Slash command token", true},
-		{9, "Slash command token value", true},
+		{9, "Private key secret path", true},
+		{9, "Private key value", true},
+		{9, "Token secret path", true},
+		{9, "Token value", true},
+		{9, "Webhook secret path", true},
+		{9, "Webhook secret value", true},
+		{9, "App ID", false},
+		{9, "Installation ID", false},
+		{10, "Bot token secret path", true},
+		{10, "Bot token value", true},
+		{10, "Signing secret path", true},
+		{10, "Signing secret value", true},
+		{10, "Interaction token", true},
+		{10, "Interaction token value", true},
+		{10, "Slash command token", true},
+		{10, "Slash command token value", true},
 		{2, "Project name", false},
-		{10, "API key secret path", false}, // AI step, not a dev secret field
+		{11, "API key secret path", false}, // AI step, not a dev secret field
 	}
 
 	for _, tt := range tests {
@@ -1853,7 +1856,7 @@ func TestDevModeSecretValidationRejectsNonHD(t *testing.T) {
 	cfg.SecretsBackend = "dev"
 	cfg.HasGitHubAppIntegration = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 8)
+	m = runInitStep(m, 9)
 
 	// Navigate from checkboxes to text fields:
 	// Tab from checkbox 0 to checkbox 1, then Tab to first text field
@@ -1904,9 +1907,9 @@ func TestDevModeSecretValidationRejectsNonHD(t *testing.T) {
 	if !strings.Contains(m.validationErr, "HD_") {
 		t.Errorf("validation error should mention HD_ prefix, got: %q", m.validationErr)
 	}
-	// Should still be on step 8
-	if m.step != 8 {
-		t.Errorf("step = %d, want 8 (should not advance on validation error)", m.step)
+	// Should still be on step 9
+	if m.step != 9 {
+		t.Errorf("step = %d, want 9 (should not advance on validation error)", m.step)
 	}
 }
 func TestDevModeSecretValidationAcceptsHD(t *testing.T) {
@@ -1916,7 +1919,7 @@ func TestDevModeSecretValidationAcceptsHD(t *testing.T) {
 	cfg.SecretsBackend = "dev"
 	cfg.HasGitHubAppIntegration = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 8)
+	m = runInitStep(m, 9)
 
 	// Navigate from checkboxes to text fields
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
@@ -1962,7 +1965,7 @@ func TestDevModeSecretAcceptsPlainValue(t *testing.T) {
 	cfg.SecretsBackend = "dev"
 	cfg.HasGitHubAppIntegration = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 8)
+	m = runInitStep(m, 9)
 
 	// Navigate from checkboxes to text fields
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
@@ -2022,7 +2025,7 @@ func TestVaultModeSecretNoValidation(t *testing.T) {
 	cfg.SecretsBackend = "vault"
 	cfg.HasGitHubAppIntegration = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 8)
+	m = runInitStep(m, 9)
 
 	// Navigate from checkboxes to text fields
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
@@ -2079,7 +2082,7 @@ func TestStep14CheckboxNotCheckedByDefault(t *testing.T) {
 	// Step 14 starts with both checkboxes unchecked
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	if m.config.GithubCreateRepo {
 		t.Error("GithubCreateRepo should be false by default")
@@ -2097,7 +2100,7 @@ func TestStep14SpaceToggleFirstCheckbox(t *testing.T) {
 	// Pressing Space on the first checkbox should toggle GithubCreateRepo
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// First checkbox ("Create GitHub repo") is at checkboxIndex 0
 	if m.checkboxIndex != 0 {
@@ -2117,12 +2120,12 @@ func TestStep14SpaceToggleFirstCheckbox(t *testing.T) {
 	// Now the "Use local copy" checkbox should appear (condition: GithubCreateRepo == true)
 	view := m.View()
 	if !strings.Contains(view, "Use local copy instead of clone") {
-		t.Errorf("step 14 view should contain 'Use local copy' checkbox, got:\n%s", view)
+		t.Errorf("step 4 view should contain 'Use local copy' checkbox, got:\n%s", view)
 	}
 
-	// Text inputs should now include git remote URL and secure-exec driver
-	if len(m.textInputs) != 2 {
-		t.Errorf("textInputs count = %d, want 2 (git remote URL + secure-exec driver)", len(m.textInputs))
+	// Text inputs should now include git remote URL
+	if len(m.textInputs) != 1 {
+		t.Errorf("textInputs count = %d, want 1 (git remote URL)", len(m.textInputs))
 	}
 }
 
@@ -2130,7 +2133,7 @@ func TestStep14SecondCheckboxVisibleWhenFirstChecked(t *testing.T) {
 	// After checking "Create GitHub repo", the second checkbox should be visible
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle first checkbox on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
@@ -2160,7 +2163,7 @@ func TestStep14SecondCheckboxHiddenWhenFirstUnchecked(t *testing.T) {
 	// When "Create GitHub repo" is unchecked, "Use local copy" should be hidden
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle first checkbox on, then off
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace}) // on
@@ -2173,7 +2176,7 @@ func TestStep14SecondCheckboxHiddenWhenFirstUnchecked(t *testing.T) {
 	// View should NOT contain "Use local copy"
 	view := m.View()
 	if strings.Contains(view, "Use local copy instead of clone") {
-		t.Errorf("step 14 view should NOT contain 'Use local copy' when GithubCreateRepo is false, got:\n%s", view)
+		t.Errorf("step 4 view should NOT contain 'Use local copy' when GithubCreateRepo is false, got:\n%s", view)
 	}
 
 	// No text inputs
@@ -2186,7 +2189,7 @@ func TestStep14EnterTogglesAndAdvances(t *testing.T) {
 	// Pressing Enter on a checkbox toggles it and advances to the next one
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Press Enter on first checkbox: toggles GithubCreateRepo on, moves to checkbox 1
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
@@ -2206,15 +2209,15 @@ func TestStep14EnterOnLastCheckboxWithTextInput(t *testing.T) {
 	// Pressing Enter on the last checkbox when text inputs exist switches to text input mode
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle first checkbox on (Space), move to second checkbox
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace}) // toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})   // move to checkbox 1
 
 	// textInputs should have git remote URL + secure-exec driver
-	if len(m.textInputs) != 2 {
-		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
+	if len(m.textInputs) != 1 {
+		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
 	}
 
 	// Press Enter on last checkbox: toggles UseLocalCopy on, textInputs still exist
@@ -2230,8 +2233,8 @@ func TestStep14EnterOnLastCheckboxWithTextInput(t *testing.T) {
 	}
 
 	// Text inputs still exist (git remote URL always visible), so should switch to text input mode
-	if m.step != 14 {
-		t.Errorf("step = %d, want 14 (should stay on step 14 with text inputs)", m.step)
+	if m.step != 4 {
+		t.Errorf("step = %d, want 4 (should stay on step 4 with text inputs)", m.step)
 	}
 	if m.currentField != 1 {
 		t.Errorf("currentField = %d, want 1 (should focus text input)", m.currentField)
@@ -2242,7 +2245,7 @@ func TestStep14EnterOnLastCheckboxAdvancesWhenNoTextInputs(t *testing.T) {
 	// When text inputs exist, pressing Enter on last checkbox switches to text input mode
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Press Enter twice: toggle GithubCreateRepo (move to cb1), toggle UseLocalCopy
 	// After both toggles, git remote URL text input still exists (always visible when
@@ -2250,8 +2253,8 @@ func TestStep14EnterOnLastCheckboxAdvancesWhenNoTextInputs(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // toggle GithubCreateRepo, move to cb1
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // toggle UseLocalCopy, switch to text input
 
-	if m.step != 14 {
-		t.Errorf("step = %d, want 14 (should stay on step 14 with text inputs)", m.step)
+	if m.step != 4 {
+		t.Errorf("step = %d, want 4 (should stay on step 4 with text inputs)", m.step)
 	}
 	if m.currentField != 1 {
 		t.Errorf("currentField = %d, want 1 (should focus text input)", m.currentField)
@@ -2264,14 +2267,14 @@ func TestStep14EnterOnLastCheckboxNoAdvanceWhenTextInputRequired(t *testing.T) {
 	// tries to advance from text input mode
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
 	// Now there are text inputs (git remote URL + secure-exec driver)
-	if len(m.textInputs) != 2 {
-		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
+	if len(m.textInputs) != 1 {
+		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
 	}
 
 	// Move to last checkbox (index 1)
@@ -2281,8 +2284,8 @@ func TestStep14EnterOnLastCheckboxNoAdvanceWhenTextInputRequired(t *testing.T) {
 	// (git remote URL always visible), so switches to text input mode
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	if m.step != 14 {
-		t.Errorf("step = %d, want 14 (should stay on step 14 with text inputs)", m.step)
+	if m.step != 4 {
+		t.Errorf("step = %d, want 4 (should stay on step 4 with text inputs)", m.step)
 	}
 	if m.currentField != 1 {
 		t.Errorf("currentField = %d, want 1 (should focus text input)", m.currentField)
@@ -2293,14 +2296,14 @@ func TestStep14GitRemoteURLFieldVisibleAfterCheckingCreateRepo(t *testing.T) {
 	// After checking "Create GitHub repo", git remote URL and clone auth fields should appear
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
 	// Text inputs should have 2 fields (git remote URL + secure-exec driver)
-	if len(m.textInputs) != 2 {
-		t.Errorf("textInputs count = %d, want 2", len(m.textInputs))
+	if len(m.textInputs) != 1 {
+		t.Errorf("textInputs count = %d, want 1", len(m.textInputs))
 	}
 
 	view := m.View()
@@ -2313,13 +2316,13 @@ func TestStep14CheckboxVisibleInTextInputMode(t *testing.T) {
 	// When in text input mode, checkboxes should still be visible above the text fields
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle "Create GitHub repo" on, move to second checkbox, press Enter to switch to text input
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace}) // toggle GithubCreateRepo on
 	// Now text inputs exist (git remote URL + secure-exec driver)
-	if len(m.textInputs) != 2 {
-		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
+	if len(m.textInputs) != 1 {
+		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
 	}
 
 	// Press Down to move to checkbox 1, then Down again to move to text inputs
@@ -2345,14 +2348,14 @@ func TestStep14TextInputModeTabNavigation(t *testing.T) {
 	// Tab should navigate through text fields in checkbox step text input mode
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
 	// There should be 2 text inputs (git remote URL + secure-exec driver)
-	if len(m.textInputs) != 2 {
-		t.Fatalf("textInputs count = %d, want 2", len(m.textInputs))
+	if len(m.textInputs) != 1 {
+		t.Fatalf("textInputs count = %d, want 1", len(m.textInputs))
 	}
 
 	// Move to text input: Down past last checkbox goes to textInputs[0] (Git remote URL)
@@ -2365,17 +2368,10 @@ func TestStep14TextInputModeTabNavigation(t *testing.T) {
 		m, _ = updateWizard(m, msg)
 	}
 
-	// Tab to secure-exec driver field
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-
-	// Tab to clone auth (default is "none" so no need to type)
-	// Actually, the clone auth field is on step 15, not step 14.
-	// Step 14 has: git remote URL, secure-exec driver, and vault/gcloud fields (conditional).
-	// With default "none" driver, only git remote URL and secure-exec driver are visible.
-	// Press Enter on last field — should advance.
+	// Press Enter on the text input - should advance to step 5
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 15 {
-		t.Errorf("step = %d, want 15", m.step)
+	if m.step != 5 {
+		t.Errorf("step = %d, want 5", m.step)
 	}
 	if m.validationErr != "" {
 		t.Errorf("expected no validation error, got: %s", m.validationErr)
@@ -2385,7 +2381,7 @@ func TestStep14TextInputEscBackToCheckboxes(t *testing.T) {
 	// Pressing Esc on first text field should go back to checkboxes
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
@@ -2410,12 +2406,12 @@ func TestStep14NoCheckboxesNoAdvance(t *testing.T) {
 	// With no checkboxes checked, pressing Enter on the last checkbox should toggle it and advance
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Initially only 1 visible checkbox: "Create GitHub repo" (checkbox 0)
 	// "Use local copy" is hidden because GithubCreateRepo is false
-	if m.visibleCheckboxCount(getStepInfo(14)) != 1 {
-		t.Fatalf("visibleCheckboxCount = %d, want 1", m.visibleCheckboxCount(getStepInfo(14)))
+	if m.visibleCheckboxCount(getStepInfo(4)) != 1 {
+		t.Fatalf("visibleCheckboxCount = %d, want 1", m.visibleCheckboxCount(getStepInfo(4)))
 	}
 
 	// Press Enter: toggles GithubCreateRepo on, moves to next checkbox
@@ -2462,7 +2458,7 @@ func TestStep14EnterOnNoCheckboxesAdvances(t *testing.T) {
 	// and switches to text input mode (git remote URL always visible when GithubCreateRepo)
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Default: GithubCreateRepo=false, only 1 visible checkbox
 	// Press Enter on checkbox 0: toggles GithubCreateRepo on, moves to cb1
@@ -2472,9 +2468,9 @@ func TestStep14EnterOnNoCheckboxesAdvances(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // toggle GithubCreateRepo, move to cb1
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter}) // toggle UseLocalCopy, switch to text input
 
-	// Should stay on step 14 with text input focused
-	if m.step != 14 {
-		t.Errorf("step = %d, want 14 (should stay on step 14 with text inputs)", m.step)
+	// Should stay on step 4 with text input focused
+	if m.step != 4 {
+		t.Errorf("step = %d, want 4 (should stay on step 4 with text inputs)", m.step)
 	}
 	if m.currentField != 1 {
 		t.Errorf("currentField = %d, want 1 (should focus text input)", m.currentField)
@@ -2485,14 +2481,14 @@ func TestStep14EscOnFirstCheckboxGoesBack(t *testing.T) {
 	// Pressing Esc with no checkboxes checked should go back to previous step
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Press Esc
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 
-	// Should go back to previous required step (step 11 for docker mode)
-	if m.step != 11 {
-		t.Errorf("step = %d, want 11", m.step)
+	// Should go back to previous required step (step 3)
+	if m.step != 3 {
+		t.Errorf("step = %d, want 3", m.step)
 	}
 }
 
@@ -2500,7 +2496,7 @@ func TestStep14GitRemoteURLRequiredWhenCreateRepoAndNoLocalCopy(t *testing.T) {
 	// When GithubCreateRepo is true (regardless of UseLocalCopy), git remote URL is required
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
@@ -2509,15 +2505,12 @@ func TestStep14GitRemoteURLRequiredWhenCreateRepoAndNoLocalCopy(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input (Git remote URL)
 
-	// Tab to clone auth field (still no values filled)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-
-	// Press Enter on last text field - should trigger validation error
+	// Press Enter on the text input - should trigger validation error
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	// Should NOT advance - should show validation error for empty git remote URL
-	if m.step != 14 {
-		t.Errorf("step = %d, want 14 (should not advance with empty git remote URL)", m.step)
+	if m.step != 4 {
+		t.Errorf("step = %d, want 4 (should not advance with empty git remote URL)", m.step)
 	}
 	if m.validationErr == "" {
 		t.Error("expected validation error for empty git remote URL")
@@ -2530,7 +2523,7 @@ func TestStep14GitRemoteURLValidationPasses(t *testing.T) {
 	// When git remote URL is filled, should advance
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
@@ -2545,13 +2538,10 @@ func TestStep14GitRemoteURLValidationPasses(t *testing.T) {
 		m, _ = updateWizard(m, msg)
 	}
 
-	// Tab to clone auth (default is "none" so no need to type)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-
-	// Press Enter — should advance
+	// Press Enter — should advance to step 5
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 15 {
-		t.Errorf("step = %d, want 15", m.step)
+	if m.step != 5 {
+		t.Errorf("step = %d, want 5", m.step)
 	}
 	if m.validationErr != "" {
 		t.Errorf("expected no validation error, got: %s", m.validationErr)
@@ -2561,7 +2551,7 @@ func TestStep14UseLocalCopySpaceToggles(t *testing.T) {
 	// Pressing space on the "Use local copy" checkbox should toggle UseLocalCopy
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
@@ -2593,13 +2583,13 @@ func TestStep14UseLocalCopyHidesGitRemoteURL(t *testing.T) {
 	// (UseLocalCopy only affects the REPO env var in docker-compose, not the git remote URL field)
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Toggle "Create GitHub repo" on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 
 	// Before toggling local copy: textInputs should have 2 fields (git remote URL + secure-exec driver)
-	if len(m.textInputs) != 2 {
+	if len(m.textInputs) != 1 {
 		t.Fatalf("expected 2 text inputs before local copy (git remote URL + secure-exec driver), got %d", len(m.textInputs))
 	}
 
@@ -2621,7 +2611,7 @@ func TestStep14UseLocalCopyNoValidationRequired(t *testing.T) {
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// textInputs should have 1 field (git remote URL still visible)
 	if len(m.textInputs) != 1 {
@@ -2642,7 +2632,7 @@ func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 	// When GithubCreateRepo=true && UseLocalCopy: textInputs=1 (git remote URL only, secure-exec hidden)
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Initially: GithubCreateRepo=false, textInputs=0
 	if len(m.textInputs) != 0 {
@@ -2652,8 +2642,8 @@ func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 	// Toggle GithubCreateRepo on
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 	// Now has: git remote URL + secure-exec driver = 2
-	if len(m.textInputs) != 2 {
-		t.Errorf("after GithubCreateRepo=true, textInputs count = %d, want 2", len(m.textInputs))
+	if len(m.textInputs) != 1 {
+		t.Errorf("after GithubCreateRepo=true, textInputs count = %d, want 1", len(m.textInputs))
 	}
 
 	// Move to second checkbox and toggle UseLocalCopy on
@@ -2667,8 +2657,8 @@ func TestStep14CheckboxRebuildsOnToggle(t *testing.T) {
 	// Toggle UseLocalCopy off
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
 	// UseLocalCopy=false shows secure-exec driver again = 2
-	if len(m.textInputs) != 2 {
-		t.Errorf("after UseLocalCopy=false, textInputs count = %d, want 2", len(m.textInputs))
+	if len(m.textInputs) != 1 {
+		t.Errorf("after UseLocalCopy=false, textInputs count = %d, want 1", len(m.textInputs))
 	}
 }
 
@@ -2676,7 +2666,7 @@ func TestStep14LeftArrowTogglesCheckbox(t *testing.T) {
 	// Left arrow should also toggle the current checkbox (like Space)
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	if m.config.GithubCreateRepo {
 		t.Fatal("GithubCreateRepo should be false initially")
@@ -2697,7 +2687,7 @@ func TestStep14TabNavigatesBetweenCheckboxes(t *testing.T) {
 	// Tab should move between checkboxes without toggling
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	// Initially at checkboxIndex 0
 	if m.checkboxIndex != 0 {
@@ -2710,8 +2700,8 @@ func TestStep14TabNavigatesBetweenCheckboxes(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
 	// Since only 1 checkbox is visible and no text inputs, Tab should advance
-	if m.step != 15 {
-		t.Errorf("step = %d, want 15 (Tab on single checkbox with no text inputs should advance)", m.step)
+	if m.step != 5 {
+		t.Errorf("step = %d, want 5 (Tab on single checkbox with no text inputs should advance)", m.step)
 	}
 }
 
@@ -2719,7 +2709,7 @@ func TestStep14ViewContainsCheckboxLabel(t *testing.T) {
 	// The view should always contain the checkbox label "Create GitHub repo:"
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	view := m.View()
 	if !strings.Contains(view, "Create GitHub repo:") {
@@ -2734,11 +2724,11 @@ func TestStep6ConditionalFieldsHiddenWhenDev(t *testing.T) {
 	// When "dev" is selected, Vault address and auth method should be hidden
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	// Default is "vault" (index 0), so conditional fields should be visible
 	if len(m.textInputs) != 2 {
-		t.Errorf("Step 6 default (vault) textInputs count = %d, want 2", len(m.textInputs))
+		t.Errorf("Step 7 default (vault) textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// Move down to "dev" (index 1)
@@ -2768,7 +2758,7 @@ func TestStep6ConditionalFieldsVisibleWhenVault(t *testing.T) {
 	// When "vault" is selected, Vault address and auth method should be visible
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	// Default is "vault" (index 0)
 	if m.config.SecretsBackend != "vault" {
@@ -2777,7 +2767,7 @@ func TestStep6ConditionalFieldsVisibleWhenVault(t *testing.T) {
 
 	// Text inputs should be built for the 2 conditional fields
 	if len(m.textInputs) != 2 {
-		t.Errorf("Step 6 'vault' textInputs count = %d, want 2", len(m.textInputs))
+		t.Errorf("Step 7 'vault' textInputs count = %d, want 2", len(m.textInputs))
 	}
 
 	// View should contain the conditional field labels
@@ -2794,7 +2784,7 @@ func TestStep6EnterOnVaultSwitchesToTextInput(t *testing.T) {
 	// Pressing Enter on "vault" should switch to text input mode
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	// Default is "vault" (index 0), press Enter
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
@@ -2803,8 +2793,8 @@ func TestStep6EnterOnVaultSwitchesToTextInput(t *testing.T) {
 	if m.mode != modeTextInput {
 		t.Errorf("mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
 	}
-	if m.step != 6 {
-		t.Errorf("step = %d, want 6 (should not advance)", m.step)
+	if m.step != 7 {
+		t.Errorf("step = %d, want 7 (should not advance)", m.step)
 	}
 	if !m.textInput.Focused() {
 		t.Error("text input should be focused after switching to text input mode")
@@ -2815,7 +2805,7 @@ func TestStep6EnterOnDevAdvances(t *testing.T) {
 	// Pressing Enter on "dev" should advance to next step
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	// Move down to "dev" (index 1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
@@ -2823,9 +2813,9 @@ func TestStep6EnterOnDevAdvances(t *testing.T) {
 	// Press Enter
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	// Should have advanced to step 7
-	if m.step != 7 {
-		t.Errorf("step = %d, want 7", m.step)
+	// Should have advanced to step 8
+	if m.step != 8 {
+		t.Errorf("step = %d, want 8", m.step)
 	}
 }
 
@@ -2833,7 +2823,7 @@ func TestStep6RadioRebuildsOnArrowKey(t *testing.T) {
 	// Moving the radio selection should rebuild text inputs immediately
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 7)
 
 	// Default "vault" (index 0) — 2 text inputs
 	if len(m.textInputs) != 2 {
@@ -2859,7 +2849,7 @@ func TestStep7ConditionalFieldHiddenWhenLocal(t *testing.T) {
 	// When "local" is selected, Redis connection string should be hidden
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 7)
+	m = runInitStep(m, 8)
 
 	// Default is "local" (index 0)
 	if m.config.RedisMode != "local" {
@@ -2882,7 +2872,7 @@ func TestStep7ConditionalFieldVisibleWhenExternal(t *testing.T) {
 	// When "external" is selected, Redis connection string should be visible
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 7)
+	m = runInitStep(m, 8)
 
 	// Move down to "external" (index 1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
@@ -2908,14 +2898,14 @@ func TestStep7EnterOnLocalAdvances(t *testing.T) {
 	// Pressing Enter on "local" should advance to next step
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 7)
+	m = runInitStep(m, 8)
 
 	// Default is "local" (index 0), press Enter
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	// Should have advanced to next required step (step 8 for default config)
-	if m.step != 8 {
-		t.Errorf("step = %d, want 8", m.step)
+	// Should have advanced to next required step (step 9 for default config)
+	if m.step != 9 {
+		t.Errorf("step = %d, want 9", m.step)
 	}
 }
 
@@ -2923,7 +2913,7 @@ func TestStep7EnterOnExternalSwitchesToTextInput(t *testing.T) {
 	// Pressing Enter on "external" should switch to text input mode
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 7)
+	m = runInitStep(m, 8)
 
 	// Move down to "external" (index 1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
@@ -2935,8 +2925,8 @@ func TestStep7EnterOnExternalSwitchesToTextInput(t *testing.T) {
 	if m.mode != modeTextInput {
 		t.Errorf("mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
 	}
-	if m.step != 7 {
-		t.Errorf("step = %d, want 7 (should not advance)", m.step)
+	if m.step != 8 {
+		t.Errorf("step = %d, want 8 (should not advance)", m.step)
 	}
 }
 
@@ -2946,7 +2936,7 @@ func TestStep10ConditionalFieldsHiddenWhenNo(t *testing.T) {
 	// When "no" is selected, AI agent fields should be hidden
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 10)
+	m = runInitStep(m, 11)
 
 	// Default is "no" (AIEnabled = false, radio index 1)
 	if m.config.AIEnabled {
@@ -2978,7 +2968,7 @@ func TestStep10ConditionalFieldsVisibleWhenYes(t *testing.T) {
 	// When "yes" is selected, AI agent fields should be visible
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 10)
+	m = runInitStep(m, 11)
 
 	// Move up to "yes" (index 0)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
@@ -3013,7 +3003,7 @@ func TestStep10EnterOnYesSwitchesToTextInput(t *testing.T) {
 	// Pressing Enter on "yes" should switch to text input mode
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 10)
+	m = runInitStep(m, 11)
 
 	// Move up to "yes" (index 0)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
@@ -3025,8 +3015,8 @@ func TestStep10EnterOnYesSwitchesToTextInput(t *testing.T) {
 	if m.mode != modeTextInput {
 		t.Errorf("mode = %d, want modeTextInput(%d)", m.mode, modeTextInput)
 	}
-	if m.step != 10 {
-		t.Errorf("step = %d, want 10 (should not advance)", m.step)
+	if m.step != 11 {
+		t.Errorf("step = %d, want 11 (should not advance)", m.step)
 	}
 	if !m.textInput.Focused() {
 		t.Error("text input should be focused after switching to text input mode")
@@ -3037,14 +3027,14 @@ func TestStep10EnterOnNoAdvances(t *testing.T) {
 	// Pressing Enter on "no" should advance to next step
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 10)
+	m = runInitStep(m, 11)
 
 	// Default is "no" (index 1), press Enter
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	// Should have advanced to next required step (step 11 for docker mode)
-	if m.step != 11 {
-		t.Errorf("step = %d, want 11", m.step)
+	// Should have advanced to next required step (step 12 for docker mode)
+	if m.step != 12 {
+		t.Errorf("step = %d, want 12", m.step)
 	}
 }
 
@@ -3052,7 +3042,7 @@ func TestStep10RadioRebuildsOnArrowKey(t *testing.T) {
 	// Moving the radio selection should rebuild text inputs immediately
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 10)
+	m = runInitStep(m, 11)
 
 	// Default "no" (index 1) — no text inputs
 	if len(m.textInputs) != 0 {
@@ -3077,7 +3067,7 @@ func TestStep10ConditionalFieldTabNavigation(t *testing.T) {
 	// After selecting "yes" and pressing Enter, tab should navigate through all 4 conditional fields
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 10)
+	m = runInitStep(m, 11)
 
 	// Move to "yes" and press Enter to switch to text input mode
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyUp})
@@ -3136,8 +3126,8 @@ func TestStep10ConditionalFieldTabNavigation(t *testing.T) {
 
 	// Press Enter on last field — should advance to next step
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-	if m.step != 11 {
-		t.Errorf("step = %d, want 11", m.step)
+	if m.step != 12 {
+		t.Errorf("step = %d, want 12", m.step)
 	}
 
 	// Verify all values were saved
@@ -3166,7 +3156,7 @@ func TestStep15CloneAuthNone(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "none"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	err := m.validateCurrentStep()
 	if err != nil {
@@ -3182,7 +3172,7 @@ func TestStep15CloneAuthPAT(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "pat"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	err := m.validateCurrentStep()
 	if err == nil {
@@ -3195,7 +3185,7 @@ func TestStep15CloneAuthPAT(t *testing.T) {
 	// Now set the PAT value (env var reference)
 	cfg.ConfigRepoPATValue = "$MY_PAT"
 	m2 := NewWizard(cfg)
-	m2 = runInitStep(m2, 15)
+	m2 = runInitStep(m2, 6)
 
 	err = m2.validateCurrentStep()
 	if err != nil {
@@ -3205,7 +3195,7 @@ func TestStep15CloneAuthPAT(t *testing.T) {
 	// Also test with raw PAT value
 	cfg.ConfigRepoPATValue = "ghp_xxxxx"
 	m3 := NewWizard(cfg)
-	m3 = runInitStep(m3, 15)
+	m3 = runInitStep(m3, 6)
 
 	err = m3.validateCurrentStep()
 	if err != nil {
@@ -3221,7 +3211,7 @@ func TestStep15CloneAuthGitHubApp(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "github_app"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	err := m.validateCurrentStep()
 	if err == nil {
@@ -3231,7 +3221,7 @@ func TestStep15CloneAuthGitHubApp(t *testing.T) {
 	// Set ID but missing others
 	cfg.ConfigRepoGHAppID = "12345"
 	m2 := NewWizard(cfg)
-	m2 = runInitStep(m2, 15)
+	m2 = runInitStep(m2, 6)
 	err = m2.validateCurrentStep()
 	if err == nil {
 		t.Error("validateCurrentStep should fail without Installation ID")
@@ -3240,7 +3230,7 @@ func TestStep15CloneAuthGitHubApp(t *testing.T) {
 	// Set ID and Installation ID but missing key
 	cfg.ConfigRepoGHInstallID = "67890"
 	m3 := NewWizard(cfg)
-	m3 = runInitStep(m3, 15)
+	m3 = runInitStep(m3, 6)
 	err = m3.validateCurrentStep()
 	if err == nil {
 		t.Error("validateCurrentStep should fail without Private Key")
@@ -3249,7 +3239,7 @@ func TestStep15CloneAuthGitHubApp(t *testing.T) {
 	// Set all fields
 	cfg.ConfigRepoGHAppKey = "fake-key-content"
 	m4 := NewWizard(cfg)
-	m4 = runInitStep(m4, 14)
+	m4 = runInitStep(m4, 6)
 	err = m4.validateCurrentStep()
 	if err != nil {
 		t.Errorf("validateCurrentStep should pass with all github_app fields, got: %v", err)
@@ -3264,7 +3254,7 @@ func TestStep15CloneAuthSSH(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	// URL doesn't start with git@
 	err := m.validateCurrentStep()
@@ -3278,7 +3268,7 @@ func TestStep15CloneAuthSSH(t *testing.T) {
 	// Fix URL but no key or file
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	m2 := NewWizard(cfg)
-	m2 = runInitStep(m2, 15)
+	m2 = runInitStep(m2, 6)
 	err = m2.validateCurrentStep()
 	if err == nil {
 		t.Error("validateCurrentStep should fail without SSH key or file")
@@ -3287,7 +3277,7 @@ func TestStep15CloneAuthSSH(t *testing.T) {
 	// Set SSH key content
 	cfg.ConfigRepoSSHKey = "fake-ssh-key"
 	m3 := NewWizard(cfg)
-	m3 = runInitStep(m3, 15)
+	m3 = runInitStep(m3, 6)
 	err = m3.validateCurrentStep()
 	if err != nil {
 		t.Errorf("validateCurrentStep should pass with SSH key, got: %v", err)
@@ -3297,7 +3287,7 @@ func TestStep15CloneAuthSSH(t *testing.T) {
 	cfg.ConfigRepoSSHKey = ""
 	cfg.ConfigRepoSSHFile = "/home/user/.ssh/id_rsa"
 	m4 := NewWizard(cfg)
-	m4 = runInitStep(m4, 14)
+	m4 = runInitStep(m4, 6)
 	err = m4.validateCurrentStep()
 	if err != nil {
 		t.Errorf("validateCurrentStep should pass with SSH key file, got: %v", err)
@@ -3310,9 +3300,10 @@ func TestStep15CloneAuthInvalid(t *testing.T) {
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.GithubCreateRepo = true
 	cfg.ConfigRepoCloneAuth = "invalid_auth"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	err := m.validateCurrentStep()
 	if err == nil {
@@ -3331,7 +3322,7 @@ func TestStep15CloneAuthSkippedForLocalCopy(t *testing.T) {
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh" // would normally require key
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	err := m.validateCurrentStep()
 	if err != nil {
@@ -3347,7 +3338,7 @@ func TestStep15CloneAuthNoneNoAdditionalFields(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "none"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	err := m.validateCurrentStep()
 	if err != nil {
@@ -3363,10 +3354,10 @@ func TestStep15CloneAuthConditionalFieldsVisible(t *testing.T) {
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "pat"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	// The clone auth field and PAT field should be visible
-	stepInfo := getStepInfo(15)
+	stepInfo := getStepInfo(6)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
 		if field.condition == nil || field.condition(m.config) {
@@ -3388,9 +3379,9 @@ func TestStep15CloneAuthSSHFieldsVisible(t *testing.T) {
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
-	stepInfo := getStepInfo(15)
+	stepInfo := getStepInfo(6)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
 		if field.condition == nil || field.condition(m.config) {
@@ -3406,15 +3397,15 @@ func TestStep15CloneAuthSSHFieldsVisible(t *testing.T) {
 
 func TestStep15CloneAuthHiddenForLocalCopy(t *testing.T) {
 	// When UseLocalCopy is true, clone auth fields should be hidden
-	// (they are on step 15, which is conditionally shown based on !UseLocalCopy)
+	// (they are on step 11, which is conditionally shown based on !UseLocalCopy)
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = true
 	cfg.ConfigRepoCloneAuth = "pat"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
-	stepInfo := getStepInfo(14)
+	stepInfo := getStepInfo(4)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
 		if field.condition == nil || field.condition(m.config) {
@@ -3434,7 +3425,7 @@ func TestStep15SummaryShowsCloneAuth(t *testing.T) {
 	cfg.UseLocalCopy = false
 	cfg.ConfigRepoCloneAuth = "github_app"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	view := m.View()
 	if !strings.Contains(view, "Clone auth method") {
@@ -3452,12 +3443,12 @@ func TestStep15PlaceholderDefaultNoSecureExec(t *testing.T) {
 	cfg.ConfigRepoCloneAuth = "pat"
 
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	// The first visible field is "Clone auth method", second is "PAT"
 	// With buildMultiFieldInputs, the textInputs should have the default placeholder
 	if len(m.textInputs) < 2 {
-		t.Fatal("expected at least 2 text inputs for step 15 with pat auth")
+		t.Fatal("expected at least 2 text inputs for step 11 with pat auth")
 	}
 	// PAT field is the 2nd visible field (clone auth method, PAT)
 	patInput := m.textInputs[1]
@@ -3466,7 +3457,7 @@ func TestStep15PlaceholderDefaultNoSecureExec(t *testing.T) {
 	}
 }
 
-func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
+func TestStep6PlaceholderWithSecureExecVault(t *testing.T) {
 	// When hd-driver-vault is selected, placeholders should show hd-lookup paths
 	// Private key value field is hidden, but GH App key secret path is shown
 	cfg := config.NewDefaultWizardConfig()
@@ -3476,10 +3467,10 @@ func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
 	cfg.ConfigRepoCloneAuth = "github_app"
 
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	if len(m.textInputs) != 4 {
-		t.Fatalf("expected 4 text inputs for step 15 with github_app auth + secure-exec, got %d", len(m.textInputs))
+		t.Fatalf("expected 4 text inputs for step 11 with github_app auth + secure-exec, got %d", len(m.textInputs))
 	}
 	// Fields: Clone auth method, GitHub App ID, Installation ID, GH App key secret path
 	// Index 1 = GitHub App ID
@@ -3496,7 +3487,7 @@ func TestStep15PlaceholderWithSecureExecVault(t *testing.T) {
 	}
 }
 
-func TestStep15PlaceholderWithSecureExecGcloud(t *testing.T) {
+func TestStep6PlaceholderWithSecureExecGcloud(t *testing.T) {
 	// When gcloud-secret is selected, placeholders should show hd-lookup paths
 	// SSH key content is hidden, but SSH key secret path is shown
 	cfg := config.NewDefaultWizardConfig()
@@ -3506,10 +3497,10 @@ func TestStep15PlaceholderWithSecureExecGcloud(t *testing.T) {
 	cfg.ConfigRepoCloneAuth = "ssh"
 
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	if len(m.textInputs) != 4 {
-		t.Fatalf("expected 4 text inputs for step 15 with ssh auth + secure-exec, got %d", len(m.textInputs))
+		t.Fatalf("expected 4 text inputs for step 11 with ssh auth + secure-exec, got %d", len(m.textInputs))
 	}
 	// Fields: Clone auth method, SSH key file, SSH key passphrase, SSH key secret path
 	// Index 1 = SSH key file path
@@ -3531,7 +3522,7 @@ func TestStep15PlaceholderSSHKeyContentDefault(t *testing.T) {
 	cfg.ConfigRepoCloneAuth = "ssh"
 
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	if len(m.textInputs) < 2 {
 		t.Fatal("expected at least 2 text inputs")
@@ -3543,7 +3534,7 @@ func TestStep15PlaceholderSSHKeyContentDefault(t *testing.T) {
 }
 
 
-func TestStep15SecureExecSecretPathFieldsVisible(t *testing.T) {
+func TestStep6SecureExecSecretPathFieldsVisible(t *testing.T) {
 	// When secure-exec is enabled with PAT auth, the PAT secret path field should be visible
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3552,11 +3543,11 @@ func TestStep15SecureExecSecretPathFieldsVisible(t *testing.T) {
 	cfg.ConfigRepoCloneAuth = "pat"
 
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	// Fields: Clone auth method, PAT value, PAT secret path = 3
 	if len(m.textInputs) != 3 {
-		t.Fatalf("expected 3 text inputs for step 15 with pat + secure-exec, got %d", len(m.textInputs))
+		t.Fatalf("expected 3 text inputs for step 11 with pat + secure-exec, got %d", len(m.textInputs))
 	}
 	// Index 2 = PAT secret path (PAT value field is still shown at index 1)
 	if m.textInputs[2].Placeholder != "/secrets/data/project/pat" {
@@ -3564,7 +3555,7 @@ func TestStep15SecureExecSecretPathFieldsVisible(t *testing.T) {
 	}
 }
 
-func TestStep15SecureExecPATValueAccepted(t *testing.T) {
+func TestStep5SecureExecPATValueAccepted(t *testing.T) {
 	// When PAT secret path is set, validation should pass without PAT value
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3574,7 +3565,7 @@ func TestStep15SecureExecPATValueAccepted(t *testing.T) {
 	cfg.SecureExecDriver = "hd-driver-vault"
 	cfg.ConfigRepoPATPath = "hd-lookup:/secrets/data/project/pat"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	err := m.validateCurrentStep()
 	if err != nil {
@@ -3582,7 +3573,7 @@ func TestStep15SecureExecPATValueAccepted(t *testing.T) {
 	}
 }
 
-func TestStep15SecureExecSSHKeyPathAccepted(t *testing.T) {
+func TestStep6SecureExecSSHKeyPathAccepted(t *testing.T) {
 	// When SSH key secret path is set, validation should pass without SSH key content
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3592,7 +3583,7 @@ func TestStep15SecureExecSSHKeyPathAccepted(t *testing.T) {
 	cfg.SecureExecDriver = "gcloud-secret"
 	cfg.ConfigRepoSSHKeyPath = "hd-lookup:/secrets/data/project/ssh_key"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	err := m.validateCurrentStep()
 	if err != nil {
@@ -3600,7 +3591,7 @@ func TestStep15SecureExecSSHKeyPathAccepted(t *testing.T) {
 	}
 }
 
-func TestStep15SecureExecGHAppKeyPathAccepted(t *testing.T) {
+func TestStep6SecureExecGHAppKeyPathAccepted(t *testing.T) {
 	// When GH App key secret path is set, validation should pass without private key value
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3612,7 +3603,7 @@ func TestStep15SecureExecGHAppKeyPathAccepted(t *testing.T) {
 	cfg.ConfigRepoGHInstallID = "67890"
 	cfg.ConfigRepoGHAppKeyPath = "hd-lookup:/secrets/data/project/gh_app_key"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	err := m.validateCurrentStep()
 	if err != nil {
@@ -3628,7 +3619,7 @@ func TestStep15SecureExecFieldsHiddenWithoutDriver(t *testing.T) {
 	cfg.SecureExecDriver = "none"
 	cfg.ConfigRepoCloneAuth = "pat"
 
-	stepInfo := getStepInfo(15)
+	stepInfo := getStepInfo(6)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
 		if field.condition == nil || field.condition(cfg) {
@@ -3650,7 +3641,7 @@ func TestSpaceKeyInCheckboxTextField(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	// Step 15 is a multi-field step (no checkboxes), currentField starts at 0
 	if m.currentField != 0 {
@@ -3678,7 +3669,7 @@ func TestSpaceKeyStillTogglesCheckbox(t *testing.T) {
 	// When on checkbox row (currentField == 0), Space should still toggle checkboxes.
 	cfg := config.NewDefaultWizardConfig()
 	m := NewWizard(cfg)
-	m = runInitStep(m, 14)
+	m = runInitStep(m, 4)
 
 	if m.currentField != 0 {
 		t.Fatalf("currentField = %d, want 0", m.currentField)
@@ -3794,7 +3785,7 @@ func TestPasteModeInCheckboxTextField(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	// Step 15 is a multi-field step (no checkboxes), currentField starts at 0
 	if m.currentField != 0 {
@@ -3830,9 +3821,9 @@ func TestPasteModeMultiLineSSHKey(t *testing.T) {
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
-	// Navigate to the SSH key content field in step 15 (multi-field, no checkboxes)
+	// Navigate to the SSH key content field in step 11 (multi-field, no checkboxes)
 	// Visible fields with ssh auth: Clone auth (0), SSH key content (1), SSH key file (2), SSH key passphrase (3), Enable secure exec (4)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab}) // to SSH key content
 
@@ -3869,7 +3860,7 @@ func TestPasteModeMultiLineSSHKeyPreservedOnTab(t *testing.T) {
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
 
 	if m.currentField != 1 {
@@ -3903,9 +3894,9 @@ func TestPasteModeMultiLineSSHKeyPreservedOnEnter(t *testing.T) {
 	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
-	// Navigate to the SSH key content field in step 15 (multi-field, no checkboxes)
+	// Navigate to the SSH key content field in step 11 (multi-field, no checkboxes)
 	// Visible fields with ssh auth: Clone auth (0), SSH key content (1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
@@ -3948,7 +3939,7 @@ func TestPasteModeHintShownInCheckboxTextField(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	// Move to text input
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
@@ -4131,7 +4122,7 @@ func TestPasteModeCheckboxTabPreservesRawValueInConfig(t *testing.T) {
 	cfg.ConfigRepoCloneAuth = "ssh"
 	cfg.GitRemoteURL = "git@github.com:test/repo.git"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
 
@@ -4166,7 +4157,7 @@ func TestPasteModeCheckboxEnterPreservesRawValueInConfig(t *testing.T) {
 	cfg.ConfigRepoCloneAuth = "ssh"
 	cfg.GitRemoteURL = "git@github.com:test/repo.git"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 	// Navigate to SSH key content field
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
 
@@ -4195,7 +4186,7 @@ func TestPasteModeCheckboxStepNavigationPreservesRawValue(t *testing.T) {
 	cfg.ConfigRepoCloneAuth = "ssh"
 	cfg.GitRemoteURL = "git@github.com:test/repo.git"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 15)
+	m = runInitStep(m, 6)
 
 	// Navigate to SSH key content field
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
@@ -4218,7 +4209,7 @@ func TestPasteModeCheckboxStepNavigationPreservesRawValue(t *testing.T) {
 		t.Errorf("config corrupted after advancing to next step: got %q", m.config.ConfigRepoSSHKey)
 	}
 
-	// Go back to step 14
+	// Go back to step 4
 	if m.step == 15 {
 		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
 		if m.step == 14 {
