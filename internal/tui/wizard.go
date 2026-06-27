@@ -541,16 +541,16 @@ func (m *WizardModel) handleTextInput(msg tea.Msg, stepInfo *stepInfo) (tea.Mode
 				m.buildMultiFieldInputs(stepInfo)
 				newLen := len(m.textInputs)
 				if newLen != oldLen {
-					// Fields changed: adjust currentField and textInput
-					m.textInput.Blur()
-					m.textInputs[m.currentField] = m.textInput
-					// Keep the same field index if possible, but clamp to new range
+					// Fields changed: adjust currentField and textInput.
+					// buildMultiFieldInputs already created new text inputs with
+					// correct values from config and set m.textInput = m.textInputs[0].
+					// We just need to point m.textInput at the correct field index.
+					// Keep the same field index if possible, but clamp to new range.
 					if m.currentField >= newLen {
 						m.currentField = newLen - 1
 					}
 					m.textInput = m.textInputs[m.currentField]
 					m.textInput.Focus()
-					m.textInputs[m.currentField] = m.textInput
 					// Re-populate raw field values for the new field set
 					m.populateRawFieldValuesFromConfig(stepInfo)
 					return m, nil
