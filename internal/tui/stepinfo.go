@@ -52,15 +52,29 @@ type checkboxOption struct {
 
 // stepInfo describes the structure and behavior of a wizard step.
 type stepInfo struct {
-	title          string
-	stepType       stepType
-	fields         []fieldDescriptor
-	checkboxes     []checkboxOption
-	checkboxLabel  string
-	radioLabel     string
-	radioOptions   []string
-	radioGetter    func(*config.WizardConfig) string
-	radioSetter    func(*config.WizardConfig, string)
+	title               string
+	stepType            stepType
+	fields              []fieldDescriptor
+	checkboxes          []checkboxOption
+	checkboxLabel       string
+	radioLabel          string
+	radioOptions        []string
+	radioGetter         func(*config.WizardConfig) string
+	radioSetter         func(*config.WizardConfig, string)
+	// radioOptionsCondition, if set, is a function that returns the filtered
+	// list of radio options based on the current config state. When nil,
+	// all radioOptions are shown.
+	radioOptionsCondition func(*config.WizardConfig) []string
+}
+
+// getRadioOptions returns the filtered list of radio options for a step.
+// If radioOptionsCondition is set, it is called with the config to get the
+// dynamic list of options. Otherwise, all radioOptions are returned.
+func (s *stepInfo) getRadioOptions(cfg *config.WizardConfig) []string {
+	if s.radioOptionsCondition != nil {
+		return s.radioOptionsCondition(cfg)
+	}
+	return s.radioOptions
 }
 
 // isDevMode returns true if the wizard is configured for dev secrets backend.
@@ -221,23 +235,27 @@ func getStepInfo(step int) *stepInfo {
 					setValue:    func(c *config.WizardConfig, v string) { c.SecureExecVaultAddr = v },
 					condition:   func(c *config.WizardConfig) bool { return c.SecureExecDriver == "hd-driver-vault" },
 				},
-
 			},
 		}
 	case 6:
-		// Was part of old step 15 (clone auth)
+		// Was part of old step 15 (clone auth) - now using dynamic radio options
 		return &stepInfo{
-			title:    "Step 6: Clone Auth",
-			stepType: stepTypeMultiField,
+			title:      "Step 6: Clone Auth",
+			stepType:   stepTypeRadio,
+			radioLabel: "Clone auth method",
+			// Base options - ssh will be filtered based on git remote URL
+			radioOptions: []string{"none", "pat", "github_app", "ssh"},
+			radioGetter:  func(c *config.WizardConfig) string { return c.ConfigRepoCloneAuth },
+			radioSetter:  func(c *config.WizardConfig, v string) { c.ConfigRepoCloneAuth = v },
+			// Filter out SSH option when git remote URL doesn't start with git@
+			radioOptionsCondition: func(c *config.WizardConfig) []string {
+				options := []string{"none", "pat", "github_app"}
+				if strings.HasPrefix(c.GitRemoteURL, "git@") {
+					options = append(options, "ssh")
+				}
+				return options
+			},
 			fields: []fieldDescriptor{
-				{
-					label:       "Clone auth method",
-					placeholder: "none, pat, github_app, or ssh",
-					help:        "Authentication method for cloning the config repository (required when creating repo without local copy)",
-					getValue:    func(c *config.WizardConfig) string { return c.ConfigRepoCloneAuth },
-					setValue:    func(c *config.WizardConfig, v string) { c.ConfigRepoCloneAuth = v },
-					condition:   func(c *config.WizardConfig) bool { return c.GithubCreateRepo && !c.UseLocalCopy },
-				},
 				{
 					label: "PAT",
 					placeholderFunc: func(cfg *config.WizardConfig) string {

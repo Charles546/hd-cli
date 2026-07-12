@@ -77,6 +77,7 @@ type WizardModel struct {
 	pasteModeFieldIdx int // which textInputs index is being edited in paste mode
 	pasteModeOldValue string // original value before paste mode, restored on cancel
 	rawFieldValues map[string]string // stores multi-line values that textinput cannot display
+	checkboxJustEnabledTextInputs bool // set when Space toggles checkbox on and creates text inputs
 }
 
 // stepCount is the total number of wizard steps (used for progress).
@@ -754,6 +755,10 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 						cb.setValue(m.config, !current)
 						// Rebuild text inputs since conditions may have changed
 						m.buildCheckboxTextInputs(stepInfo)
+					// If text inputs were created by this toggle, set flag so Tab moves to text input
+					if len(m.textInputs) > 0 {
+						m.checkboxJustEnabledTextInputs = true
+					}
 						break
 					}
 					visibleIdx++
@@ -840,6 +845,17 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 		case "tab":
 			if m.currentField == 0 {
 				// On checkboxes: move to next checkbox or to text fields (no toggle)
+				// If Space just enabled text inputs, move to text input instead of next checkbox
+				if m.checkboxJustEnabledTextInputs {
+					m.checkboxJustEnabledTextInputs = false
+					if len(m.textInputs) > 0 {
+						m.currentField = 1
+						m.textInput = m.textInputs[0]
+						m.textInput.Focus()
+						m.textInputs[0] = m.textInput
+						return m, nil
+					}
+				}
 				visibleCount := m.visibleCheckboxCount(stepInfo)
 				if m.checkboxIndex < visibleCount-1 {
 					m.checkboxIndex++
