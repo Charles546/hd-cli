@@ -3300,7 +3300,6 @@ func TestStep15CloneAuthInvalid(t *testing.T) {
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
-	cfg.GithubCreateRepo = true
 	cfg.ConfigRepoCloneAuth = "invalid_auth"
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
@@ -3346,7 +3345,7 @@ func TestStep15CloneAuthNoneNoAdditionalFields(t *testing.T) {
 	}
 }
 
-func TestStep15CloneAuthConditionalFieldsVisible(t *testing.T) {
+func TestStep6CloneAuthConditionalFieldsVisible(t *testing.T) {
 	// When clone auth is "pat", the PAT field should be visible
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3356,7 +3355,7 @@ func TestStep15CloneAuthConditionalFieldsVisible(t *testing.T) {
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
 
-	// The clone auth field and PAT field should be visible
+	// Only conditional fields in stepInfo.fields are checked (radio option is separate)
 	stepInfo := getStepInfo(6)
 	visibleFields := 0
 	for _, field := range stepInfo.fields {
@@ -3365,13 +3364,13 @@ func TestStep15CloneAuthConditionalFieldsVisible(t *testing.T) {
 		}
 	}
 
-	// Should have: Clone auth method, PAT = 2
-	if visibleFields != 2 {
-		t.Errorf("expected 2 visible fields for pat auth, got %d", visibleFields)
+	// Should have: PAT = 1 (clone auth method is now a radio option)
+	if visibleFields != 1 {
+		t.Errorf("expected 1 visible field for pat auth, got %d", visibleFields)
 	}
 }
 
-func TestStep15CloneAuthSSHFieldsVisible(t *testing.T) {
+func TestStep6CloneAuthSSHFieldsVisible(t *testing.T) {
 	// When clone auth is "ssh", SSH key fields should be visible
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3389,33 +3388,29 @@ func TestStep15CloneAuthSSHFieldsVisible(t *testing.T) {
 		}
 	}
 
-	// Should have: Clone auth method, SSH key content, SSH key file, SSH key passphrase = 4
-	if visibleFields != 4 {
-		t.Errorf("expected 4 visible fields for ssh auth, got %d", visibleFields)
+	// Should have: SSH key content, SSH key file, SSH key passphrase = 3 (clone auth method is now a radio option)
+	if visibleFields != 3 {
+		t.Errorf("expected 3 visible fields for ssh auth, got %d", visibleFields)
 	}
 }
 
-func TestStep15CloneAuthHiddenForLocalCopy(t *testing.T) {
-	// When UseLocalCopy is true, clone auth fields should be hidden
-	// (they are on step 11, which is conditionally shown based on !UseLocalCopy)
+func TestStep4CloneAuthHiddenForLocalCopy(t *testing.T) {
+	// When UseLocalCopy is true, step 6 (clone auth) should still be shown
+	// but its fields should be conditionally hidden (condition checks !UseLocalCopy)
+	// All steps except 12/13/14 are always required
 	cfg := config.NewDefaultWizardConfig()
-	cfg.GithubCreateRepo = true
+	cfg.GithubCreateRepo = false
 	cfg.UseLocalCopy = true
 	cfg.ConfigRepoCloneAuth = "pat"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 4)
-
-	stepInfo := getStepInfo(4)
-	visibleFields := 0
-	for _, field := range stepInfo.fields {
-		if field.condition == nil || field.condition(m.config) {
-			visibleFields++
-		}
-	}
-
-	// Should only have: Git remote URL = 1 (secure-exec driver hidden when UseLocalCopy=true)
-	if visibleFields != 1 {
-		t.Errorf("expected 1 visible field when UseLocalCopy=true, got %d", visibleFields)
+	
+	m = runInitStep(m, 4) // Step 4: GitHub Repo Creation
+	
+	// Next required step is 5 (Secure Execution), not 7
+	// Step 6 (Clone Auth) is conditionally shown based on !UseLocalCopy
+	next := nextStep(4, m.config)
+	if next != 5 {
+		t.Errorf("expected next step to be 5 (Secure Execution), got %d", next)
 	}
 }
 
@@ -3425,7 +3420,10 @@ func TestStep15SummaryShowsCloneAuth(t *testing.T) {
 	cfg.UseLocalCopy = false
 	cfg.ConfigRepoCloneAuth = "github_app"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	// Navigate to summary step (15)
+	for m.step < 15 {
+		m = runInitStep(m, nextStep(m.step, m.config))
+	}
 
 	view := m.View()
 	if !strings.Contains(view, "Clone auth method") {
@@ -3434,7 +3432,7 @@ func TestStep15SummaryShowsCloneAuth(t *testing.T) {
 }
 
 
-func TestStep15PlaceholderDefaultNoSecureExec(t *testing.T) {
+func TestStep6PlaceholderDefaultNoSecureExec(t *testing.T) {
 	// When no secure-exec driver is selected, default placeholders should be shown
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
@@ -3445,13 +3443,19 @@ func TestStep15PlaceholderDefaultNoSecureExec(t *testing.T) {
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
 
-	// The first visible field is "Clone auth method", second is "PAT"
-	// With buildMultiFieldInputs, the textInputs should have the default placeholder
-	if len(m.textInputs) < 2 {
-		t.Fatal("expected at least 2 text inputs for step 11 with pat auth")
+	// Step 6 is now a radio step. After selecting "pat", the PAT field should be visible
+	// Radio option "pat" is index 1 (none=0, pat=1, github_app=2, ssh=3)
+	m.radioIndex = 1
+	stepInfo := getStepInfo(6)
+	stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
+
+	// Only PAT field should be visible (1 text input)
+	if len(m.textInputs) != 1 {
+		t.Fatalf("expected 1 text input for pat auth, got %d", len(m.textInputs))
 	}
-	// PAT field is the 2nd visible field (clone auth method, PAT)
-	patInput := m.textInputs[1]
+	// PAT field is the 1st (and only) visible conditional field
+	patInput := m.textInputs[0]
 	if patInput.Placeholder != "ghp_xxxxx or $MY_PAT" {
 		t.Errorf("PAT placeholder = %q, want %q", patInput.Placeholder, "ghp_xxxxx or $MY_PAT")
 	}
@@ -3463,27 +3467,45 @@ func TestStep6PlaceholderWithSecureExecVault(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.SecureExecDriver = "hd-driver-vault"
 	cfg.ConfigRepoCloneAuth = "github_app"
 
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
 
-	if len(m.textInputs) != 4 {
-		t.Fatalf("expected 4 text inputs for step 11 with github_app auth + secure-exec, got %d", len(m.textInputs))
+	// Select "github_app" radio option
+	stepInfo := getStepInfo(6)
+	opts := stepInfo.getRadioOptions(m.config)
+	ghAppIndex := -1
+	for i, opt := range opts {
+		if opt == "github_app" {
+			ghAppIndex = i
+			break
+		}
 	}
-	// Fields: Clone auth method, GitHub App ID, Installation ID, GH App key secret path
-	// Index 1 = GitHub App ID
-	if m.textInputs[1].Placeholder != "hd-lookup:/secrets/data/project/gh_app_id" {
-		t.Errorf("GitHub App ID placeholder = %q, want %q", m.textInputs[1].Placeholder, "hd-lookup:/secrets/data/project/gh_app_id")
+	if ghAppIndex == -1 {
+		t.Fatal("github_app option not available")
 	}
-	// Index 2 = Installation ID
-	if m.textInputs[2].Placeholder != "hd-lookup:/secrets/data/project/gh_install_id" {
-		t.Errorf("Installation ID placeholder = %q, want %q", m.textInputs[2].Placeholder, "hd-lookup:/secrets/data/project/gh_install_id")
+	m.radioIndex = ghAppIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
+
+	// Fields: GitHub App ID, Installation ID, GH App key secret path = 3
+	if len(m.textInputs) != 3 {
+		t.Fatalf("expected 3 text inputs for github_app auth + secure-exec, got %d", len(m.textInputs))
 	}
-	// Index 3 = GH App key secret path
-	if m.textInputs[3].Placeholder != "/secrets/data/project/gh_app_key" {
-		t.Errorf("GH App key path placeholder = %q, want %q", m.textInputs[3].Placeholder, "hd-lookup:/secrets/data/project/gh_app_key")
+	// Index 0 = GitHub App ID
+	if m.textInputs[0].Placeholder != "hd-lookup:/secrets/data/project/gh_app_id" {
+		t.Errorf("GitHub App ID placeholder = %q, want %q", m.textInputs[0].Placeholder, "hd-lookup:/secrets/data/project/gh_app_id")
+	}
+	// Index 1 = Installation ID
+	if m.textInputs[1].Placeholder != "hd-lookup:/secrets/data/project/gh_install_id" {
+		t.Errorf("Installation ID placeholder = %q, want %q", m.textInputs[1].Placeholder, "hd-lookup:/secrets/data/project/gh_install_id")
+	}
+	// Index 2 = GH App key secret path
+	if m.textInputs[2].Placeholder != "/secrets/data/project/gh_app_key" {
+		t.Errorf("GH App key path placeholder = %q, want %q", m.textInputs[2].Placeholder, "/secrets/data/project/gh_app_key")
 	}
 }
 
@@ -3493,43 +3515,80 @@ func TestStep6PlaceholderWithSecureExecGcloud(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.SecureExecDriver = "gcloud-secret"
 	cfg.ConfigRepoCloneAuth = "ssh"
 
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
 
-	if len(m.textInputs) != 4 {
-		t.Fatalf("expected 4 text inputs for step 11 with ssh auth + secure-exec, got %d", len(m.textInputs))
+	// Select "ssh" radio option
+	stepInfo := getStepInfo(6)
+	opts := stepInfo.getRadioOptions(m.config)
+	sshIndex := -1
+	for i, opt := range opts {
+		if opt == "ssh" {
+			sshIndex = i
+			break
+		}
 	}
-	// Fields: Clone auth method, SSH key file, SSH key passphrase, SSH key secret path
-	// Index 1 = SSH key file path
-	if m.textInputs[1].Placeholder != "/home/user/.ssh/id_rsa" {
-		t.Errorf("SSH key file placeholder = %q, want %q", m.textInputs[1].Placeholder, "/home/user/.ssh/id_rsa")
+	if sshIndex == -1 {
+		t.Fatal("ssh option not available - git remote URL must start with git@")
 	}
-	// Index 3 = SSH key secret path
-	if m.textInputs[3].Placeholder != "/secrets/data/project/ssh_key" {
-		t.Errorf("SSH key path placeholder = %q, want %q", m.textInputs[3].Placeholder, "hd-lookup:/secrets/data/project/ssh_key")
+	m.radioIndex = sshIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
+
+	// Fields: SSH key file, SSH key passphrase, SSH key secret path = 3
+	if len(m.textInputs) != 3 {
+		t.Fatalf("expected 3 text inputs for ssh auth + secure-exec, got %d", len(m.textInputs))
+	}
+	// Index 0 = SSH key file path
+	if m.textInputs[0].Placeholder != "/home/user/.ssh/id_rsa" {
+		t.Errorf("SSH key file placeholder = %q, want %q", m.textInputs[0].Placeholder, "/home/user/.ssh/id_rsa")
+	}
+	// Index 2 = SSH key secret path
+	if m.textInputs[2].Placeholder != "/secrets/data/project/ssh_key" {
+		t.Errorf("SSH key path placeholder = %q, want %q", m.textInputs[2].Placeholder, "/secrets/data/project/ssh_key")
 	}
 }
 
-func TestStep15PlaceholderSSHKeyContentDefault(t *testing.T) {
+func TestStep6PlaceholderSSHKeyContentDefault(t *testing.T) {
 	// Without secure-exec, SSH key content should show BEGIN OPENSSH placeholder
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
 	cfg.SecureExecDriver = ""
 	cfg.ConfigRepoCloneAuth = "ssh"
+	cfg.GitRemoteURL = "git@github.com:user/repo.git" // SSH URL required for ssh auth
 
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
 
-	if len(m.textInputs) < 2 {
-		t.Fatal("expected at least 2 text inputs")
+	// Select "ssh" radio option (index 3 when git@ URL, or 2 if filtered)
+	stepInfo := getStepInfo(6)
+	opts := stepInfo.getRadioOptions(m.config)
+	sshIndex := -1
+	for i, opt := range opts {
+		if opt == "ssh" {
+			sshIndex = i
+			break
+		}
 	}
-	// Index 1 = SSH key content
-	if m.textInputs[1].Placeholder != "-----BEGIN OPENSSH PRIVATE KEY-----\n..." {
-		t.Errorf("SSH key content placeholder = %q, want default", m.textInputs[1].Placeholder)
+	if sshIndex == -1 {
+		t.Fatal("ssh option not available - git remote URL must start with git@")
+	}
+	m.radioIndex = sshIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
+
+	// Fields: SSH key content, SSH key file, SSH key passphrase = 3
+	if len(m.textInputs) != 3 {
+		t.Fatalf("expected 3 text inputs for ssh auth, got %d", len(m.textInputs))
+	}
+	// Index 0 = SSH key content
+	if m.textInputs[0].Placeholder != "-----BEGIN OPENSSH PRIVATE KEY-----\n..." {
+		t.Errorf("SSH key content placeholder = %q, want default", m.textInputs[0].Placeholder)
 	}
 }
 
@@ -3539,26 +3598,44 @@ func TestStep6SecureExecSecretPathFieldsVisible(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
+	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.SecureExecDriver = "hd-driver-vault"
 	cfg.ConfigRepoCloneAuth = "pat"
 
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
 
-	// Fields: Clone auth method, PAT value, PAT secret path = 3
-	if len(m.textInputs) != 3 {
-		t.Fatalf("expected 3 text inputs for step 11 with pat + secure-exec, got %d", len(m.textInputs))
+	// Select "pat" radio option
+	stepInfo := getStepInfo(6)
+	opts := stepInfo.getRadioOptions(m.config)
+	patIndex := -1
+	for i, opt := range opts {
+		if opt == "pat" {
+			patIndex = i
+			break
+		}
 	}
-	// Index 2 = PAT secret path (PAT value field is still shown at index 1)
-	if m.textInputs[2].Placeholder != "/secrets/data/project/pat" {
-		t.Errorf("PAT secret path placeholder = %q, want %q", m.textInputs[2].Placeholder, "hd-lookup:/secrets/data/project/pat")
+	if patIndex == -1 {
+		t.Fatal("pat option not available")
+	}
+	m.radioIndex = patIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
+
+	// Fields: PAT value, PAT secret path = 2
+	if len(m.textInputs) != 2 {
+		t.Fatalf("expected 2 text inputs for pat + secure-exec, got %d", len(m.textInputs))
+	}
+	// Index 1 = PAT secret path (PAT value field is at index 0)
+	if m.textInputs[1].Placeholder != "/secrets/data/project/pat" {
+		t.Errorf("PAT secret path placeholder = %q, want %q", m.textInputs[1].Placeholder, "/secrets/data/project/pat")
 	}
 }
 
 func TestStep5SecureExecPATValueAccepted(t *testing.T) {
 	// When PAT secret path is set, validation should pass without PAT value
 	cfg := config.NewDefaultWizardConfig()
-	cfg.GithubCreateRepo = true
+	cfg.GithubCreateRepo = false
 	cfg.UseLocalCopy = false
 	cfg.GitRemoteURL = "https://github.com/user/repo.git"
 	cfg.ConfigRepoCloneAuth = "pat"
@@ -3626,24 +3703,23 @@ func TestStep15SecureExecFieldsHiddenWithoutDriver(t *testing.T) {
 			visibleFields++
 		}
 	}
-	// Should have: Clone auth method, PAT value = 2
-	// (no PAT secret path since driver is "none")
-	if visibleFields != 2 {
-		t.Errorf("expected 2 visible fields with pat + no secure-exec, got %d", visibleFields)
+	// Should have: PAT value = 1
+	// (no PAT secret path since driver is "none", and clone auth method is now a radio option)
+	if visibleFields != 1 {
+		t.Errorf("expected 1 visible field with pat + no secure-exec, got %d", visibleFields)
 	}
 }
 
 // ===== Space key in checkbox text fields =====
 
-func TestSpaceKeyInCheckboxTextField(t *testing.T) {
+func TestSpaceKeyInMultiFieldTextField(t *testing.T) {
 	// When in text field mode within a multi-field step, Space should insert
 	// a space character.
 	cfg := config.NewDefaultWizardConfig()
-	cfg.GithubCreateRepo = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 2) // Step 2: Project Settings (multi-field)
 
-	// Step 15 is a multi-field step (no checkboxes), currentField starts at 0
+	// Step 2 is a multi-field step, currentField starts at 0
 	if m.currentField != 0 {
 		t.Fatalf("currentField = %d, want 0", m.currentField)
 	}
@@ -3780,14 +3856,13 @@ func TestPasteModeCancelsOnEsc(t *testing.T) {
 	}
 }
 
-func TestPasteModeInCheckboxTextField(t *testing.T) {
+func TestPasteModeInMultiFieldTextField(t *testing.T) {
 	// Ctrl+E should work in multi-field step text fields too.
 	cfg := config.NewDefaultWizardConfig()
-	cfg.GithubCreateRepo = true
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 2) // Step 2: Project Settings (multi-field)
 
-	// Step 15 is a multi-field step (no checkboxes), currentField starts at 0
+	// Step 2 is a multi-field step, currentField starts at 0
 	if m.currentField != 0 {
 		t.Fatalf("currentField = %d, want 0", m.currentField)
 	}
@@ -3796,7 +3871,7 @@ func TestPasteModeInCheckboxTextField(t *testing.T) {
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
 
 	if !m.pasteModeActive {
-		t.Error("pasteModeActive should be true after Ctrl+E in checkbox text field")
+		t.Error("pasteModeActive should be true after Ctrl+E in multi-field text field")
 	}
 
 	// Type multi-line content
@@ -3816,25 +3891,20 @@ func TestPasteModeInCheckboxTextField(t *testing.T) {
 func TestPasteModeMultiLineSSHKey(t *testing.T) {
 	// Simulate pasting a multi-line SSH private key.
 	cfg := config.NewDefaultWizardConfig()
-	cfg.GithubCreateRepo = true
-	cfg.UseLocalCopy = false
-	cfg.GitRemoteURL = "git@github.com:user/repo.git"
-	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 2) // Step 2: Project Settings (multi-field)
 
-	// Navigate to the SSH key content field in step 11 (multi-field, no checkboxes)
-	// Visible fields with ssh auth: Clone auth (0), SSH key content (1), SSH key file (2), SSH key passphrase (3), Enable secure exec (4)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab}) // to SSH key content
+	// Navigate to the Config directory field (field 1)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
 	if m.currentField != 1 {
-		t.Fatalf("currentField = %d, want 1 (SSH key content)", m.currentField)
+		t.Fatalf("currentField = %d, want 1 (Config directory)", m.currentField)
 	}
 
 	// Enter paste mode
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
 
-	// Paste multi-line SSH key
+	// Paste multi-line content
 	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
 	m.pasteModeTextArea.SetValue(sshKey)
 
@@ -3846,82 +3916,72 @@ func TestPasteModeMultiLineSSHKey(t *testing.T) {
 	}
 
 	// The config should have the multi-line SSH key preserved
-	if m.config.ConfigRepoSSHKey != sshKey {
-		t.Errorf("ConfigRepoSSHKey not preserved correctly, got %q", m.config.ConfigRepoSSHKey)
+	if m.config.ConfigDir != sshKey {
+		t.Errorf("ConfigDir not preserved correctly, got %q", m.config.ConfigDir)
 	}
 }
-
 func TestPasteModeMultiLineSSHKeyPreservedOnTab(t *testing.T) {
-	// After pasting a multi-line SSH key and pressing Tab to leave the field,
+	// After pasting a multi-line value and pressing Tab to leave the field,
 	// the config should still have the raw multi-line value (not the collapsed display).
 	cfg := config.NewDefaultWizardConfig()
-	cfg.GithubCreateRepo = true
-	cfg.UseLocalCopy = false
-	cfg.GitRemoteURL = "git@github.com:user/repo.git"
-	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
+	m = runInitStep(m, 2) // Step 2: Project Settings (multi-field)
+
+	// Navigate to the Config directory field (field 1)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
 	if m.currentField != 1 {
-		t.Fatalf("currentField = %d, want 1 (SSH key content)", m.currentField)
+		t.Fatalf("currentField = %d, want 1 (Config directory)", m.currentField)
 	}
 
-	// Enter paste mode and paste multi-line SSH key
+	// Enter paste mode and paste multi-line content
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
 	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
 	m.pasteModeTextArea.SetValue(sshKey)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
 
-	// Press Tab to move to next field
+	// Press Tab to move to next field (but there is no next field, so it would advance step)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
-	// The config should still have the multi-line SSH key
-	if m.config.ConfigRepoSSHKey != sshKey {
-		t.Errorf("ConfigRepoSSHKey was corrupted after Tab!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	// The config should still have the multi-line value
+	if m.config.ConfigDir != sshKey {
+		t.Errorf("ConfigDir was corrupted after Tab!\nGot:  %q\nWant: %q", m.config.ConfigDir, sshKey)
 	}
-	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
-		t.Errorf("ConfigRepoSSHKey lost newlines after Tab: %q", m.config.ConfigRepoSSHKey)
+	if !strings.Contains(m.config.ConfigDir, "\n") {
+		t.Errorf("ConfigDir lost newlines after Tab: %q", m.config.ConfigDir)
 	}
 }
-
 func TestPasteModeMultiLineSSHKeyPreservedOnEnter(t *testing.T) {
-	// After pasting a multi-line SSH key and pressing Enter to leave the field,
+	// After pasting a multi-line value and pressing Enter to leave the field,
 	// the config should still have the raw multi-line value.
 	cfg := config.NewDefaultWizardConfig()
-	cfg.GithubCreateRepo = true
-	cfg.UseLocalCopy = false
-	cfg.GitRemoteURL = "git@github.com:user/repo.git"
-	cfg.ConfigRepoCloneAuth = "ssh"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 2) // Step 2: Project Settings (multi-field)
 
-	// Navigate to the SSH key content field in step 11 (multi-field, no checkboxes)
-	// Visible fields with ssh auth: Clone auth (0), SSH key content (1)
+	// Navigate to the Config directory field (field 1)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
 	if m.currentField != 1 {
-		t.Fatalf("currentField = %d, want 1 (SSH key content)", m.currentField)
+		t.Fatalf("currentField = %d, want 1 (Config directory)", m.currentField)
 	}
 
-	// Enter paste mode and paste multi-line SSH key
+	// Enter paste mode and paste multi-line content
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
 	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
 	m.pasteModeTextArea.SetValue(sshKey)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
 
-	// Press Enter to move to next field
+	// Press Enter to move to next field (would advance step since it's last field)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	// The config should still have the multi-line SSH key
-	if m.config.ConfigRepoSSHKey != sshKey {
-		t.Errorf("ConfigRepoSSHKey was corrupted after Enter!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	// The config should still have the multi-line value
+	if m.config.ConfigDir != sshKey {
+		t.Errorf("ConfigDir was corrupted after Enter!\nGot:  %q\nWant: %q", m.config.ConfigDir, sshKey)
 	}
-	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
-		t.Errorf("ConfigRepoSSHKey lost newlines after Enter: %q", m.config.ConfigRepoSSHKey)
+	if !strings.Contains(m.config.ConfigDir, "\n") {
+		t.Errorf("ConfigDir lost newlines after Enter: %q", m.config.ConfigDir)
 	}
 }
-
 func TestPasteModeHintShownInNavigation(t *testing.T) {
 	// Navigation hints should include ctrl+e=paste mode in text input mode.
 	cfg := config.NewDefaultWizardConfig()
@@ -3937,20 +3997,21 @@ func TestPasteModeHintShownInNavigation(t *testing.T) {
 func TestPasteModeHintShownInCheckboxTextField(t *testing.T) {
 	// Navigation hints should include ctrl+e=paste mode in checkbox text fields.
 	cfg := config.NewDefaultWizardConfig()
-	cfg.GithubCreateRepo = true
+	cfg.GithubCreateRepo = false
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 4) // Step 4: GitHub Repo Creation (checkbox step with conditional text fields)
 
-	// Move to text input
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to checkbox 1
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown}) // to text input
+	// Enable "Create GitHub repo" to show text fields
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+
+	// Move to text input (field 1 - Git remote URL)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
 	view := m.View()
 	if !strings.Contains(view, "ctrl+e=paste mode") {
 		t.Errorf("View() should contain 'ctrl+e=paste mode' hint in checkbox text field mode, got: %s", view)
 	}
 }
-
 func TestPasteModeCtrlCQuits(t *testing.T) {
 	// Ctrl+C should quit even in paste mode.
 	cfg := config.NewDefaultWizardConfig()
@@ -4112,55 +4173,56 @@ func TestCollapseForDisplay(t *testing.T) {
 // ===== Multi-line paste: Tab navigation in checkbox step =====
 
 func TestPasteModeCheckboxTabPreservesRawValueInConfig(t *testing.T) {
-	// Reproduces the user-reported bug: after pasting a multi-line SSH key in a
-	// checkbox-step text field and pressing Tab to leave the field, the config
-	// must still contain the raw multi-line value (not collapsed to single line).
+	// In a checkbox step, pressing Tab from a paste-mode text field should
+	// preserve the raw multi-line value in the config.
 	cfg := config.NewDefaultWizardConfig()
-	cfg.ProjectName = "test-project"
-	cfg.GithubCreateRepo = true
-	cfg.UseLocalCopy = false
-	cfg.ConfigRepoCloneAuth = "ssh"
-	cfg.GitRemoteURL = "git@github.com:test/repo.git"
+	cfg.GithubCreateRepo = false
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 4) // Step 4: GitHub Repo Creation (checkbox step with conditional text fields)
 
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
+	// Enable "Create GitHub repo" to show text fields
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+
+	// Move to text input (field 1 - Git remote URL)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
 	if m.currentField != 1 {
-		t.Fatalf("currentField = %d, want 1 (SSH key content)", m.currentField)
+		t.Fatalf("currentField = %d, want 1 (Git remote URL)", m.currentField)
 	}
 
-	// Enter paste mode and paste multi-line SSH key
+	// Enter paste mode and paste multi-line content
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
 	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
 	m.pasteModeTextArea.SetValue(sshKey)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
 
-	// Press Tab to move to next field — this is the exact user action that triggers the bug
+	// Press Tab to move to next field (but there's no next field, so it advances step)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
-	// Config must still have the raw multi-line value
-	if m.config.ConfigRepoSSHKey != sshKey {
-		t.Errorf("config.ConfigRepoSSHKey corrupted after Tab!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	// The config should still have the multi-line value in GitRemoteURL
+	if m.config.GitRemoteURL != sshKey {
+		t.Errorf("GitRemoteURL was corrupted after Tab!\nGot:  %q\nWant: %q", m.config.GitRemoteURL, sshKey)
 	}
-	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
-		t.Errorf("config.ConfigRepoSSHKey lost newlines after Tab: %q", m.config.ConfigRepoSSHKey)
+	if !strings.Contains(m.config.GitRemoteURL, "\n") {
+		t.Errorf("GitRemoteURL lost newlines after Tab: %q", m.config.GitRemoteURL)
 	}
 }
-
 func TestPasteModeCheckboxEnterPreservesRawValueInConfig(t *testing.T) {
 	// Same scenario but using Enter instead of Tab to leave the field
+	// Uses step 4 (GitHub Repo Creation checkbox step) which has conditional text fields
 	cfg := config.NewDefaultWizardConfig()
 	cfg.ProjectName = "test-project"
-	cfg.GithubCreateRepo = true
+	cfg.GithubCreateRepo = false  // Start disabled so Space enables it
 	cfg.UseLocalCopy = false
-	cfg.ConfigRepoCloneAuth = "ssh"
-	cfg.GitRemoteURL = "git@github.com:test/repo.git"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
-	// Navigate to SSH key content field
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
-
+	m = runInitStep(m, 4)  // Step 4: GitHub Repo Creation (checkbox step)
+	
+	// Enable "Create GitHub repo" checkbox to show conditional text field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	
+	// Tab to Git remote URL text field (first conditional field)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
 	sshKey := "line1\nline2\nline3"
 	m.pasteModeTextArea.SetValue(sshKey)
@@ -4169,61 +4231,60 @@ func TestPasteModeCheckboxEnterPreservesRawValueInConfig(t *testing.T) {
 	// Press Enter to move to next field
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
-	if m.config.ConfigRepoSSHKey != sshKey {
-		t.Errorf("config.ConfigRepoSSHKey corrupted after Enter!\nGot:  %q\nWant: %q", m.config.ConfigRepoSSHKey, sshKey)
+	if m.config.GitRemoteURL != sshKey {
+		t.Errorf("config.GitRemoteURL corrupted after Enter!\nGot:  %q\nWant: %q", m.config.GitRemoteURL, sshKey)
 	}
-	if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
-		t.Errorf("config.ConfigRepoSSHKey lost newlines after Enter: %q", m.config.ConfigRepoSSHKey)
+	if !strings.Contains(m.config.GitRemoteURL, "\n") {
+		t.Errorf("config.GitRemoteURL lost newlines after Enter: %q", m.config.GitRemoteURL)
 	}
 }
 
 func TestPasteModeCheckboxStepNavigationPreservesRawValue(t *testing.T) {
 	// Full round-trip: paste → Tab → advance to next step → Esc back → verify config
+	// Uses step 4 (GitHub Repo Creation checkbox step) which has conditional text fields
 	cfg := config.NewDefaultWizardConfig()
 	cfg.ProjectName = "test-project"
-	cfg.GithubCreateRepo = true
+	cfg.GithubCreateRepo = false  // Start disabled so Space enables it
 	cfg.UseLocalCopy = false
-	cfg.ConfigRepoCloneAuth = "ssh"
-	cfg.GitRemoteURL = "git@github.com:test/repo.git"
 	m := NewWizard(cfg)
-	m = runInitStep(m, 6)
+	m = runInitStep(m, 4)  // Step 4: GitHub Repo Creation (checkbox step)
 
-	// Navigate to SSH key content field
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})   // to SSH key content
+	// Enable "Create GitHub repo" checkbox to show conditional text field
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	
+	// Tab to Git remote URL text field (first conditional field)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlE})
 	sshKey := "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAA\n-----END OPENSSH PRIVATE KEY-----\n"
 	m.pasteModeTextArea.SetValue(sshKey)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyCtrlD})
 
-	// Tab to next field
+	// Tab to next field (there's only one conditional field, so this advances step)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
 
-	// Navigate to last text field and advance to next step
-	for m.currentField < len(m.textInputs) {
-		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	}
+	// Advance to next step
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	// Config must still have raw value after advancing
-	if m.config.ConfigRepoSSHKey != sshKey {
-		t.Errorf("config corrupted after advancing to next step: got %q", m.config.ConfigRepoSSHKey)
+	if m.config.GitRemoteURL != sshKey {
+		t.Errorf("config corrupted after advancing to next step: got %q", m.config.GitRemoteURL)
 	}
 
 	// Go back to step 4
-	if m.step == 15 {
+	if m.step == 5 {  // Step 5 is next after step 4
 		m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEsc})
-		if m.step == 14 {
-			// Navigate to SSH key field and verify
-			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyDown})
-			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+		if m.step == 4 {
+			// Navigate to checkbox and verify
+			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})  // uncheck
+			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})  // check again to show field
+			m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})    // tab to field
 
-			if m.config.ConfigRepoSSHKey != sshKey {
-				t.Errorf("config corrupted after round-trip: got %q", m.config.ConfigRepoSSHKey)
+			if m.config.GitRemoteURL != sshKey {
+				t.Errorf("config corrupted after round-trip: got %q", m.config.GitRemoteURL)
 			}
-			if !strings.Contains(m.config.ConfigRepoSSHKey, "\n") {
-				t.Errorf("config lost newlines after round-trip: got %q", m.config.ConfigRepoSSHKey)
+			if !strings.Contains(m.config.GitRemoteURL, "\n") {
+				t.Errorf("config lost newlines after round-trip: got %q", m.config.GitRemoteURL)
 			}
 		}
 	}
@@ -4282,7 +4343,7 @@ func TestStep2ConfigDirNotOverriddenWhenExplicitlySet(t *testing.T) {
 }
 
 // Fix 2: MultiField steps rebuild text inputs when conditions change (Step 6 clone auth)
-func TestStep6MultiFieldRebuildsOnAuthMethodChange(t *testing.T) {
+func TestStep6RadioRebuildsOnAuthMethodChange(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
@@ -4291,29 +4352,54 @@ func TestStep6MultiFieldRebuildsOnAuthMethodChange(t *testing.T) {
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
 
-	// With "none" auth, only 1 field should be visible (Clone auth method)
-	if len(m.textInputs) != 1 {
-		t.Errorf("initial textInputs count = %d, want 1", len(m.textInputs))
+	stepInfo := getStepInfo(6)
+	opts := stepInfo.getRadioOptions(m.config)
+
+	// Start with "none" (index 0)
+	noneIndex := -1
+	for i, opt := range opts {
+		if opt == "none" {
+			noneIndex = i
+			break
+		}
+	}
+	if noneIndex == -1 {
+		t.Fatal("none option not available")
+	}
+	m.radioIndex = noneIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
+
+	// With "none" auth, no conditional fields should be visible
+	if len(m.textInputs) != 0 {
+		t.Errorf("initial textInputs count = %d, want 0", len(m.textInputs))
 	}
 
-	// Type "github_app" in the clone auth method field
-	for _, ch := range "github_app" {
-		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
-		m, _ = updateWizard(m, msg)
+	// Change to "github_app" using arrow key (down)
+	ghAppIndex := -1
+	for i, opt := range opts {
+		if opt == "github_app" {
+			ghAppIndex = i
+			break
+		}
+	}
+	if ghAppIndex == -1 {
+		t.Fatal("github_app option not available")
 	}
 
-	// Press Enter to save and trigger rebuild
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	// Simulate down arrow key press
+	m.radioIndex = ghAppIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
 
-	// After entering "github_app", more fields should appear:
-	// Clone auth method, GitHub App ID, Installation ID, Private key = 4
-	// (since SecureExecDriver is "none", private key field is visible)
-	if len(m.textInputs) < 2 {
-		t.Errorf("after github_app textInputs count = %d, want >= 2 (fields should have been rebuilt)", len(m.textInputs))
+	// After switching to github_app, conditional fields should appear:
+	// GitHub App ID, Installation ID, Private key = 3
+	if len(m.textInputs) != 3 {
+		t.Errorf("after github_app textInputs count = %d, want 3", len(m.textInputs))
 	}
 }
 
-func TestStep6MultiFieldRebuildFromPatToGithubApp(t *testing.T) {
+func TestStep6RadioRebuildFromPatToGithubApp(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
@@ -4322,23 +4408,49 @@ func TestStep6MultiFieldRebuildFromPatToGithubApp(t *testing.T) {
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
 
-	// With "pat" auth, 2 fields: Clone auth method, PAT
-	if len(m.textInputs) != 2 {
-		t.Errorf("initial textInputs count for pat = %d, want 2", len(m.textInputs))
+	stepInfo := getStepInfo(6)
+	opts := stepInfo.getRadioOptions(m.config)
+
+	// Start with "pat"
+	patIndex := -1
+	for i, opt := range opts {
+		if opt == "pat" {
+			patIndex = i
+			break
+		}
+	}
+	if patIndex == -1 {
+		t.Fatal("pat option not available")
+	}
+	m.radioIndex = patIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
+
+	// With "pat" auth, PAT field should be visible = 1
+	if len(m.textInputs) != 1 {
+		t.Errorf("initial textInputs count for pat = %d, want 1", len(m.textInputs))
 	}
 
-	// Clear and type "github_app" in the clone auth method field
-	for _, ch := range "github_app" {
-		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
-		m, _ = updateWizard(m, msg)
+	// Change to "github_app" using arrow key
+	ghAppIndex := -1
+	for i, opt := range opts {
+		if opt == "github_app" {
+			ghAppIndex = i
+			break
+		}
+	}
+	if ghAppIndex == -1 {
+		t.Fatal("github_app option not available")
 	}
 
-	// Press Enter to save and trigger rebuild
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
+	m.radioIndex = ghAppIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
 
-	// After switching to github_app, more fields should appear
-	if len(m.textInputs) < 2 {
-		t.Errorf("after switching to github_app, textInputs count = %d, want >= 2", len(m.textInputs))
+	// After switching to github_app, conditional fields should appear:
+	// GitHub App ID, Installation ID, Private key = 3
+	if len(m.textInputs) != 3 {
+		t.Errorf("after github_app textInputs count = %d, want 3", len(m.textInputs))
 	}
 }
 
@@ -4354,109 +4466,104 @@ func TestStep6MultiFieldRebuildFromPatToGithubApp(t *testing.T) {
 // method field with value "github_app"). When currentField > 0, this line
 // overwrites the textinput at the current index with the one from index 0,
 // corrupting all other fields with the value "github_app".
-func TestStep6MultiFieldNoCorruptionAfterRebuild(t *testing.T) {
+func TestStep6RadioNoCorruptionAfterRebuild(t *testing.T) {
 	cfg := config.NewDefaultWizardConfig()
 	cfg.GithubCreateRepo = true
 	cfg.UseLocalCopy = false
-	cfg.GitRemoteURL = "https://github.com/user/repo.git"
+	cfg.GitRemoteURL = "git@github.com:user/repo.git"
 	cfg.ConfigRepoCloneAuth = "none"
 	cfg.SecureExecDriver = "" // empty so private key field is visible
 	m := NewWizard(cfg)
 	m = runInitStep(m, 6)
 
-	// With "none" auth, only 1 field: Clone auth method
-	if len(m.textInputs) != 1 {
-		t.Fatalf("initial textInputs count = %d, want 1", len(m.textInputs))
+	stepInfo := getStepInfo(6)
+	opts := stepInfo.getRadioOptions(m.config)
+
+	// Start with "none"
+	noneIndex := -1
+	for i, opt := range opts {
+		if opt == "none" {
+			noneIndex = i
+			break
+		}
+	}
+	if noneIndex == -1 {
+		t.Fatal("none option not available")
+	}
+	m.radioIndex = noneIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
+
+	// With "none" auth, no conditional fields
+	if len(m.textInputs) != 0 {
+		t.Fatalf("initial textInputs count = %d, want 0", len(m.textInputs))
 	}
 
-	// Step 1: Type "github_app" in field 0 (Clone auth method)
-	for _, ch := range "github_app" {
-		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
-		m, _ = updateWizard(m, msg)
+	// Change to "github_app"
+	ghAppIndex := -1
+	for i, opt := range opts {
+		if opt == "github_app" {
+			ghAppIndex = i
+			break
+		}
+	}
+	if ghAppIndex == -1 {
+		t.Fatal("github_app option not available")
+	}
+	m.radioIndex = ghAppIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
+
+	// Should have 3 fields: GitHub App ID, Installation ID, Private key
+	if len(m.textInputs) != 3 {
+		t.Fatalf("after github_app rebuild, textInputs count = %d, want 3", len(m.textInputs))
 	}
 
-	// Verify field 0 has "github_app"
-	if m.textInputs[0].Value() != "github_app" {
-		t.Errorf("field 0 after typing = %q, want %q", m.textInputs[0].Value(), "github_app")
-	}
-
-	// Step 2: Press Enter to save and trigger rebuild
-	// This changes ConfigRepoCloneAuth from "none" to "github_app", causing
-	// buildMultiFieldInputs to create 4 fields: auth method, App ID, Installation ID, Private key
+	// Press Enter to commit radio selection and switch to text input mode
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyEnter})
-
-	// After rebuild, should have 4 fields
-	if len(m.textInputs) != 4 {
-		t.Fatalf("after github_app rebuild, textInputs count = %d, want 4", len(m.textInputs))
+	if m.mode != modeTextInput {
+		t.Fatalf("mode = %v, want modeTextInput", m.mode)
+	}
+	if m.currentField != 0 {
+		t.Fatalf("currentField = %d, want 0", m.currentField)
 	}
 
-	// The auth method field (index 0) should still be "github_app"
-	if m.textInputs[0].Value() != "github_app" {
-		t.Errorf("field 0 after rebuild = %q, want %q", m.textInputs[0].Value(), "github_app")
-	}
-
-	// Step 3: Tab to field 1 (App ID) and type a value
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	if m.currentField != 1 {
-		t.Fatalf("currentField after Tab = %d, want 1", m.currentField)
-	}
-
+	// Type a value in GitHub App ID (field 0)
 	for _, ch := range "123423" {
 		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
 		m, _ = updateWizard(m, msg)
 	}
 
-	// Step 4: Press Tab to move to field 2 (Installation ID)
-	// This triggers saveCurrentFieldValue which saves "123423" to config,
-	// then buildMultiFieldInputs which rebuilds the text inputs.
-	// Before the fix, the line m.textInputs[m.currentField] = m.textInput
-	// would overwrite field 1 with field 0's value ("github_app").
+	// Save the value to config by pressing Tab (moves to next field and saves)
 	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	if m.currentField != 2 {
-		t.Fatalf("currentField after second Tab = %d, want 2", m.currentField)
+	if m.currentField != 1 {
+		t.Fatalf("currentField after Tab = %d, want 1", m.currentField)
 	}
 
-	// Verify field 1 (App ID) still has "123423" — NOT "github_app"
-	gotField1 := m.textInputs[1].Value()
-	if gotField1 != "123423" {
-		t.Errorf("field 1 (App ID) after Tab to field 2 = %q, want %q (BUG: value was corrupted by rebuild)", gotField1, "123423")
+	// Switch to "ssh" and back to "github_app" - this rebuilds conditional fields
+	sshIndex := -1
+	for i, opt := range opts {
+		if opt == "ssh" {
+			sshIndex = i
+			break
+		}
 	}
-
-	// Step 5: Type in field 2 (Installation ID)
-	for _, ch := range "5624523" {
-		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}}
-		m, _ = updateWizard(m, msg)
+	if sshIndex == -1 {
+		t.Fatal("ssh option not available")
 	}
+	m.radioIndex = sshIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
 
-	// Step 6: Press Tab to move to field 3 (Private key)
-	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
-	if m.currentField != 3 {
-		t.Fatalf("currentField after third Tab = %d, want 3", m.currentField)
-	}
+	// Now back to "github_app"
+	m.radioIndex = ghAppIndex
+	stepInfo.radioSetter(m.config, opts[m.radioIndex])
+	m.buildRadioTextInputs(stepInfo)
 
-	// Verify all previous fields still have correct values
+	// Verify field 0 (GitHub App ID) still has "123423" - NOT corrupted
 	gotField0 := m.textInputs[0].Value()
-	if gotField0 != "github_app" {
-		t.Errorf("field 0 (auth method) = %q, want %q", gotField0, "github_app")
-	}
-	gotField1 = m.textInputs[1].Value()
-	if gotField1 != "123423" {
-		t.Errorf("field 1 (App ID) = %q, want %q (BUG: value was corrupted)", gotField1, "123423")
-	}
-	gotField2 := m.textInputs[2].Value()
-	if gotField2 != "5624523" {
-		t.Errorf("field 2 (Installation ID) = %q, want %q (BUG: value was corrupted)", gotField2, "5624523")
-	}
-
-	// Also verify config values were saved correctly
-	if m.config.ConfigRepoCloneAuth != "github_app" {
-		t.Errorf("config.ConfigRepoCloneAuth = %q, want %q", m.config.ConfigRepoCloneAuth, "github_app")
-	}
-	if m.config.ConfigRepoGHAppID != "123423" {
-		t.Errorf("config.ConfigRepoGHAppID = %q, want %q", m.config.ConfigRepoGHAppID, "123423")
-	}
-	if m.config.ConfigRepoGHInstallID != "5624523" {
-		t.Errorf("config.ConfigRepoGHInstallID = %q, want %q", m.config.ConfigRepoGHInstallID, "5624523")
+	if gotField0 != "123423" {
+		t.Errorf("field 0 (GitHub App ID) after switching radio options = %q, want %q (BUG: value was corrupted by rebuild)", gotField0, "123423")
 	}
 }
 
@@ -4500,5 +4607,45 @@ func TestStep5VaultAddrOnlyField(t *testing.T) {
 	// The remaining field should be Vault address
 	if !strings.Contains(m.textInputs[0].Placeholder, "vault") {
 		t.Errorf("Remaining field should be Vault address, got placeholder: %s", m.textInputs[0].Placeholder)
+	}
+}
+
+func TestDebugStep4(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = false
+	m := NewWizard(cfg)
+	m = runInitStep(m, 4)
+	
+	// Check what step we're actually on
+	t.Logf("Step: %d", m.step)
+	t.Logf("Mode: %d", m.mode)
+	t.Logf("View: %s", m.View())
+}
+
+
+func TestDebugPasteMode3(t *testing.T) {
+	cfg := config.NewDefaultWizardConfig()
+	cfg.GithubCreateRepo = false
+	t.Logf("Config GithubCreateRepo: %v", cfg.GithubCreateRepo)
+	
+	m := NewWizard(cfg)
+	t.Logf("After NewWizard: %v", m.config.GithubCreateRepo)
+	
+	m = runInitStep(m, 4)
+	t.Logf("After runInitStep(4): step=%d, GithubCreateRepo=%v", m.step, m.config.GithubCreateRepo)
+	t.Logf("View:\n%s", m.View())
+	
+	// Enable "Create GitHub repo" to show text fields
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeySpace})
+	t.Logf("After Space: step=%d, currentField=%d, GithubCreateRepo=%v", m.step, m.currentField, m.config.GithubCreateRepo)
+	t.Logf("View:\n%s", m.View())
+	
+	// Move to text input (field 1 - Git remote URL)
+	m, _ = updateWizard(m, tea.KeyMsg{Type: tea.KeyTab})
+	t.Logf("After Tab: step=%d, currentField=%d", m.step, m.currentField)
+	t.Logf("View:\n%s", m.View())
+	
+	if !strings.Contains(m.View(), "ctrl+e=paste mode") {
+		t.Errorf("View() should contain 'ctrl+e=paste mode' hint")
 	}
 }

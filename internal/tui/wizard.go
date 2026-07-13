@@ -77,6 +77,7 @@ type WizardModel struct {
 	pasteModeFieldIdx int // which textInputs index is being edited in paste mode
 	pasteModeOldValue string // original value before paste mode, restored on cancel
 	rawFieldValues map[string]string // stores multi-line values that textinput cannot display
+	checkboxJustEnabledTextInputs bool // set when Space toggles checkbox on and creates text inputs
 }
 
 // stepCount is the total number of wizard steps (used for progress).
@@ -244,14 +245,14 @@ func (m *WizardModel) buildRadioTextInputs(stepInfo *stepInfo) {
 // findRadioIndex finds the index of the currently selected radio option.
 func (m *WizardModel) findRadioIndex(info *stepInfo) int {
 	val := info.radioGetter(m.config)
-	for i, opt := range info.radioOptions {
+	options := info.getRadioOptions(m.config)
+	for i, opt := range options {
 		if opt == val {
 			return i
 		}
 	}
 	return 0
 }
-
 // normalizeSpaceKey converts a KeySpace message to KeyRunes with a space
 // character, so that textinput.Model (which uses msg.Runes) correctly
 // inserts a space.
@@ -651,30 +652,35 @@ func (m *WizardModel) handleRadioSelect(msg tea.Msg, stepInfo *stepInfo) (tea.Mo
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k":
+			options := stepInfo.getRadioOptions(m.config)
 			if m.radioIndex > 0 {
 				m.radioIndex--
 				// Tentatively apply the selection and rebuild text inputs
-				stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
+				stepInfo.radioSetter(m.config, options[m.radioIndex])
 				m.buildRadioTextInputs(stepInfo)
 			}
 			return m, nil
 		case "down", "j":
-			if m.radioIndex < len(stepInfo.radioOptions)-1 {
+			options := stepInfo.getRadioOptions(m.config)
+			if m.radioIndex < len(options)-1 {
 				m.radioIndex++
 				// Tentatively apply the selection and rebuild text inputs
-				stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
+				stepInfo.radioSetter(m.config, options[m.radioIndex])
 				m.buildRadioTextInputs(stepInfo)
 			}
 			return m, nil
 		case "enter", "tab":
+			options := stepInfo.getRadioOptions(m.config)
 			// Commit the selection
-			stepInfo.radioSetter(m.config, stepInfo.radioOptions[m.radioIndex])
+			stepInfo.radioSetter(m.config, options[m.radioIndex])
 			// Rebuild text inputs to reflect the committed selection
 			m.buildRadioTextInputs(stepInfo)
 			m.validationErr = ""
 			m.saveMsg = ""
 			// If there are visible conditional fields, switch to text input mode
 			if len(m.textInputs) > 0 {
+				m.mode = modeTextInput
+				m.currentField = 0
 				m.mode = modeTextInput
 				m.currentField = 0
 				m.textInput = m.textInputs[0]
@@ -754,6 +760,10 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 						cb.setValue(m.config, !current)
 						// Rebuild text inputs since conditions may have changed
 						m.buildCheckboxTextInputs(stepInfo)
+					// If text inputs were created by this toggle, set flag so Tab moves to text input
+					if len(m.textInputs) > 0 {
+						m.checkboxJustEnabledTextInputs = true
+					}
 						break
 					}
 					visibleIdx++
@@ -840,6 +850,17 @@ func (m *WizardModel) handleCheckboxSelect(msg tea.Msg, stepInfo *stepInfo) (tea
 		case "tab":
 			if m.currentField == 0 {
 				// On checkboxes: move to next checkbox or to text fields (no toggle)
+				// If Space just enabled text inputs, move to text input instead of next checkbox
+				if m.checkboxJustEnabledTextInputs {
+					m.checkboxJustEnabledTextInputs = false
+					if len(m.textInputs) > 0 {
+						m.currentField = 1
+						m.textInput = m.textInputs[0]
+						m.textInput.Focus()
+						m.textInputs[0] = m.textInput
+						return m, nil
+					}
+				}
 				visibleCount := m.visibleCheckboxCount(stepInfo)
 				if m.checkboxIndex < visibleCount-1 {
 					m.checkboxIndex++
@@ -1159,7 +1180,8 @@ func (m *WizardModel) renderRadioSelection(stepInfo *stepInfo) string {
 	var b strings.Builder
 	b.WriteString(LabelStyle.Render(stepInfo.radioLabel + ":"))
 	b.WriteString("\n")
-	for i, opt := range stepInfo.radioOptions {
+	options := stepInfo.getRadioOptions(m.config)
+	for i, opt := range options {
 		if i == m.radioIndex {
 			b.WriteString(SelectedItemStyle.Render("  ● "))
 			b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)).Render(opt))
@@ -1171,9 +1193,6 @@ func (m *WizardModel) renderRadioSelection(stepInfo *stepInfo) string {
 	}
 	return b.String()
 }
-
-// renderCheckboxSelection renders the checkbox options.
-// Used by both modeCheckboxSelect and modeTextInput (for checkbox steps with conditional fields).
 func (m *WizardModel) renderCheckboxSelection(stepInfo *stepInfo, dimmed bool) string {
 	var b strings.Builder
 	b.WriteString(LabelStyle.Render(stepInfo.checkboxLabel + ":"))
